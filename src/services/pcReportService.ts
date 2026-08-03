@@ -1,27 +1,25 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/apiClient';
 import type { PcReportSheet } from '@/types/sheets';
 
 /**
  * PC Report Service
- * Handles all Supabase operations for the PC Report component.
+ * Handles all REST API operations for the PC Report component via master-backend
  */
 
 /**
- * Fetch all PC report records from Supabase
+ * Fetch all PC report records from master-backend (/api/store/entity/pc_report)
  */
 export async function fetchPcReportRecords(): Promise<PcReportSheet[]> {
     try {
-        const { data, error } = await supabase
-            .from('pc_report')
-            .select('stage, total_pending, total_complete, pending_pmpl, pending_purab, pending_pmmpl, pending_refrasynth, created_at')
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
+        const res: any = await apiClient.get('/store/entity/pc_report', {
+            params: { order: 'created_at.desc' },
+        });
+        const data = res.data || [];
 
         // Deduplicate by stage – keep only the most recent record for each stage
-        const uniqueStages = new Map<string, any>();
+        const uniqueStages = new Map<string, PcReportSheet>();
         
-        (data || []).forEach((r: any) => {
+        data.forEach((r: any) => {
             if (r.stage && !uniqueStages.has(r.stage)) {
                 uniqueStages.set(r.stage, {
                     stage: r.stage || '',

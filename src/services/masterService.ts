@@ -46,7 +46,7 @@ export interface MasterData {
     siteEngineers: { name: string; number: string; email: string }[];
     contractors: { contractorName: string; contractorGstin: string; contractorAddress: string; contractorEmail: string; responsiblePerson: string; location: string; phone: string }[];
     siteLocations: string[];
-    firmCompanyMap: Record<string, { companyName: string; companyAddress: string; destinationAddress: string; companyContactPerson: string; billingAddress?: string; }>;
+    firmCompanyMap: Record<string, { companyName: string; companyAddress: string; destinationAddress: string; companyContactPerson?: string; billingAddress?: string; companyGstin?: string; companyPan?: string; }>;
 }
 
 
@@ -55,6 +55,13 @@ export interface MasterData {
  */
 export async function fetchMasterOptions(permittedFirms?: string[]): Promise<MasterData> {
     try {
+        // 0. Fetch Primary Company record directly
+        const { data: directCompanyRows } = await supabase
+            .from('company')
+            .select('*')
+            .order('id', { ascending: true });
+        const primaryCompany = (directCompanyRows || [])[0] || null;
+
         // 1. Fetch Firms and Companies
         const { data: firmData, error: firmError } = await supabase
             .from('firm')
@@ -111,6 +118,8 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             .select(`
                 id,
                 item_name,
+                firm_id,
+                firm:firm_id ( firm_name ),
                 group_head:group_head_id ( name ),
                 uom:uom_id ( name )
             `)
@@ -179,15 +188,17 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             firms.push(firmName);
             firmObjects.push({ id: firmId, name: firmName });
             
-            const company = f.company || {};
-            if (!firstCompany && company.company_name) firstCompany = company;
+            const company = (f.company && f.company.company_name) ? f.company : (primaryCompany || {});
+            if (!firstCompany && company?.company_name) firstCompany = company;
 
             firmCompanyMap[firmName] = {
-                companyName: company.company_name || '',
-                companyAddress: company.address || '',
-                destinationAddress: f.destination_address || company.destination_address || '',
-                companyContactPerson: f.contact_person || company.contact_person || '',
-                billingAddress: f.billing_address || company.billing_address || '',
+                companyName: company.company_name || primaryCompany?.company_name || firstCompany?.company_name || '',
+                companyAddress: company.billing_address || company.address || primaryCompany?.billing_address || primaryCompany?.address || firstCompany?.billing_address || firstCompany?.address || '',
+                destinationAddress: f.destination_address || company.destination_address || primaryCompany?.destination_address || '',
+                companyContactPerson: f.contact_person || company.contact_person || primaryCompany?.contact_person || firstCompany?.contact_person || '',
+                billingAddress: company.billing_address || company.address || primaryCompany?.billing_address || primaryCompany?.address || firstCompany?.billing_address || firstCompany?.address || '',
+                companyGstin: company.gstin || primaryCompany?.gstin || firstCompany?.gstin || '',
+                companyPan: company.pan || primaryCompany?.pan || firstCompany?.pan || '',
             };
         });
 
@@ -195,9 +206,9 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         firmObjects.sort((a, b) => a.name.localeCompare(b.name));
 
 
-        const uoms = (uomData || []).map(u => u.name).filter(Boolean);
-        const areaOfUses = (aouData || []).map(a => a.name).filter(Boolean);
-        const allGroupHeads = (ghData || []).map(g => g.name).filter(Boolean);
+        const uoms = (uomData || []).map((u: any) => u.name).filter(Boolean);
+        const areaOfUses = (aouData || []).map((a: any) => a.name).filter(Boolean);
+        const allGroupHeads = (ghData || []).map((g: any) => g.name).filter(Boolean);
         const departments = (departmentData || []).map((d: any) => d.name).filter(Boolean);
         const defaultTerms = (defaultTermsData || []).map((t: any) => t.term_text).filter(Boolean);
 
@@ -221,7 +232,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         });
 
         // Vendors
-        const vendors = (vendorData || []).map(v => ({
+        const vendors = (vendorData || []).map((v: any) => ({
             vendorName: v.vendor_name,
             gstin: v.gstin || '',
             address: v.address || '',
@@ -230,7 +241,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             personName: v.person_name || '',
             phone: v.phone || '',
         }));
-        const vendorNames = vendors.map(v => v.vendorName);
+        const vendorNames = vendors.map((v: any) => v.vendorName);
 
         return {
             groupHeads: groupHeadsMap,
@@ -244,20 +255,20 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             firmsnames: firms,
 
             fmsNames: [],
-            paymentTerms: Array.from(new Set(vendors.map(v => v.paymentTerm).filter(Boolean))),
+            paymentTerms: Array.from(new Set(vendors.map((v: any) => v.paymentTerm).filter(Boolean))),
             departments,
             locations: [],
             vendors,
             vendorNames,
-            companyName: firstCompany?.company_name || '',
-            companyAddress: firstCompany?.address || '',
-            companyEmail: firstCompany?.email || '',
-            companyGstin: firstCompany?.gstin || '',
-            companyPhone: firstCompany?.phone || '',
-            billingAddress: firstCompany?.billing_address || '',
-            companyPan: firstCompany?.pan || '',
-            destinationAddress: firstCompany?.destination_address || '',
-            companyContactPerson: firstCompany?.contact_person || '',
+            companyName: primaryCompany?.company_name || firstCompany?.company_name || '',
+            companyAddress: primaryCompany?.address || primaryCompany?.billing_address || firstCompany?.address || '',
+            companyEmail: primaryCompany?.email || firstCompany?.email || '',
+            companyGstin: primaryCompany?.gstin || firstCompany?.gstin || '',
+            companyPhone: primaryCompany?.phone || firstCompany?.phone || '',
+            billingAddress: primaryCompany?.billing_address || primaryCompany?.address || firstCompany?.billing_address || '',
+            companyPan: primaryCompany?.pan || firstCompany?.pan || '',
+            destinationAddress: primaryCompany?.destination_address || primaryCompany?.address || firstCompany?.destination_address || '',
+            companyContactPerson: primaryCompany?.contact_person || firstCompany?.contact_person || '',
             areaOfUses,
             siteEngineers,
             contractors,
@@ -327,12 +338,12 @@ export async function fetchMasterRecords(): Promise<any[]> {
             supabase.from('uom').select('id, name').order('name'),
             supabase.from('area_of_use').select('id, name').order('name'),
             supabase.from('vendors').select('id, vendor_name, gstin, address, email, payment_term, person_name, phone, location').order('vendor_name'),
-            supabase.from('item').select('*, group_head:group_head_id(name), uom:uom_id(name)').order('item_name'),
+            supabase.from('item').select('*, group_head:group_head_id(name), uom:uom_id(name), firm:firm_id(firm_name)').order('item_name'),
             supabase.from('department').select('id, name').order('name'),
             supabase.from('default_po_terms').select('id, term_text, sort_order').order('sort_order', { ascending: true }),
         ]);
 
-        const firstError = [companies, firms, groupHeads, uoms, areaOfUses, vendors, items, departments, defaultTerms].find(result => result.error)?.error;
+        const firstError = [companies, firms, groupHeads, uoms, areaOfUses, vendors, items, departments, defaultTerms].find((result: any) => result.error)?.error;
         if (firstError) throw firstError;
 
         return [
@@ -383,10 +394,16 @@ export async function fetchMasterRecords(): Promise<any[]> {
                 id: i.id,
                 __table: 'item',
                 item_name: i.item_name,
+                firm_id: i.firm_id,
+                firm_name: i.firm?.firm_name || i.firm_name,
                 group_head: i.group_head?.name,
                 uom: i.uom?.name,
-                regular_conditions: i.regular_pay_condition || [],
-                third_party_conditions: i.third_party_pay_condition || [],
+                regular_conditions: typeof i.regular_pay_condition === 'string' && i.regular_pay_condition
+                    ? i.regular_pay_condition.split(',').map((s: string) => s.trim()).filter(Boolean)
+                    : (Array.isArray(i.regular_pay_condition) ? i.regular_pay_condition : []),
+                third_party_conditions: typeof i.third_party_pay_condition === 'string' && i.third_party_pay_condition
+                    ? i.third_party_pay_condition.split(',').map((s: string) => s.trim()).filter(Boolean)
+                    : (Array.isArray(i.third_party_pay_condition) ? i.third_party_pay_condition : []),
             })),
             ...(departments.data || []).map((d: any) => ({ id: d.id, __table: 'department', department: d.name })),
             ...(defaultTerms.data || []).map((t: any) => ({
@@ -432,8 +449,11 @@ async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: nu
         return id ? supabase.from('company').update(payload).eq('id', id) : supabase.from('company').insert(payload);
     }
 
-    if ('firm_name' in values) {
-        const payload = { firm_name: values.firm_name };
+    if ('firm_name' in values && !('item_name' in values)) {
+        const payload = {
+            firm_name: values.firm_name,
+            destination_address: values.destination_address || null,
+        };
         return id ? supabase.from('firm').update(payload).eq('id', id) : supabase.from('firm').insert(payload);
     }
 
@@ -497,13 +517,32 @@ async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: nu
 
         const groupHeadId = await findOrCreateLookupId('group_head', values.group_head);
         const uomId = await findOrCreateLookupId('uom', values.uom);
-        const normalizeConditions = (conditions: any) => Array.isArray(conditions)
-            ? conditions.map((condition: any) => String((condition?.value ?? condition) || '').trim()).filter(Boolean)
-            : [];
+
+        let firmId: number | null = null;
+        const parsedFirmId = values.firm_id ? Number(values.firm_id) : NaN;
+        if (!isNaN(parsedFirmId) && parsedFirmId > 0) {
+            firmId = parsedFirmId;
+        } else if (values.firm_name && String(values.firm_name).trim()) {
+            const { data: firmRecord } = await supabase
+                .from('firm')
+                .select('id')
+                .eq('firm_name', String(values.firm_name).trim())
+                .maybeSingle();
+            if (firmRecord?.id) {
+                firmId = Number(firmRecord.id);
+            }
+        }
+
+        const normalizeConditions = (conditions: any): string | null => {
+            if (!Array.isArray(conditions)) return null;
+            const items = conditions.map((condition: any) => String((condition?.value ?? condition) || '').trim()).filter(Boolean);
+            return items.length > 0 ? items.join(',') : null;
+        };
         const payload = {
             item_name: values.item_name,
             group_head_id: groupHeadId,
             uom_id: uomId,
+            firm_id: firmId,
             regular_pay_condition: normalizeConditions(values.regular_conditions),
             third_party_pay_condition: normalizeConditions(values.third_party_conditions),
         };

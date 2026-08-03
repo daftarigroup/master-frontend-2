@@ -275,7 +275,7 @@ export type MasterSheet = {
     areaOfUses: string[];
     allGroupHeads: string[];
 
-    firmCompanyMap: Record<string, { companyName: string; companyAddress: string; destinationAddress: string; companyContactPerson: string; billingAddress?: string; }>;
+    firmCompanyMap: Record<string, { companyName: string; companyAddress: string; destinationAddress: string; companyContactPerson?: string; billingAddress?: string; companyGstin?: string; companyPan?: string; }>;
     siteEngineers: { name: string; number: string; email: string }[];
     contractors: { contractorName: string; contractorGstin: string; contractorAddress: string; contractorEmail: string; responsiblePerson: string; location: string; phone: string }[];
     siteLocations: string[];
@@ -532,6 +532,15 @@ export type StoreInSheet = {
     firmNameMatch: string;
     firm_id?: number;
     location: string;
+    site_engineer_name?: string;
+    site_engineer_email?: string;
+    site_engineer_phoneNo?: string;
+    site_engineer_name_2?: string;
+    site_engineer_email_2?: string;
+    site_engineer_phoneNo_2?: string;
+    siteEngineerName2?: string;
+    siteEngineerEmail2?: string;
+    siteEngineerPhoneNo2?: string;
 
     hodStatus: string;
     hodRemark: string;

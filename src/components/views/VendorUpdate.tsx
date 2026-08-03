@@ -23,54 +23,30 @@ import { Label } from '../ui/label';
 import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Tabs, TabsContent } from '../ui/tabs';
-import { UserCheck, PenSquare, X, Search, UserCog } from 'lucide-react';
+import { UserCheck, PenSquare, CheckSquare, X, Search, UserCog } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { applyFirmAccessFilter } from '@/lib/firmAccess';
+import { supabase } from '@/lib/supabase'; // Only used for comparison_sheet file upload (Storage)
+import {
+    fetchPendingVendorUpdates,
+    fetchCompletedVendorUpdates,
+    fetchIndentQuotes,
+    updateVendorRateRegular,
+    updateVendorRateThreeParty,
+    updateVendorHistoryFields,
+    type VendorPendingRecord,
+    type VendorHistoryRecord,
+    type IndentQuote,
+} from '@/services/vendorUpdateService';
 
 
-interface VendorUpdateData {
-    id: number;
-    indentNo: string;
-    firmNameMatch?: string;
-    indenter: string;
-    // department: string;
-    product: string;
-    quantity: number;
-    uom: string;
-    vendorType: 'Three Party' | 'Regular';
-    planned2: string;
-    actual2: string;
-    specifications: string;
-}
 
-interface HistoryData {
-    id: number;
-    indentNo: string;
-    indenter: string;
-    // department: string;
-    product: string;
-    quantity: number;
-    uom: string;
-    rate: number;
-    vendorType: 'Three Party' | 'Regular';
-    date: string;
-    planned2: string;
-    actual2: string;
-    specifications: string;
-    firmNameMatch?: string;
-    // For Three Party
-    vendorName1?: string;
-    rate1?: number;
-    vendorName2?: string;
-    rate2?: number;
-    vendorName3?: string;
-    rate3?: number;
-    actual4?: string;
-}
+
+// Type aliases for local use — imported from vendorUpdateService
+type VendorUpdateData = VendorPendingRecord;
+type HistoryData = VendorHistoryRecord;
 
 export default () => {
     const { masterSheet: options } = useSheets();
@@ -97,7 +73,7 @@ export default () => {
     const [selectedHistoryUOM, setSelectedHistoryUOM] = useState<string>('');
     const [historySearchQuery, setHistorySearchQuery] = useState<string>('');
     const [searchTermVendor, setSearchTermVendor] = useState('');
-    const [indentQuotes, setIndentQuotes] = useState<any[]>([]);
+    const [indentQuotes, setIndentQuotes] = useState<IndentQuote[]>([]);
     const normalizeVendorKey = (value?: string) => (value || '').trim().toLowerCase();
     const hasVendorRate = (quote: any) => Number(quote?.vendor_rate) > 0;
     const findQuoteByVendorName = (vendorName?: string) => {
@@ -118,46 +94,13 @@ export default () => {
 
 
 
-    // Fetch pending vendor updates from Supabase
-    const fetchPendingVendorUpdates = async () => {
-        if (!supabaseEnabled) return;
+    // Fetch pending vendor updates from backend API
+    const loadPendingVendorUpdates = async () => {
         try {
             setDataLoading(true);
-            let query = supabase
-                .from('indent')
-                .select('id, indent_number, firm_name, firm_id, indenter_name, product_name, approved_quantity, uom, vendor_type, planned2, actual2, specifications')
-                .not('planned2', 'is', null)
-                .is('actual2', null);
-
-            const filteredQuery = applyFirmAccessFilter(query, user?.firm_access);
-            if (!filteredQuery) {
-                setTableData([]);
-                setFilteredTableData([]);
-                return;
-            }
-
-            const { data, error } = await filteredQuery.order('indent_number', { ascending: false });
-
-            if (error) throw error;
-
-            const rows = (data ?? []) as any[];
-            const mappedData = rows.map((r) => ({
-                id: r.id,
-                indentNo: r.indent_number || '',
-                firmNameMatch: r.firm_name || '',
-                indenter: r.indenter_name || '',
-                // department: r.department || '',
-                product: r.product_name || '',
-                quantity: r.approved_quantity || 0,
-                uom: r.uom || '',
-                vendorType: (r.vendor_type || 'Regular') as VendorUpdateData['vendorType'],
-                planned2: r.planned2 || '',
-                actual2: r.actual2 || '',
-                specifications: r.specifications || '',
-            }));
-
-            setTableData(mappedData);
-            setFilteredTableData(mappedData);
+            const data = await fetchPendingVendorUpdates(user?.firm_access);
+            setTableData(data);
+            setFilteredTableData(data);
         } catch (err) {
             console.error('Error fetching pending vendor updates:', err);
             toast.error('Failed to fetch pending vendor updates');
@@ -166,58 +109,13 @@ export default () => {
         }
     };
 
-    // Fetch completed vendor updates from Supabase
-    const fetchCompletedVendorUpdates = async () => {
-        if (!supabaseEnabled) return;
-
+    // Fetch completed vendor updates from backend API
+    const loadCompletedVendorUpdates = async () => {
         try {
             setDataLoading(true);
-            let query = supabase
-                .from('indent')
-                .select('id, timestamp, indent_number, firm_name, firm_id, indenter_name, product_name, approved_quantity, quantity, uom, vendor_type, planned2, actual2, specifications, approved_rate, rate1, vendor_name1, rate2, vendor_name2, rate3, vendor_name3, payment_term1, actual4')
-                .not('planned2', 'is', null)
-                .not('actual2', 'is', null);
-
-            const filteredQuery = applyFirmAccessFilter(query, user?.firm_access);
-            if (!filteredQuery) {
-                setHistoryData([]);
-                setFilteredHistoryData([]);
-                return;
-            }
-
-            const { data, error } = await filteredQuery.order('indent_number', { ascending: false });
-
-            if (error) throw error;
-
-            const rows = (data ?? []) as any[];
-            const mappedData = rows.map((r): HistoryData => ({
-                id: r.id,
-                date: formatDate(new Date(r.actual2)),
-                indentNo: r.indent_number || '',
-                firmNameMatch: r.firm_name || '',
-                indenter: r.indenter_name || '',
-                // department: r.department || '',
-                product: r.product_name || '',
-                quantity: r.approved_quantity || r.quantity || 0,
-                uom: r.uom || '',
-                rate: (r.vendor_type === 'Three Party')
-                    ? (parseFloat(r.approved_rate) || 0)
-                    : (parseFloat(r.approved_rate) || parseFloat(r.rate1) || 0),
-                vendorType: (r.vendor_type || 'Regular') as HistoryData['vendorType'],
-                planned2: r.planned2 || '',
-                actual2: r.actual2 || '',
-                specifications: r.specifications || '',
-                vendorName1: r.vendor_name1 || '',
-                rate1: parseFloat(r.rate1) || 0,
-                vendorName2: r.vendor_name2 || '',
-                rate2: parseFloat(r.rate2) || 0,
-                vendorName3: r.vendor_name3 || '',
-                rate3: parseFloat(r.rate3) || 0,
-                actual4: r.actual4 || '',
-            }));
-
-            setHistoryData(mappedData);
-            setFilteredHistoryData(mappedData);
+            const data = await fetchCompletedVendorUpdates(user?.firm_access);
+            setHistoryData(data);
+            setFilteredHistoryData(data);
         } catch (err) {
             console.error('Error fetching completed vendor updates:', err);
             toast.error('Failed to fetch completed vendor updates');
@@ -226,22 +124,11 @@ export default () => {
         }
     };
 
-    const fetchIndentQuotes = async () => {
+    const loadIndentQuotes = async () => {
         if (!selectedIndent) return;
         try {
-            const { data, error } = await supabase
-                .from('quotation_history')
-                .select('*')
-                .eq('indentNo', selectedIndent.indentNo);
-
-            if (error) throw error;
-            
-            // Filter by product in JS to be more robust with trimming
-            const filteredData = (data || []).filter(q => 
-                q.product?.trim().toLowerCase() === selectedIndent.product?.trim().toLowerCase()
-            );
-            
-            setIndentQuotes(filteredData);
+            const data = await fetchIndentQuotes(selectedIndent.indentNo, selectedIndent.product);
+            setIndentQuotes(data);
         } catch (err) {
             console.error('Error fetching indent quotes:', err);
         }
@@ -249,16 +136,16 @@ export default () => {
 
     useEffect(() => {
         if (selectedIndent && openDialog) {
-            fetchIndentQuotes();
+            loadIndentQuotes();
         } else {
             setIndentQuotes([]);
         }
     }, [selectedIndent, openDialog]);
 
-    // Fetch data on mount and when Project Name changes
+    // Fetch data on mount and when firm access changes
     useEffect(() => {
-        fetchPendingVendorUpdates();
-        fetchCompletedVendorUpdates();
+        loadPendingVendorUpdates();
+        loadCompletedVendorUpdates();
     }, [user.firm_access]);
 
     // Filter pending data by date, UOM, and search query
@@ -266,19 +153,19 @@ export default () => {
         let filtered = [...tableData];
 
         if (selectedDate) {
-            filtered = filtered.filter(item => {
+            filtered = filtered.filter((item: any) => {
                 const itemDate = new Date(item.planned2).toISOString().split('T')[0];
                 return itemDate === selectedDate;
             });
         }
 
         if (selectedUOM && selectedUOM !== '__all__') {
-            filtered = filtered.filter(item => item.uom === selectedUOM);
+            filtered = filtered.filter((item: any) => item.uom === selectedUOM);
         }
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(item =>
+            filtered = filtered.filter((item: any) =>
                 item.indentNo.toLowerCase().includes(query) ||
                 item.firmNameMatch?.toLowerCase().includes(query) ||
                 item.indenter.toLowerCase().includes(query) ||
@@ -296,19 +183,19 @@ export default () => {
         let filtered = [...historyData];
 
         if (selectedHistoryDate) {
-            filtered = filtered.filter(item => {
+            filtered = filtered.filter((item: any) => {
                 const itemDate = new Date(item.actual2).toISOString().split('T')[0];
                 return itemDate === selectedHistoryDate;
             });
         }
 
         if (selectedHistoryUOM && selectedHistoryUOM !== '__all__') {
-            filtered = filtered.filter(item => item.uom === selectedHistoryUOM);
+            filtered = filtered.filter((item: any) => item.uom === selectedHistoryUOM);
         }
 
         if (historySearchQuery.trim()) {
             const query = historySearchQuery.toLowerCase();
-            filtered = filtered.filter(item =>
+            filtered = filtered.filter((item: any) =>
                 item.indentNo.toLowerCase().includes(query) ||
                 item.firmNameMatch?.toLowerCase().includes(query) ||
                 item.indenter.toLowerCase().includes(query) ||
@@ -322,8 +209,8 @@ export default () => {
     }, [selectedHistoryDate, selectedHistoryUOM, historySearchQuery, historyData]);
 
     // Get unique UOMs for filter dropdown
-    const uniqueUOMs = Array.from(new Set(tableData.map(item => item.uom))).sort();
-    const uniqueHistoryUOMs = Array.from(new Set(historyData.map(item => item.uom))).sort();
+    const uniqueUOMs = Array.from(new Set(tableData.map((item: any) => item.uom))).sort();
+    const uniqueHistoryUOMs = Array.from(new Set(historyData.map((item: any) => item.uom))).sort();
 
     const handleEditClick = (row: HistoryData) => {
         setEditingRow(row.id);
@@ -341,21 +228,14 @@ export default () => {
 
     const handleSaveEdit = async (id: number) => {
         try {
-            const updates = {
+            await updateVendorHistoryFields(editingRow!, {
                 approved_quantity: editValues.quantity,
                 uom: editValues.uom,
                 vendor_type: editValues.vendorType,
-            };
-
-            const { error } = await supabase
-                .from('indent')
-                .update(updates)
-                .eq('id', editingRow);
-
-            if (error) throw error;
+            });
 
             toast.success(`Updated indent ${id}`);
-            fetchCompletedVendorUpdates();
+            await loadCompletedVendorUpdates();
             setEditingRow(null);
             setEditValues({});
         } catch (err) {
@@ -407,32 +287,32 @@ export default () => {
 
     // Creating table columns
     const columns: ColumnDef<VendorUpdateData>[] = [
-        ...(user.updateVendorAction
-            ? [
-                {
-                    header: 'Action',
-                    cell: ({ row }: { row: Row<VendorUpdateData> }) => {
-                        const indent = row.original;
-                        return (
-                            <div onClick={(e) => e.stopPropagation()}>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        setSelectedIndent(indent);
-                                        setDialogStep(1);
-                                        setAmountToDetermineType(0);
-                                        setComputedVendorType(indent.vendorType);
-                                        setOpenDialog(true);
-                                    }}
-                                >
-                                    Update
-                                </Button>
-                            </div>
-                        );
-                    },
-                },
-            ]
-            : []),
+        {
+            header: 'Action',
+            id: 'action',
+            cell: ({ row }: { row: Row<VendorUpdateData> }) => {
+                const indent = row.original;
+                return (
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs flex items-center gap-1"
+                            onClick={() => {
+                                setSelectedIndent(indent);
+                                setDialogStep(1);
+                                setAmountToDetermineType(0);
+                                setComputedVendorType(indent.vendorType);
+                                setOpenDialog(true);
+                            }}
+                        >
+                            <PenSquare className="h-3.5 w-3.5 text-slate-600" />
+                            Update
+                        </Button>
+                    </div>
+                );
+            },
+        },
         {
             accessorKey: 'indentNo',
             header: 'Indent No.',
@@ -594,6 +474,8 @@ export default () => {
             gstPercent: 0,
             paymentTerm: '',
             advancePercent: 0,
+            quotationNo: '',
+            quotationDate: '',
             deliveryTime: 0,
             make: '',
         },
@@ -601,38 +483,38 @@ export default () => {
 
     async function onSubmitRegular(values: z.infer<typeof regularSchema>) {
         try {
-            const finalRate = values.rate * (1 + (values.gstPercent || 0) / 100);
+            if (!selectedIndent?.id) {
+                toast.error('No indent selected');
+                return;
+            }
 
-            const updates = {
-                actual2: new Date().toISOString(),
-                planned3: new Date().toISOString(),
+            const now = new Date().toISOString();
+
+            await updateVendorRateRegular(selectedIndent.id, {
+                actual2: now,
+                planned3: now,
                 po_requred: 'Yes', // Automatically set PO Required to Yes
                 vendor_name1: values.vendorName,
                 rate1: values.rate.toString(),
+                vendor1_rank: '', // Ranks assigned in Technical Approval
                 select_rate_type1: 'Basic Rate',
                 with_tax_or_not1: 'No',
                 tax_value1: (values.gstPercent || 0).toString(),
                 payment_term1: values.paymentTerm,
-                advance_percent1: values.advancePercent?.toString(),
+                advance_percent1: values.advancePercent?.toString() || '0',
                 quotation_no1: values.quotationNo || '',
                 quotation_date1: values.quotationDate || '',
                 delivery_time1: values.deliveryTime?.toString() || '',
                 make1: values.make || '',
                 vendor_type: computedVendorType,
-            };
+            });
 
-            const { error } = await supabase
-                .from('indent')
-                .update(updates)
-                .eq('id', selectedIndent?.id);
-
-            if (error) throw error;
-
-            toast.success(`Updated vendor of ${selectedIndent?.indentNo}`);
+            toast.success(`Updated vendor of ${selectedIndent.indentNo}`);
             setOpenDialog(false);
             regularForm.reset();
-            fetchPendingVendorUpdates();
-            fetchCompletedVendorUpdates();
+            setSelectedIndent(null);
+            await loadPendingVendorUpdates();
+            await loadCompletedVendorUpdates();
         } catch (error) {
             console.error('Error updating vendor:', error);
             toast.error('Failed to update vendor');
@@ -655,7 +537,7 @@ export default () => {
             make: z.string().optional(),
         })).length(3).superRefine((vendors, ctx) => {
             // Vendors 1 and 2 are mandatory
-            [0, 1].forEach(index => {
+            [0, 1].forEach((index: any) => {
                 const v = vendors[index];
                 if (!v.vendorName?.trim()) {
                     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Vendor Name is required', path: [index, 'vendorName'] });
@@ -763,7 +645,7 @@ export default () => {
                 regularForm.setValue('rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find(v => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendorRegular));
+                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendorRegular));
                 if (vendor?.paymentTerm) {
                     regularForm.setValue('paymentTerm', vendor.paymentTerm);
                 }
@@ -780,7 +662,7 @@ export default () => {
                 threePartyForm.setValue('vendors.0.rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find(v => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor0));
+                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor0));
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.0.paymentTerm', vendor.paymentTerm);
                 }
@@ -797,7 +679,7 @@ export default () => {
                 threePartyForm.setValue('vendors.1.rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find(v => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor1));
+                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor1));
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.1.paymentTerm', vendor.paymentTerm);
                 }
@@ -814,7 +696,7 @@ export default () => {
                 threePartyForm.setValue('vendors.2.rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find(v => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor2));
+                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor2));
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.2.paymentTerm', vendor.paymentTerm);
                 }
@@ -824,10 +706,16 @@ export default () => {
 
     async function onSubmitThreeParty(values: z.infer<typeof threePartySchema>) {
         try {
+            if (!selectedIndent?.id) {
+                toast.error('No indent selected');
+                return;
+            }
+
             let url: string = '';
+            const now = new Date().toISOString();
 
             if (values.comparisonSheet) {
-                url = await uploadFileToSupabase(values.comparisonSheet, selectedIndent?.indentNo || '');
+                url = await uploadFileToSupabase(values.comparisonSheet, selectedIndent.indentNo || '');
             }
 
             const processVendorData = (vendor: any) => {
@@ -852,50 +740,50 @@ export default () => {
             const vendor2Data = processVendorData(values.vendors[1]);
             const vendor3Data = processVendorData(values.vendors[2]);
 
-            const updates = {
-                actual2: new Date().toISOString(),
-                planned3: new Date().toISOString(), // Set planned3 for three party approval workflow
+            await updateVendorRateThreeParty(selectedIndent.id, {
+                actual2: now,
+                planned3: now, // Set planned3 for three party approval workflow
 
                 // Vendor 1
-                vendor_name1: values.vendors[0].vendorName,
+                vendor_name1: values.vendors[0].vendorName || '',
                 select_rate_type1: vendor1Data.rateType,
                 rate1: vendor1Data.rate.toString(),
                 with_tax_or_not1: vendor1Data.withTaxOrNot,
                 tax_value1: vendor1Data.taxValue.toString(),
-                payment_term1: values.vendors[0].paymentTerm,
+                payment_term1: values.vendors[0].paymentTerm || '',
                 advance_percent1: vendor1Data.advancePercent,
-                whatsapp_number1: values.vendors[0].whatsappNumber,
-                email_id1: values.vendors[0].emailId,
+                whatsapp_number1: values.vendors[0].whatsappNumber || '',
+                email_id1: values.vendors[0].emailId || '',
                 quotation_no1: vendor1Data.quotationNo,
                 quotation_date1: vendor1Data.quotationDate,
                 delivery_time1: vendor1Data.deliveryTime,
                 make1: vendor1Data.make,
 
                 // Vendor 2
-                vendor_name2: values.vendors[1].vendorName,
+                vendor_name2: values.vendors[1].vendorName || '',
                 select_rate_type2: vendor2Data.rateType,
                 rate2: vendor2Data.rate.toString(),
                 with_tax_or_not2: vendor2Data.withTaxOrNot,
                 tax_value2: vendor2Data.taxValue.toString(),
-                payment_term2: values.vendors[1].paymentTerm,
+                payment_term2: values.vendors[1].paymentTerm || '',
                 advance_percent2: vendor2Data.advancePercent,
-                whatsapp_number2: values.vendors[1].whatsappNumber,
-                email_id2: values.vendors[1].emailId,
+                whatsapp_number2: values.vendors[1].whatsappNumber || '',
+                email_id2: values.vendors[1].emailId || '',
                 quotation_no2: vendor2Data.quotationNo,
                 quotation_date2: vendor2Data.quotationDate,
                 delivery_time2: vendor2Data.deliveryTime,
                 make2: vendor2Data.make,
 
                 // Vendor 3
-                vendor_name3: values.vendors[2].vendorName,
+                vendor_name3: values.vendors[2].vendorName || '',
                 select_rate_type3: vendor3Data.rateType,
                 rate3: vendor3Data.rate.toString(),
                 with_tax_or_not3: vendor3Data.withTaxOrNot,
                 tax_value3: vendor3Data.taxValue.toString(),
-                payment_term3: values.vendors[2].paymentTerm,
+                payment_term3: values.vendors[2].paymentTerm || '',
                 advance_percent3: vendor3Data.advancePercent,
-                whatsapp_number3: values.vendors[2].whatsappNumber,
-                email_id3: values.vendors[2].emailId,
+                whatsapp_number3: values.vendors[2].whatsappNumber || '',
+                email_id3: values.vendors[2].emailId || '',
                 quotation_no3: vendor3Data.quotationNo,
                 quotation_date3: vendor3Data.quotationDate,
                 delivery_time3: vendor3Data.deliveryTime,
@@ -904,20 +792,14 @@ export default () => {
                 comparison_sheet: url,
                 product_code: values.productCode || '',
                 vendor_type: computedVendorType,
-            };
+            });
 
-            const { error } = await supabase
-                .from('indent')
-                .update(updates)
-                .eq('id', selectedIndent?.id);
-
-            if (error) throw error;
-
-            toast.success(`Updated vendors of ${selectedIndent?.indentNo}`);
+            toast.success(`Updated vendors of ${selectedIndent.indentNo}`);
             setOpenDialog(false);
             threePartyForm.reset();
-            fetchPendingVendorUpdates();
-            fetchCompletedVendorUpdates();
+            setSelectedIndent(null);
+            await loadPendingVendorUpdates();
+            await loadCompletedVendorUpdates();
         } catch (error) {
             console.error('Error updating vendors:', error);
             toast.error('Failed to update vendors');

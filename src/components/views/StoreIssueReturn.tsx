@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Form, FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,34 +20,6 @@ import {
 } from '@/components/ui/card';
 import { ClipLoader as Loader } from 'react-spinners';
 import { RotateCcw, Trash, Package, ClipboardList } from 'lucide-react';
-import { pdf } from '@react-pdf/renderer';
-import IssuePdf from '../element/IssuePdf';
-const logo = "/logo.png";
-
-// Cache the base64 logo for the session so it's fetched + encoded only once.
-let logoBase64Promise: Promise<string> | null = null;
-const getLogoBase64 = (url: string): Promise<string> => {
-    if (!logoBase64Promise) {
-        logoBase64Promise = (async () => {
-            try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                return await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(blob);
-                });
-            } catch (error) {
-                console.error('Error fetching logo:', error);
-                logoBase64Promise = null; // allow retry on next attempt
-                return '';
-            }
-        })();
-    }
-    return logoBase64Promise;
-};
-
-import { supabase } from '@/lib/supabase';
 import Heading from '../element/Heading';
 import { useEffect, useState, useMemo } from 'react';
 
@@ -98,10 +70,10 @@ export default () => {
         projectName: z.string().nonempty('Project Name is required'),
         remarks: z.string().optional(),
         issuePersonName: z.string().optional(),
-        returnPersonName: z.string().optional(),
+        returnPersonName: z.string().nonempty('Returner Name is required'),
         damageRemark: z.string().optional(),
         rejectedDamageQty: z.coerce.number().optional(),
-        id: z.number().optional(),
+        id: z.coerce.number({ invalid_type_error: 'Please select an issue to return' }).min(1, 'Please select an issue to return'),
         products: z
             .array(
                 z.object({
@@ -131,7 +103,7 @@ export default () => {
                 {
                     uom: '',
                     productName: '',
-                    quantity: 1,
+                    quantity: 0,
                     groupHead: '',
                     // department: '',
                 },
@@ -155,65 +127,8 @@ export default () => {
             storeInSheet || [],
             sheetIssues || [],
             stockTransferSheet || [],
-            selectedProject
         );
     }, [inventorySheet, indentSheet, storeInSheet, sheetIssues, stockTransferSheet, selectedProject]);
-
-    const processPdfSlip = async (type: 'return', issueNumber: string, data: any) => {
-        try {
-            const logoBase64 = await getLogoBase64(logo);
-
-            const blob = await pdf(
-                <IssuePdf
-                    type={type}
-                    issueNumber={issueNumber}
-                    date={new Date().toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true
-                    })}
-                    constructorName={data.constructorName}
-                    siteLocation={data.siteLocation}
-                    projectName={data.projectName}
-                    remarks={data.remarks}
-                    issuePersonName={data.issuePersonName}
-                    returnPersonName={data.returnPersonName}
-                    damageRemark={data.damageRemark}
-                    rejectedDamageQty={data.rejectedDamageQty}
-                    products={data.products}
-                    logo={logoBase64}
-                />
-            ).toBlob();
-
-            const fileName = `${issueNumber}_${type}_${Date.now()}.pdf`;
-            const filePath = `indent-pdfs/${fileName}`;
-
-            const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-
-            const { error: uploadError } = await supabase.storage
-                .from('indent_attachment')
-                .upload(filePath, pdfFile);
-
-            if (uploadError) {
-                console.error("Supabase Storage Error:", uploadError);
-                throw uploadError;
-            }
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('indent_attachment')
-                .getPublicUrl(filePath);
-
-            return publicUrl;
-        } catch (error) {
-            console.error(`Error processing ${type} PDF:`, error);
-            toast.error(`Failed to generate ${type} slip PDF`);
-            return '';
-        }
-    };
 
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
@@ -229,15 +144,12 @@ export default () => {
                     uom: product.uom,
                     group_head: product.groupHead,
                     product_name: product.productName,
-                    // Preserve original quantity (don't overwrite with return qty)
-                    // quantity: product.quantity, 
                     constructor_name: data.constructorName,
                     site_location: data.siteLocation,
                     firm_name: data.projectName,
                     issue_person_name: data.issuePersonName,
                     return_person_name: data.returnPersonName,
                     damage_remark: data.damageRemark,
-                    // Use the product quantity as the return amount for inventory
                     rejected_damage_qty: String(product.quantity || data.rejectedDamageQty || 0),
                 };
 
@@ -246,9 +158,6 @@ export default () => {
 
             // Return Logic
             const updateData: Partial<IssueRecord> = rows[0];
-            const currentIssueNumber = sheetIssues.find(i => i.id === data.id)?.issueNo || 'IS-UNKNOWN';
-            const returnPdfUrl = await processPdfSlip('return', currentIssueNumber, data);
-            updateData.return_slip = returnPdfUrl;
 
             await updateIssueRecordById(data.id, updateData);
             toast.success('Return updated successfully');
@@ -268,7 +177,7 @@ export default () => {
                     {
                         uom: '',
                         productName: '',
-                        quantity: 1,
+                        quantity: 0,
                         groupHead: '',
                         // department: '',
                     },
@@ -294,22 +203,22 @@ export default () => {
             form.setValue('remarks', selected.issueTo || '');
             form.setValue('issuePersonName', selected.issuePersonName || '');
 
+            const approvedQty = (Number(selected.givenQty) > 0) ? Number(selected.givenQty) : Number(selected.quantity || 0);
+
             // Map the product
             form.setValue('products', [
                 {
                     // department: selected.department,
                     groupHead: selected.groupHead,
                     productName: selected.productName,
-                    quantity: selected.quantity,
+                    quantity: approvedQty,
                     uom: selected.uom,
                 }
             ]);
-            form.setValue('id', selected.id);
+            form.setValue('id', Number(selected.id), { shouldValidate: true });
             toast.info(`Loaded issue ${selected.issueNo}`);
         }
     };
-
-
 
     return (
         <div className="pb-10">
@@ -329,30 +238,40 @@ export default () => {
                             </CardHeader>
                             <CardContent className="p-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <FormItem className="lg:col-span-1">
-                                        <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Select Issue Number <span className="text-destructive">*</span></FormLabel>
-                                        <Select onValueChange={handleIssueSelect}>
-                                            <FormControl>
-                                                <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20">
-                                                    <SelectValue placeholder="Search issue no." />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {sheetIssues
-                                                    .filter(i => {
-                                                        const isFirmMatch = isAllowedFirm({ id: i.firm_id, name: i.projectName || i.firm_name }, user?.firm_access || []);
-                                                        const isIssued = i.actual1 && i.actual1 !== '';
-                                                        const isNotReturned = !(i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
-                                                        return isFirmMatch && isIssued && isNotReturned;
-                                                    })
-                                                    .map((issue) => (
-                                                        <SelectItem key={issue.id} value={String(issue.id)}>
-                                                            {issue.issueNo} - {issue.productName}
-                                                        </SelectItem>
-                                                    ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </FormItem>
+                                    <FormField
+                                        control={form.control}
+                                        name="id"
+                                        render={({ field }) => (
+                                            <FormItem className="lg:col-span-1">
+                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Select Issue Number <span className="text-destructive">*</span></FormLabel>
+                                                <Select
+                                                    onValueChange={(val) => handleIssueSelect(val)}
+                                                    value={field.value ? String(field.value) : ''}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20">
+                                                            <SelectValue placeholder="Search issue no." />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {sheetIssues
+                                                            .filter(i => {
+                                                                const isFirmMatch = isAllowedFirm({ id: i.firm_id, name: i.projectName || i.firm_name }, user?.firm_access || []);
+                                                                const isIssued = i.actual1 && i.actual1 !== '';
+                                                                const isNotReturned = !(i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
+                                                                return isFirmMatch && isIssued && isNotReturned;
+                                                            })
+                                                            .map((issue) => (
+                                                                <SelectItem key={issue.id} value={String(issue.id)}>
+                                                                    {issue.issueNo} - {issue.productName}
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
                                     <FormField
                                         control={form.control}
@@ -411,6 +330,7 @@ export default () => {
                                                 <FormControl>
                                                     <Input placeholder="Who is returning?" className="h-11 bg-white border-slate-200 focus:ring-primary/20" {...field} />
                                                 </FormControl>
+                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
@@ -496,7 +416,7 @@ export default () => {
                                                         render={({ field }) => (
                                                             <FormItem>
                                                                 <FormLabel className="text-xs font-semibold text-slate-700 uppercase">
-                                                                    Good Qty to Return {originalIssue ? `(Max: ${originalIssue.quantity})` : ''}
+                                                                    Good Qty to Return {originalIssue ? `(Max: ${(Number(originalIssue.givenQty) > 0) ? Number(originalIssue.givenQty) : Number(originalIssue.quantity || 0)})` : ''}
                                                                 </FormLabel>
                                                                 <FormControl>
                                                                     <Input

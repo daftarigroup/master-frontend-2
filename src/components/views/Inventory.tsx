@@ -308,6 +308,18 @@ export default () => {
                 );
             },
         },
+        {
+            accessorKey: 'firmName',
+            header: 'Project Name',
+            cell: ({ row }) => (
+                <div className="flex items-center justify-center gap-1.5 font-medium text-xs text-purple-700 dark:text-purple-400">
+                    <Building2 size={14} className="shrink-0 text-purple-500" />
+                    <span className="truncate max-w-[140px]" title={row.original.firmName || '--'}>
+                        {row.original.firmName || '--'}
+                    </span>
+                </div>
+            ),
+        },
         { accessorKey: 'groupHead', header: 'Group Head' },
         { accessorKey: 'uom', header: 'UOM' },
         {
@@ -443,7 +455,7 @@ export default () => {
                 data={tableData}
                 columns={columns}
                 dataLoading={isLoading}
-                searchFields={['itemName', 'groupHead', 'uom', 'status']}
+                searchFields={['itemName', 'firmName', 'groupHead', 'uom', 'status']}
                 className="h-[80dvh]"
             />
 

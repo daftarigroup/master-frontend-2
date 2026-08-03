@@ -41,6 +41,7 @@ export default () => {
         indentSheet,
         updateInventorySheet,
         updateMasterSheet,
+        updateIndentSheet,
     } = useSheets();
     const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
@@ -133,7 +134,7 @@ export default () => {
         setHistoryLoading(true);
         try {
             // Pass permitted firms to the service for backend-level filtering
-            const permittedFirms = user?.firm_access || [];
+            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
             const data = await fetchIndentRecords(permittedFirms);
             
             // Secondary frontend check for absolute security/robustness
@@ -436,14 +437,52 @@ export default () => {
         }
     };
 
-    // Derive next indent number from already-loaded context — zero DB round trips
-    const getNextIndentNumber = (): string => {
-        const max = indentSheet.reduce((m, r) => {
-            const match = String(r.indentNumber || '').match(/^SI-(\d+)$/i);
-            const n = match ? parseInt(match[1], 10) : 0;
-            return Math.max(m, n);
-        }, 0);
-        return `SI-${String(max + 1).padStart(4, '0')}`;
+    // Fetch next indent number by querying DB directly + checking local state
+    const fetchNextIndentNumber = async (): Promise<string> => {
+        let maxNum = 0;
+
+        // 1. Fetch directly from DB to get absolute latest SI-XXXX across all records
+        try {
+            const { data, error } = await supabase
+                .from('indent')
+                .select('indent_number')
+                .order('id', { ascending: false })
+                .limit(500);
+
+            if (!error && data) {
+                for (const row of data) {
+                    const match = String(row.indent_number || '').match(/^SI-(\d+)$/i);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (num > maxNum) maxNum = num;
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching DB indent number:', err);
+        }
+
+        // 2. Fallback / check against in-memory historyData and indentSheet
+        if (historyData && historyData.length > 0) {
+            for (const r of historyData) {
+                const match = String(r.indent_number || '').match(/^SI-(\d+)$/i);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (num > maxNum) maxNum = num;
+                }
+            }
+        }
+        if (indentSheet && indentSheet.length > 0) {
+            for (const r of indentSheet) {
+                const match = String(r.indentNumber || '').match(/^SI-(\d+)$/i);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (num > maxNum) maxNum = num;
+                }
+            }
+        }
+
+        return `SI-${String(maxNum + 1).padStart(4, '0')}`;
     };
 
     // Helper: Upload file to Supabase Storage
@@ -486,8 +525,22 @@ export default () => {
                 }
             } catch {}
 
-            const rows = historyData.filter(r => r.indent_number === indentNo);
-            if (rows.length === 0) return;
+            let rows = historyData.filter(r => r.indent_number === indentNo);
+            if (rows.length === 0) {
+                const { data } = await supabase
+                    .from('indent')
+                    .select('*')
+                    .eq('indent_number', indentNo);
+                if (data && data.length > 0) {
+                    rows = data as any;
+                }
+            }
+
+            if (rows.length === 0) {
+                toast.error('Indent data not found');
+                return;
+            }
+
             const first = rows[0];
 
             const blob = await pdf(
@@ -534,9 +587,8 @@ export default () => {
                 return;
             }
 
-            // 1. Indent number from context (synchronous, zero DB round trips)
-            //    + attachment uploads in parallel
-            const nextIndentNumber = getNextIndentNumber();
+            // 1. Indent number calculated directly from DB + state
+            const nextIndentNumber = await fetchNextIndentNumber();
             const attachmentUrls = await Promise.all(
                 data.products.map(product =>
                     product.attachment instanceof File
@@ -553,6 +605,7 @@ export default () => {
             const timestamp = new Date().toISOString();
             const rows = data.products.map((product, i) => ({
                 timestamp,
+                planned1: timestamp,
                 indent_number: nextIndentNumber,
                 indenter_name: data.indenterName,
                 area_of_use: product.areaOfUse,
@@ -577,6 +630,7 @@ export default () => {
             // 3. Show success immediately — user is unblocked
             toast.success(`Indent ${nextIndentNumber} created successfully!`);
             fetchHistory();
+            updateIndentSheet(true);
                 // 4. Increment inventory 'indented' counts in background (non-blocking)
             data.products.forEach(product => {
                 const groupHead = product.groupHead || options?.itemGroupHeadMap?.[product.productName] || '';

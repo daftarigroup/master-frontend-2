@@ -7,7 +7,7 @@ import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
 import { Pill } from '../ui/pill';
 import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { normalizeFirmAccess } from '@/lib/firmAccess';
+import { normalizeFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
 import { toast } from 'sonner';
 
 interface ApprovedPOData {
@@ -42,55 +42,39 @@ export default function ApprovedPOs() {
         try {
             setDataLoading(true);
 
-            // First, get all internal codes from PO Master
-            const { data: poMasterData, error: poMasterError } = await supabase
-                .from('po_master')
-                .select('internal_code');
-
-            if (poMasterError) throw poMasterError;
-
-            const poMasterInternalCodes = new Set(
-                (poMasterData || [])
-                    .filter((record) => record.internal_code)
-                    .map((record) => record.internal_code?.toString().trim())
-                    .filter(Boolean)
-            );
-
-
-            // Fetch indents where po_required = 'Yes'
+            // Fetch indents
             let query = supabase
                 .from('indent')
-                .select('indent_number, firm_name, firm_id, product_name, pending_po_qty, quantity, approved_rate, rate1, uom, approved_vendor_name, vendor_name1, approved_payment_term, payment_term1, specifications, po_requred, timestamp, planned5, expected_req_date, delivery_date')
-                .eq('po_requred', 'Yes'); // Note: column name has typo in DB
+                .select('indent_number, firm_name, firm_id, product_name, pending_po_qty, quantity, approved_rate, rate1, uom, approved_vendor_name, vendor_name1, approved_payment_term, payment_term1, specifications, po_requred, timestamp, planned5, actual4, expected_req_date, delivery_date, po_number')
+                .order('indent_number', { ascending: false });
 
-            const userFirms = normalizeFirmAccess(user?.firm_access) || [];
-            if (userFirms.length === 0) {
+            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
+                ? undefined
+                : user.firm_access;
+
+            const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
+            if (!filteredQuery) {
                 setApprovedTableData([]);
                 return;
             }
 
-            const firmIds = userFirms.filter((firm) => /^\d+$/.test(firm)).map(Number);
-            if (firmIds.length === 0) {
-                setApprovedTableData([]);
-                return;
-            }
-            query = query.in('firm_id', firmIds);
-
-            const { data: indentData, error: indentError } = await query;
+            const { data: indentData, error: indentError } = await filteredQuery;
 
             if (indentError) throw indentError;
 
-            // Filter out indents that already exist in PO Master
-            const filteredData = (indentData || []).filter((sheet) => {
-                const indentNumber = sheet.indent_number?.toString().trim();
-                const existsInPoMaster = indentNumber && poMasterInternalCodes.has(indentNumber);
+            // Filter for Management Approved indents that do NOT have a PO created yet
+            const filteredData = (indentData || []).filter((sheet: any) => {
+                const isApproved = sheet.po_requred === 'Yes' || !!sheet.actual4 || !!sheet.approved_vendor_name;
+                if (!isApproved) return false;
 
-                return !existsInPoMaster;
+                // Check if PO was already created for this specific indent record
+                const hasPoNumber = Boolean(sheet.po_number && String(sheet.po_number).trim() !== '');
+                return !hasPoNumber;
             });
 
             // Map to table data format
             const mappedData = filteredData
-                .map((sheet) => {
+                .map((sheet: any) => {
                     let formattedDate = '';
                     let formattedPlannedDate = '';
 
@@ -132,14 +116,14 @@ export default function ApprovedPOs() {
                         vendorName: sheet.approved_vendor_name || sheet.vendor_name1 || '',
                         paymentTerm: sheet.approved_payment_term || sheet.payment_term1 || '',
                         specifications: sheet.specifications || '',
-                        poRequired: sheet.po_requred?.toString() || '',
+                        poRequired: sheet.po_requred?.toString() || 'Yes',
                         poRequiredStatus: 'Yes' as const,
                         expectedReqDateRaw: rawExpected,
                         expectedReqDate: formattedExpectedDate,
                         rawTimestamp: sheet.timestamp ? new Date(sheet.timestamp).getTime() : 0,
                     };
                 })
-                .sort((a, b) => b.rawTimestamp - a.rawTimestamp);
+                .sort((a: any, b: any) => b.rawTimestamp - a.rawTimestamp);
 
             setApprovedTableData(mappedData);
         } catch (err) {
@@ -152,7 +136,7 @@ export default function ApprovedPOs() {
 
     useEffect(() => {
         fetchPendingPOs();
-    }, [user?.firm_access]);
+    }, [user?.firm_access, user?.administrate]);
 
     // Creating approved PO table columns (same as history but only for "Yes" entries)
     const approvedColumns: ColumnDef<ApprovedPOData>[] = [

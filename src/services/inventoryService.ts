@@ -210,7 +210,7 @@ export async function addItemToInventory(input: InventoryItemInput): Promise<{ s
                 current: toTextNumber(quantityToAdd),
                 total_price: '0',
                 color_code: getInventoryStatus(quantityToAdd),
-                received_quantity: toTextNumber(quantityToAdd),
+                received_quantity: '0',
                 return_quantity: '0',
                 request_quantity: '0',
                 firm_name: input.firmName || '',

@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import { SidebarTrigger } from '../ui/sidebar';
 import { TabsList, TabsTrigger } from '../ui/tabs';
 
 interface HeaderProps {
-    children: ReactNode;
-    heading: string;
-    subtext: string;
+    children?: ReactNode;
+    heading?: string;
+    subtext?: string;
     tabs?: boolean;
     pendingCount?: number;
     historyCount?: number;
@@ -23,9 +22,9 @@ interface HeaderProps {
 }
 
 export default ({
-    children,
-    heading,
-    subtext,
+    children: _children,
+    heading: _heading,
+    subtext: _subtext,
     tabs = false,
     pendingCount,
     historyCount,
@@ -43,19 +42,26 @@ export default ({
 }: HeaderProps) => {
     return (
         <div className="bg-gradient-to-br from-blue-100 via-purple-50 to-blue-50 w-full">
+            {/* Heading and subtext commented out as requested */}
+            {/*
             <div className="flex justify-between p-5">
                 <div className="flex gap-2 items-center">
-                    {children}
+                    {_children}
                     <div>
-                        <h1 className="text-2xl font-bold text-primary">{heading}</h1>
-                        <p className="text-muted-foreground text-sm">{subtext}</p>
+                        <h1 className="text-2xl font-bold text-primary">{_heading}</h1>
+                        <p className="text-muted-foreground text-sm">{_subtext}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
                     {action}
-                    <SidebarTrigger />
                 </div>
             </div>
+            */}
+            {action && (
+                <div className="flex justify-end p-2">
+                    {action}
+                </div>
+            )}
             {tabs && (
                 <TabsList className="w-full rounded-none bg-transparent rounded-b-md">
                     <TabsTrigger value={pendingValue} className="flex gap-2">

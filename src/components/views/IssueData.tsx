@@ -27,38 +27,13 @@ import Heading from '../element/Heading';
 import { Input } from '../ui/input';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import { pdf } from '@react-pdf/renderer';
-import IssuePdf from '../element/IssuePdf';
-import { supabase } from '@/lib/supabase';
-const logo = "/logo.png";
+import { useSheets } from '@/context/SheetsContext';
+import { openIssuePdfPreview } from '@/lib/issuePdfUtils';
 
-// Cache the base64 logo for the session so it's fetched + encoded only once.
-let logoBase64Promise: Promise<string> | null = null;
-const getLogoBase64 = (url: string): Promise<string> => {
-    if (!logoBase64Promise) {
-        logoBase64Promise = (async () => {
-            try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                return await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(blob);
-                });
-            } catch (error) {
-                console.error('Error fetching logo:', error);
-                logoBase64Promise = null; // allow retry on next attempt
-                return '';
-            }
-        })();
-    }
-    return logoBase64Promise;
-};
 import {
     fetchIssueRecords,
     updateIssueApproval,
     updateIssuePlannedDate,
-    updateIssueRecordById,
     type IssueRecord
 } from '@/services/issueService';
 import { filterByFirmAccess } from '@/lib/firmAccess';
@@ -146,64 +121,13 @@ function EditablePlannedDate({
 
 export default function IssueData() {
     const { user } = useAuth();
+    const { updateAll } = useSheets();
     const [allData, setAllData] = useState<IssueRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [selectedIssue, setSelectedIssue] = useState<IssueRecord | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [downloading, setDownloading] = useState(false);
 
-    const processPdfSlip = async (type: 'issue' | 'return', issueNumber: string, data: any) => {
-        try {
-            const logoBase64 = await getLogoBase64(logo);
-
-            const blob = await pdf(
-                <IssuePdf
-                    type={type}
-                    issueNumber={issueNumber}
-                    date={new Date().toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true
-                    })}
-                    constructorName={data.constructorName}
-                    siteLocation={data.siteLocation}
-                    projectName={data.projectName}
-                    plannedDate={data.plannedDate}
-                    remarks={data.remarks}
-                    issuePersonName={data.issuePersonName}
-                    returnPersonName={data.returnPersonName}
-                    damageRemark={data.damageRemark}
-                    rejectedDamageQty={data.rejectedDamageQty}
-                    products={data.products}
-                    logo={logoBase64}
-                />
-            ).toBlob();
-
-            const fileName = `${issueNumber}_${type}_${Date.now()}.pdf`;
-            const filePath = `indent-pdfs/${fileName}`;
-            const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-
-            const { error: uploadError } = await supabase.storage
-                .from('indent_attachment')
-                .upload(filePath, pdfFile);
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('indent_attachment')
-                .getPublicUrl(filePath);
-
-            return publicUrl;
-        } catch (error) {
-            console.error(`Error processing ${type} PDF:`, error);
-            toast.error(`Failed to generate ${type} slip PDF`);
-            return '';
-        }
-    };
 
     const fetchData = async () => {
         setDataLoading(true);
@@ -290,54 +214,11 @@ export default function IssueData() {
         document.body.removeChild(link);
     };
 
-    // TEMP: persist a corrected planned date, regenerate the slip PDF(s) so the
-    // corrected date is painted into them, and update the row in place. Remove later.
+    // Update planned date of record
     const handleSavePlannedDate = async (id: number, plannedDate: string) => {
-        // 1. Save the corrected date
         await updateIssuePlannedDate(id, plannedDate);
-
-        // 2. Rebuild the slip PDF(s) for this record with the corrected date
-        const record = allData.find((r) => r.id === id);
-        const urlUpdate: Partial<IssueRecord> = {};
-        if (record) {
-            const issuedQty =
-                Number(record.given_qty) > 0 ? Number(record.given_qty) : Number(record.quantity) || 0;
-            const pdfData = {
-                constructorName: record.constructor_name || '',
-                siteLocation: record.site_location || '',
-                projectName: record.firm_name || '',
-                plannedDate: plannedDate ? formatDate(new Date(plannedDate)) : '',
-                remarks: record.issue_to || '',
-                issuePersonName: record.issue_person_name || '',
-                returnPersonName: record.return_person_name || '',
-                damageRemark: record.damage_remark || '',
-                rejectedDamageQty: record.rejected_damage_qty ? Number(record.rejected_damage_qty) : 0,
-                products: [
-                    {
-                        productName: record.product_name,
-                        groupHead: record.group_head,
-                        quantity: issuedQty,
-                        uom: record.uom,
-                    },
-                ],
-            };
-
-            if (record.issue_slip) {
-                const newIssueUrl = await processPdfSlip('issue', record.issue_no, pdfData);
-                if (newIssueUrl) urlUpdate.issue_slip = newIssueUrl;
-            }
-            if (record.return_slip) {
-                const newReturnUrl = await processPdfSlip('return', record.issue_no, pdfData);
-                if (newReturnUrl) urlUpdate.return_slip = newReturnUrl;
-            }
-            if (Object.keys(urlUpdate).length) {
-                await updateIssueRecordById(id, urlUpdate);
-            }
-        }
-
-        // 3. Update the row in place (date + any new slip URLs)
         setAllData((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, planned1: plannedDate, ...urlUpdate } : r))
+            prev.map((r) => (r.id === id ? { ...r, planned1: plannedDate } : r))
         );
     };
 
@@ -384,11 +265,15 @@ export default function IssueData() {
         {
             accessorKey: 'issue_slip',
             header: 'Issue Slip',
-            cell: ({ row }) => row.original.issue_slip ? (
-                <a href={row.original.issue_slip} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+            cell: ({ row }) => (
+                <button
+                    type="button"
+                    onClick={() => openIssuePdfPreview('issue', row.original)}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                >
                     View
-                </a>
-            ) : '-'
+                </button>
+            ),
         },
     ];
 
@@ -418,11 +303,15 @@ export default function IssueData() {
         {
             accessorKey: 'issue_slip',
             header: 'Issue Slip',
-            cell: ({ row }) => row.original.issue_slip ? (
-                <a href={row.original.issue_slip} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+            cell: ({ row }) => (
+                <button
+                    type="button"
+                    onClick={() => openIssuePdfPreview('issue', row.original)}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                >
                     View
-                </a>
-            ) : '-'
+                </button>
+            ),
         },
     ];
 
@@ -447,20 +336,28 @@ export default function IssueData() {
         {
             accessorKey: 'issue_slip',
             header: 'Issue Slip',
-            cell: ({ row }) => row.original.issue_slip ? (
-                <a href={row.original.issue_slip} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+            cell: ({ row }) => (
+                <button
+                    type="button"
+                    onClick={() => openIssuePdfPreview('issue', row.original)}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                >
                     View
-                </a>
-            ) : '-'
+                </button>
+            ),
         },
         {
             accessorKey: 'return_slip',
             header: 'Return Slip',
-            cell: ({ row }) => row.original.return_slip ? (
-                <a href={row.original.return_slip} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+            cell: ({ row }) => (
+                <button
+                    type="button"
+                    onClick={() => openIssuePdfPreview('return', row.original)}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                >
                     View
-                </a>
-            ) : '-'
+                </button>
+            ),
         },
     ];
 
@@ -506,42 +403,24 @@ export default function IssueData() {
             if (!selectedIssue) return;
 
             const currentDateTime = new Date().toISOString();
-
-            // Generate Updated PDF
-            const pdfData = {
-                constructorName: selectedIssue.constructor_name || '',
-                siteLocation: selectedIssue.site_location || '',
-                projectName: selectedIssue.firm_name || '',
-                plannedDate: selectedIssue.planned1 ? formatDate(new Date(selectedIssue.planned1)) : '',
-                remarks: selectedIssue.issue_to || '',
-                issuePersonName: selectedIssue.issue_person_name || '',
-                returnPersonName: selectedIssue.return_person_name || '',
-                damageRemark: selectedIssue.damage_remark || '',
-                rejectedDamageQty: selectedIssue.rejected_damage_qty ? Number(selectedIssue.rejected_damage_qty) : 0,
-                products: [{
-                    productName: selectedIssue.product_name,
-                    groupHead: selectedIssue.group_head,
-                    // department: selectedIssue.department,
-                    quantity: values.status === 'Yes' ? (values.givenQty || selectedIssue.quantity) : selectedIssue.quantity,
-                    uom: selectedIssue.uom
-                }]
-            };
-
-            const issuePdfUrl = await processPdfSlip('issue', selectedIssue.issue_no, pdfData);
+            const givenQtyVal = values.status === 'Yes' ? values.givenQty : null;
 
             await updateIssueApproval(selectedIssue.issue_no, {
                 actual1: currentDateTime,
                 status: values.status === 'Yes' ? 'Approved' : 'Rejected',
-                given_qty: values.status === 'Yes' ? values.givenQty : null,
-                issue_slip: issuePdfUrl
+                given_qty: givenQtyVal,
+                product_name: selectedIssue.product_name,
+                firm_id: selectedIssue.firm_id,
+                firm_name: selectedIssue.firm_name,
+                previous_given_qty: selectedIssue.given_qty || 0,
             });
-
 
             toast.success(`Updated approval status of ${selectedIssue.issue_no}`);
             setOpenDialog(false);
             form.reset();
             setSelectedIssue(null);
-            fetchData();
+            await fetchData();
+            updateAll(true);
         } catch (err) {
             console.error('Error updating approval', err);
             toast.error('Failed to update issue');

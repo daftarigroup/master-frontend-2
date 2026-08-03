@@ -25,7 +25,7 @@ import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
-import { formatDate, formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
 import { filterByFirmAccess, isAllowedFirm } from '@/lib/firmAccess';
 
@@ -457,8 +457,9 @@ export default () => {
             header: 'Photo Of Bill',
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
-                return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         View
                     </a>
                 ) : null;
@@ -508,8 +509,9 @@ export default () => {
             header: 'Photo Of Bill',
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
-                return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         View
                     </a>
                 ) : null;
@@ -538,8 +540,9 @@ export default () => {
             header: 'Product Photo',
             cell: ({ row }) => {
                 const photo = row.original.photoOfProduct;
-                return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         View
                     </a>
                 ) : null;
@@ -610,6 +613,7 @@ export default () => {
 
     const schema = z.object({
         status: z.enum(['Received', 'Not Received']),
+        receiverName: z.string().optional(),
         challanNo: z.string().optional(),
         challanImage: z.instanceof(File).optional(),
         photoOfProduct: z.instanceof(File, {
@@ -635,6 +639,7 @@ export default () => {
         resolver: zodResolver(schema),
         defaultValues: {
             status: 'Received',
+            receiverName: '',
             challanNo: '',
             challanImage: undefined,
             photoOfProduct: undefined,
@@ -667,6 +672,9 @@ export default () => {
         if (selectedIndent?.originalItems) {
             form.reset({
                 status: 'Received',
+                receiverName: user?.name || user?.username || '',
+                challanNo: '',
+                challanImage: undefined,
                 photoOfProduct: undefined,
                 damageOrder: undefined,
                 quantityAsPerBill: undefined,
@@ -683,7 +691,7 @@ export default () => {
                 })),
             });
         }
-    }, [selectedIndent, form]);
+    }, [selectedIndent, form, user]);
 
     async function onSubmit(values: FormValues) {
         if (!selectedIndent) return;
@@ -699,8 +707,8 @@ export default () => {
                 );
             }
 
-            // 2. Upload challan image if needed
-            if (values.status === 'Not Received' && values.challanImage) {
+            // 2. Upload challan image if provided
+            if (values.challanImage) {
                 // Using first lift number as identifier for challan
                 const liftId = values.items[0]?.liftNumber || 'unknown';
                 challanImageUrl = await uploadChallanImage(values.challanImage, liftId);
@@ -723,6 +731,7 @@ export default () => {
                     location: values.location || '',
                     challanNo: values.challanNo || '',
                     challanImage: challanImageUrl || '',
+                    receiverName: values.receiverName || user?.name || user?.username || 'Store User',
                 });
 
                 // Note: fullkitting entry was already created in GetLift when transportation=Yes.
@@ -806,7 +815,7 @@ export default () => {
     const directForm = useForm<DirectFormValues>({
         resolver: zodResolver(directSchema),
         defaultValues: {
-            status: undefined,
+            status: '' as any,   // must be '' not undefined — prevents Select uncontrolled→controlled warning
             anyTransport: 'No',
             billNo: '',
             billAmount: 0,
@@ -1285,8 +1294,9 @@ export default () => {
                                     header: 'Bill Photo',
                                     cell: ({ row }) => {
                                         const photo = (row.original as DirectStoreInData).photoOfBill;
-                                        return photo ? (
-                                            <a href={photo} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a>
+                                        const fileUrl = getPublicFileUrl(photo);
+                                        return fileUrl ? (
+                                            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a>
                                         ) : '-';
                                     }
                                 },
@@ -1295,8 +1305,9 @@ export default () => {
                                     header: 'Product Photo',
                                     cell: ({ row }) => {
                                         const photo = (row.original as DirectStoreInData).photoOfProduct;
-                                        return photo ? (
-                                            <a href={photo} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a>
+                                        const fileUrl = getPublicFileUrl(photo);
+                                        return fileUrl ? (
+                                            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a>
                                         ) : '-';
                                     }
                                 },
@@ -1421,6 +1432,34 @@ export default () => {
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
+                                        name="receiverName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Receiver Name</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Enter receiver name" />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="challanNo"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Challan Number (optional)</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Enter challan number" />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
                                         name="status"
                                         render={({ field }) => (
                                             <FormItem>
@@ -1458,26 +1497,47 @@ export default () => {
 
                                 </div>
 
-                                <FormField
-                                    control={form.control}
-                                    name="photoOfProduct"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <div className="flex items-center gap-1">
-                                                <FormLabel className="m-0">Photo of Product</FormLabel>
-                                                <span className="text-destructive font-bold">*</span>
-                                            </div>
-                                            <FormControl>
-                                                <Input
-                                                    type="file"
-                                                    onChange={(e) =>
-                                                        field.onChange(e.target.files?.[0])
-                                                    }
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="challanImage"
+                                        render={({ field: { value, onChange, ...fieldProps } }) => (
+                                            <FormItem>
+                                                <FormLabel>Challan Image (optional)</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => onChange(e.target.files?.[0])}
+                                                        {...fieldProps}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="photoOfProduct"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <div className="flex items-center gap-1">
+                                                    <FormLabel className="m-0">Photo of Product</FormLabel>
+                                                    <span className="text-destructive font-bold">*</span>
+                                                </div>
+                                                <FormControl>
+                                                    <Input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) =>
+                                                            field.onChange(e.target.files?.[0])
+                                                        }
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <FormField
@@ -1618,7 +1678,7 @@ export default () => {
                             <label className="text-sm font-medium">Photo of Bill</label>
                             {editHistoryRow?.photoOfBill && (
                                 <a
-                                    href={editHistoryRow.photoOfBill}
+                                    href={getPublicFileUrl(editHistoryRow.photoOfBill)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="block text-xs text-blue-600 underline mb-1"

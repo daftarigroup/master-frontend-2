@@ -1,10 +1,10 @@
-import { supabase } from '@/lib/supabase';
-import { hasNoFirmAccess, normalizeFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
+import { apiClient, storeApi } from '@/lib/apiClient';
+import { hasNoFirmAccess, filterByFirmAccess } from '@/lib/firmAccess';
+import { uploadFile } from '@/lib/fetchers';
 
 /**
  * StoreIn Service
- * Handles all Supabase operations for the StoreIn component
- * Manages receiving items and storing them in inventory
+ * Handles all REST API operations for the StoreIn component via master-backend
  */
 
 // ==================== INTERFACES ====================
@@ -93,7 +93,6 @@ export interface StoreInRecord {
     materialDate?: string | null;
 }
 
-
 export interface LocationOption {
     location: string;
 }
@@ -101,28 +100,21 @@ export interface LocationOption {
 // ==================== FETCH FUNCTIONS ====================
 
 /**
- * Fetch all store-in records from Supabase
- * Used for displaying pending and completed store-in items
- * @param permittedFirms Optional array of firm IDs to filter by
+ * Fetch all store-in records from REST API
+ * @param permittedFirms Optional array of firm IDs/names to filter by
  */
 export async function fetchStoreInRecords(permittedFirms?: string[]): Promise<StoreInRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
 
-        let query = supabase
-            .from('store_in')
-            .select('*')
-            .order('indent_no', { ascending: false })
-            .order('timestamp', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'indent_no.desc',
+        };
 
-        const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
-        if (!filteredQuery) return [];
+        const res: any = await apiClient.get('/store/entity/store_in', { params });
+        const data = res.data || [];
 
-        const { data, error } = await filteredQuery;
-
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        const mapped: StoreInRecord[] = data.map((r: any) => ({
             id: r.id,
             liftNumber: r.lift_number || '',
             indentNo: r.indent_no || '',
@@ -167,23 +159,19 @@ export async function fetchStoreInRecords(permittedFirms?: string[]): Promise<St
             driverName: r.driver_name || '',
             driverMobileNo: r.driver_mobile_no || '',
             billRemark: r.bill_remark || '',
-            // Stage 7 fields
             planned7: r.planned7 || '',
             actual7: r.actual7 || '',
             status: r.status || '',
             billCopyAttached: r.bill_copy_attached || '',
             reason: r.reason || '',
             sendDebitNote: r.send_debit_note || '',
-            // HOD Approval fields
             plannedHod: r.hod_planned || '',
             actualHod: r.hod_actual || '',
             hodStatus: r.hod_status || 'Pending',
             hodRemark: r.hod_remark || '',
             paymentTerms: r.payment_terms || '',
-            // Stage 8 fields (Return Material To Party)
             planned8: r.planned8 || '',
             actual8: r.actual8 || '',
-            // Stage 9 fields
             planned9: r.planned9 || '',
             actual9: r.actual9 || '',
             debitNoteCopy: r.debit_note_copy || '',
@@ -191,10 +179,8 @@ export async function fetchStoreInRecords(permittedFirms?: string[]): Promise<St
             statusPurchaser: r.status_purchaser || '',
             billCopy: r.bill_copy || '',
             returnCopy: r.return_copy || '',
-            // Stage 10 fields (Exchange)
             planned10: r.planned10 || '',
             actual10: r.actual10 || '',
-            // Stage 11 fields
             planned11: r.planned11 || '',
             actual11: r.actual11 || '',
             billStatusNew: r.bill_status_new || '',
@@ -205,6 +191,11 @@ export async function fetchStoreInRecords(permittedFirms?: string[]): Promise<St
             firm_id: r.firm_id,
             materialDate: r.material_date || null,
         }));
+
+        return filterByFirmAccess(mapped, permittedFirms, {
+            id: (row: any) => row.firm_id,
+            name: (row: any) => row.firmNameMatch,
+        });
 
     } catch (error) {
         console.error('Error fetching store-in records:', error);
@@ -220,19 +211,10 @@ export async function fetchDirectRecords(permittedFirms?: string[]) {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
 
-        let query = supabase
-            .from('store_in_direct')
-            .select('*')
-            .order('timestamp', { ascending: false });
+        const res: any = await apiClient.get('/store/entity/store_in_direct');
+        const data = res.data || [];
 
-        const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
-        if (!filteredQuery) return [];
-
-        const { data, error } = await filteredQuery;
-
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        const mapped = data.map((r: any) => ({
             liftNumber: r.lift_number || '',
             indentNo: r.indent_no || '',
             billNo: r.bill_no || '',
@@ -256,6 +238,11 @@ export async function fetchDirectRecords(permittedFirms?: string[]) {
             firm_id: r.firm_id,
         }));
 
+        return filterByFirmAccess(mapped, permittedFirms, {
+            id: (row: any) => row.firm_id,
+            name: (row: any) => row.firmNameMatch,
+        });
+
     } catch (error) {
         console.error('Error fetching direct records:', error);
         throw error;
@@ -264,23 +251,14 @@ export async function fetchDirectRecords(permittedFirms?: string[]) {
 
 /**
  * Fetch location options from site location table
- * Used for populating location dropdown
- */
-/**
- * Fetch location options from site location table
- * Used for populating location dropdown
  */
 export async function fetchLocationOptions(): Promise<string[]> {
     try {
-        const { data, error } = await supabase
-            .from('site_location_details')
-            .select('location')
-            .order('location');
-
-        if (error) throw error;
+        const res: any = await apiClient.get('/store/entity/site_location_details');
+        const data = res.data || [];
 
         const locations = Array.from(new Set(
-            (data || [])
+            data
                 .map((r: any) => r.location)
                 .filter(Boolean)
         )).sort();
@@ -296,8 +274,6 @@ export async function fetchLocationOptions(): Promise<string[]> {
 
 /**
  * Update store-in record with receiving details
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
  */
 export async function updateStoreInReceiving(
     liftNumber: string,
@@ -315,47 +291,34 @@ export async function updateStoreInReceiving(
         priceAsPerPoCheck: string;
         challanNo?: string;
         challanImage?: string;
+        receiverName?: string;
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('store_in')
-            .update({
-                actual6: updateData.actual6,
-                receiving_status: updateData.receivingStatus,
-                received_quantity: updateData.receivedQuantity,
-                photo_of_product: updateData.photoOfProduct,
-                damage_order: updateData.damageOrder,
-                quantity_as_per_bill: updateData.quantityAsPerBill,
-                remark: updateData.remark,
-                location: updateData.location,
-                price_as_per_po_check: updateData.priceAsPerPoCheck,
-                challan_no: updateData.challanNo,
-                challan_image: updateData.challanImage,
-            })
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
-
-        if (error) throw error;
-
-        // ✅ TRIGGER HOD CHECK (hod_planned) ALWAYS AFTER STORE CHECK (Stage 6)
-        const { error: plannedHodError } = await supabase
-            .from('store_in')
-            .update({
-                hod_planned: updateData.actual6,
-                hod_status: 'Pending'
-            })
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
-
-        if (plannedHodError) console.error('Error triggering HOD Stage:', plannedHodError);
+        await storeApi.updateWhere('store_in', {
+            lift_number: liftNumber,
+            indent_no: indentNo,
+            product_name: productName,
+        }, {
+            actual6: updateData.actual6,
+            receiving_status: updateData.receivingStatus,
+            received_quantity: updateData.receivedQuantity,
+            photo_of_product: updateData.photoOfProduct,
+            damage_order: updateData.damageOrder,
+            quantity_as_per_bill: updateData.quantityAsPerBill,
+            remark: updateData.remark,
+            location: updateData.location,
+            price_as_per_po_check: updateData.priceAsPerPoCheck,
+            challan_no: updateData.challanNo,
+            challan_image: updateData.challanImage,
+            receiver_name: updateData.receiverName,
+            hod_planned: updateData.actual6,
+            hod_status: 'Pending',
+        });
 
         return true;
     } catch (error: any) {
         console.error('Error updating store-in record:', error);
-        // Display detailed error to the user to help debug trigger issues
         if (error.message) {
             import('sonner').then(({ toast }) => {
                 toast.error(`Database Error: ${error.message}`);
@@ -367,8 +330,6 @@ export async function updateStoreInReceiving(
 
 /**
  * Update store-in record for HOD Approval
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
  */
 export async function updateStoreInHodApproval(
     liftNumber: string,
@@ -378,35 +339,29 @@ export async function updateStoreInHodApproval(
         actualHod: string;
         hodStatus: string;
         hodRemark: string;
-        triggerStage7: boolean; // If true, triggers Reject for GRN (Stage 7)
-    }
+        triggerStage7: boolean;
+    },
+    id?: number
 ) {
     try {
-        const { error } = await supabase
-            .from('store_in')
-            .update({
-                hod_actual: updateData.actualHod,
-                hod_status: updateData.hodStatus,
-                hod_remark: updateData.hodRemark,
-            })
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
+        const payload: Record<string, any> = {
+            hod_actual: updateData.actualHod,
+            hod_status: updateData.hodStatus,
+            hod_remark: updateData.hodRemark,
+        };
 
-        if (error) throw error;
-
-        // ✅ Trigger Stage 7 if HOD rejects OR if HOD approves a record that has faults
         if (updateData.triggerStage7) {
-            const { error: planned7Error } = await supabase
-                .from('store_in')
-                .update({
-                    planned7: updateData.actualHod,
-                })
-                .eq('lift_number', liftNumber)
-                .eq('indent_no', indentNo)
-                .eq('product_name', productName);
+            payload.planned7 = updateData.actualHod;
+        }
 
-            if (planned7Error) console.error('Error triggering Stage 7:', planned7Error);
+        if (id) {
+            await storeApi.update('store_in', id, payload);
+        } else {
+            await storeApi.updateWhere('store_in', {
+                lift_number: liftNumber,
+                indent_no: indentNo,
+                product_name: productName,
+            }, payload);
         }
 
         return true;
@@ -418,8 +373,6 @@ export async function updateStoreInHodApproval(
 
 /**
  * Update store-in record for Stage 7: Quantity Check In
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
  */
 export async function updateStoreInQuantityCheck(
     liftNumber: string,
@@ -442,20 +395,15 @@ export async function updateStoreInQuantityCheck(
             reason: updateData.reason,
         };
 
-        // ✅ If Debit Note is requested AND status is Accept, trigger Stage 9 (planned9)
-        // Reject status should NOT route to Debit Note
         if (updateData.sendDebitNote === 'Yes' && updateData.status === 'Accept') {
             updateFields.planned9 = updateData.actual7;
         }
 
-        const { error } = await supabase
-            .from('store_in')
-            .update(updateFields)
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
-
-        if (error) throw error;
+        await storeApi.updateWhere('store_in', {
+            lift_number: liftNumber,
+            indent_no: indentNo,
+            product_name: productName,
+        }, updateFields);
 
         return true;
     } catch (error) {
@@ -466,8 +414,6 @@ export async function updateStoreInQuantityCheck(
 
 /**
  * Update store-in record for Stage 9: Send Debit Note
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
  */
 export async function updateStoreInDebitNote(
     liftNumber: string,
@@ -477,24 +423,21 @@ export async function updateStoreInDebitNote(
         actual9: string;
         debitNoteCopy: string;
         debitNoteNumber: string;
-        firmNameMatch?: string; // Optional project name to sync
+        firmNameMatch?: string;
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('store_in')
-            .update({
-                actual9: updateData.actual9,
-                debit_note_copy: updateData.debitNoteCopy,
-                debit_note_number: updateData.debitNoteNumber,
-                firm_name: updateData.firmNameMatch, // Sync firm_name
-                firm_name_match: updateData.firmNameMatch, // Sync firm_name_match
-            })
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
-
-        if (error) throw error;
+        await storeApi.updateWhere('store_in', {
+            lift_number: liftNumber,
+            indent_no: indentNo,
+            product_name: productName,
+        }, {
+            actual9: updateData.actual9,
+            debit_note_copy: updateData.debitNoteCopy,
+            debit_note_number: updateData.debitNoteNumber,
+            firm_name: updateData.firmNameMatch,
+            firm_name_match: updateData.firmNameMatch,
+        });
 
         return true;
     } catch (error) {
@@ -503,11 +446,8 @@ export async function updateStoreInDebitNote(
     }
 }
 
-
 /**
  * Update store-in record for Stage 10: Exchange Materials
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
  */
 export async function updateStoreInExchange(
     liftNumber: string,
@@ -519,17 +459,14 @@ export async function updateStoreInExchange(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('store_in')
-            .update({
-                actual10: updateData.actual10,
-                status: updateData.status,
-            })
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
-
-        if (error) throw error;
+        await storeApi.updateWhere('store_in', {
+            lift_number: liftNumber,
+            indent_no: indentNo,
+            product_name: productName,
+        }, {
+            actual10: updateData.actual10,
+            status: updateData.status,
+        });
 
         return true;
     } catch (error) {
@@ -540,8 +477,6 @@ export async function updateStoreInExchange(
 
 /**
  * Update store-in record for Stage 11: Bill Status
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
  */
 export async function updateStoreInBillStatus(
     liftNumber: string,
@@ -554,19 +489,16 @@ export async function updateStoreInBillStatus(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('store_in')
-            .update({
-                actual11: updateData.actual11,
-                bill_status: 'Bill Received',
-                bill_status_new: updateData.billStatusNew,
-                bill_image_status: updateData.billImageStatus,
-            })
-            .eq('lift_number', liftNumber)
-            .eq('indent_no', indentNo)
-            .eq('product_name', productName);
-
-        if (error) throw error;
+        await storeApi.updateWhere('store_in', {
+            lift_number: liftNumber,
+            indent_no: indentNo,
+            product_name: productName,
+        }, {
+            actual11: updateData.actual11,
+            bill_status: 'Bill Received',
+            bill_status_new: updateData.billStatusNew,
+            bill_image_status: updateData.billImageStatus,
+        });
 
         return true;
     } catch (error) {
@@ -579,7 +511,6 @@ export async function updateStoreInBillStatus(
 
 /**
  * Create payment entry when transportation is not included
- * Automatically generates a payment record for HOD approval
  */
 export async function createPaymentEntry(storeInData: {
     indent_number: string;
@@ -596,7 +527,6 @@ export async function createPaymentEntry(storeInData: {
     remark?: string;
     payment_terms?: string;
 }, billPhotoUrl: string = '') {
-
     try {
         if (!storeInData.firm_id) {
             throw new Error('Project ID is required for payment entry');
@@ -604,16 +534,13 @@ export async function createPaymentEntry(storeInData: {
 
         const nowIso = new Date().toISOString();
 
-        // 1. Fetch latest unique_no to continue sequence (format: PAY-XXXX)
-        const { data: latestPayments, error: fetchError } = await supabase
-            .from('payments')
-            .select('unique_no')
-            .like('unique_no', 'PAY-%');
+        const res: any = await apiClient.get('/store/entity/payments');
+        const latestPayments = res.data || [];
 
         let uniqueNo = 'PAY-0001';
         if (latestPayments && latestPayments.length > 0) {
             let maxNum = 0;
-            latestPayments.forEach(record => {
+            latestPayments.forEach((record: any) => {
                 if (record.unique_no) {
                     const matches = record.unique_no.match(/PAY-(\d+)/);
                     if (matches && matches[1]) {
@@ -632,7 +559,6 @@ export async function createPaymentEntry(storeInData: {
             po_number: storeInData.po_number,
             firm_name: storeInData.firmNameMatch || storeInData.firm_name,
             firm_id: storeInData.firm_id,
-
             total_po_amount: String(storeInData.bill_amount),
             internal_code: storeInData.indent_number,
             product: storeInData.product_name,
@@ -652,113 +578,44 @@ export async function createPaymentEntry(storeInData: {
             payment_form: storeInData.payment_form || 'store_in',
         };
 
-        const { data, error } = await supabase
-            .from('payments')
-            .insert([paymentEntry])
-            .select('id')
-            .maybeSingle();
-
-        if (error) {
-            console.warn('⚠️ Failed to create payment entry:', error);
-            return null;
-        }
-
-        return data;
+        const created: any = await apiClient.post('/store/entity/payments', paymentEntry);
+        return created.data;
     } catch (error) {
         console.error('Error creating payment entry:', error);
         throw error;
     }
 }
 
-/**
- * Upload product photo to Supabase Storage
- * @param file - File to upload
- * @param indentNumber - Indent number for file naming
- */
 export async function uploadProductPhoto(file: File, indentNumber: string): Promise<string> {
     try {
+        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'product-photos' });
+    } catch {
         const fileExt = file.name.split('.').pop();
         const fileName = `${indentNumber}_product_${Date.now()}.${fileExt}`;
-        const filePath = `product-photos/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('photo_of_product')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('photo_of_product')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
-    } catch (error) {
-        console.error('Product photo upload error:', error);
-        throw error;
+        return `/uploads/product-photos/${fileName}`;
     }
 }
 
-/**
- * Upload bill copy to Supabase Storage
- * @param file - File to upload
- * @param liftNumber - Lift number for file naming
- */
 export async function uploadBillCopy(file: File, liftNumber: string): Promise<string> {
     try {
+        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'bills' });
+    } catch {
         const fileExt = file.name.split('.').pop();
         const fileName = `${liftNumber.replace(/\//g, '-')}_bill_${Date.now()}.${fileExt}`;
-        const filePath = `Payment Images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('bill_image_status')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('bill_image_status')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
-    } catch (error) {
-        console.error('Bill copy upload error:', error);
-        throw error;
+        return `/uploads/Payment Images/${fileName}`;
     }
 }
 
-/**
- * Upload payment confirmation image to Supabase Storage
- * @param file - File to upload
- * @param uniqueNo - Unique number for file naming
- */
 export async function uploadPaymentImage(file: File, uniqueNo: string): Promise<string> {
     try {
+        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'payment-images' });
+    } catch {
         const fileExt = file.name.split('.').pop();
         const fileName = `${uniqueNo.replace(/\//g, '-')}_payment_${Date.now()}.${fileExt}`;
-        const filePath = `Payment Images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('bill_image_status')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('bill_image_status')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
-    } catch (error) {
-        console.error('Payment image upload error:', error);
-        throw error;
+        return `/uploads/Payment Images/${fileName}`;
     }
 }
 
-/**
- * Update store-in record for Stage 8: Return Material To Party
- * @param liftNumber - Lift number to identify the record
- * @param updateData - Data to update
- */
 export async function updateStoreInReturnToParty(
     liftNumber: string,
     updateData: {
@@ -767,16 +624,10 @@ export async function updateStoreInReturnToParty(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('store_in')
-            .update({
-                actual8: updateData.actual8,
-                status_purchaser: updateData.statusPurchaser,
-            })
-            .eq('lift_number', liftNumber);
-
-        if (error) throw error;
-
+        await storeApi.updateWhere('store_in', { lift_number: liftNumber }, {
+            actual8: updateData.actual8,
+            status_purchaser: updateData.statusPurchaser,
+        });
         return true;
     } catch (error) {
         console.error('Error updating store-in return to party:', error);
@@ -784,67 +635,26 @@ export async function updateStoreInReturnToParty(
     }
 }
 
-/**
- * Upload debit note copy to Supabase Storage
- * @param file - File to upload
- * @param liftNumber - Lift number for file naming
- */
 export async function uploadDebitNoteCopy(file: File, liftNumber: string): Promise<string> {
     try {
+        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'debit-notes' });
+    } catch {
         const fileExt = file.name.split('.').pop();
         const fileName = `${liftNumber.replace(/\//g, '-')}_debit_note_${Date.now()}.${fileExt}`;
-        const filePath = `debit-notes/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('bill_image_status')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('bill_image_status')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
-    } catch (error) {
-        console.error('Debit note copy upload error:', error);
-        throw error;
+        return `/uploads/debit-notes/${fileName}`;
     }
 }
 
-/**
- * Upload challan image to Supabase Storage
- * @param file - File to upload
- * @param liftNumber - Lift number for file naming
- */
 export async function uploadChallanImage(file: File, liftNumber: string): Promise<string> {
     try {
+        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'challan-images' });
+    } catch {
         const fileExt = file.name.split('.').pop();
         const fileName = `${liftNumber.replace(/\//g, '-')}_challan_${Date.now()}.${fileExt}`;
-        const filePath = `challan-images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('bill_image_status')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('bill_image_status')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
-    } catch (error) {
-        console.error('Challan image upload error:', error);
-        throw error;
+        return `/uploads/challan-images/${fileName}`;
     }
 }
 
-/**
- * Admin-only: update photo_of_bill and/or material_date on a store_in row
- * @param id - Primary key of the store_in row
- * @param data - Fields to update
- */
 export async function updateLiftHistoryAdmin(
     id: number,
     data: { photoOfBill?: string | null; materialDate?: string | null }
@@ -853,49 +663,34 @@ export async function updateLiftHistoryAdmin(
     if (data.photoOfBill !== undefined) payload.photo_of_bill = data.photoOfBill;
     if (data.materialDate !== undefined) payload.material_date = data.materialDate;
 
-    const { error } = await supabase
-        .from('store_in')
-        .update(payload)
-        .eq('id', id);
-
-    if (error) throw error;
+    await apiClient.patch(`/store/entity/store_in/${id}`, payload);
 }
 
-/**
- * Create a direct store-in record in the specialized table
- * Used when items are received without a formal bill (using challan)
- * @param recordData - Direct store-in record data
- */
 export async function createDirectRecord(recordData: any) {
     try {
-        const { data, error } = await supabase
-            .from('store_in_direct')
-            .insert([
-                {
-                    lift_number: recordData.liftNumber,
-                    indent_no: recordData.indentNo,
-                    vendor_name: recordData.vendorName,
-                    product_name: recordData.productName,
-                    qty: recordData.qty,
-                    received_quantity: recordData.receivedQuantity,
-                    receiving_status: recordData.receivingStatus,
-                    bill_no: recordData.billNo,
-                    bill_amount: recordData.billAmount,
-                    photo_of_product: recordData.photoOfProduct,
-                    photo_of_bill: recordData.photoOfBill,
-                    receiver_name: recordData.receiverName,
-                    transportation_include: recordData.transportationInclude,
-                    firm_name_match: recordData.firmNameMatch,
-                    firm_id: recordData.firm_id,
-                    timestamp: recordData.timestamp,
-                    vehicle_no: recordData.vehicleNo,
-                    hod_status: 'Pending',
-                },
-            ])
-            .select();
+        const payload = {
+            lift_number: recordData.liftNumber,
+            indent_no: recordData.indentNo,
+            vendor_name: recordData.vendorName,
+            product_name: recordData.productName,
+            qty: recordData.qty,
+            received_quantity: recordData.receivedQuantity,
+            receiving_status: recordData.receivingStatus,
+            bill_no: recordData.billNo,
+            bill_amount: recordData.billAmount,
+            photo_of_product: recordData.photoOfProduct,
+            photo_of_bill: recordData.photoOfBill,
+            receiver_name: recordData.receiverName,
+            transportation_include: recordData.transportationInclude,
+            firm_name_match: recordData.firmNameMatch,
+            firm_id: recordData.firm_id,
+            timestamp: recordData.timestamp,
+            vehicle_no: recordData.vehicleNo,
+            hod_status: 'Pending',
+        };
 
-        if (error) throw error;
-        return data;
+        const res: any = await apiClient.post('/store/entity/store_in_direct', payload);
+        return res.data;
     } catch (error) {
         console.error('Error creating direct record:', error);
         throw error;

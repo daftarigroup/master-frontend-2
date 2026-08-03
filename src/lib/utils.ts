@@ -7,8 +7,8 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(date: Date | string): string {
     if (!date) return '-';
-    const dObj = typeof date === 'string' ? parseCustomDate(date) : date;
-    if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' ? date : '-';
+    const dObj = typeof date === 'string' ? parseCustomDate(date) : (date instanceof Date && !isNaN(date.getTime()) ? date : parseCustomDate(String(date)));
+    if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' && date.trim() && date !== '-' ? date : '-';
     
     const pad = (n: number) => n.toString().padStart(2, '0');
     return `${pad(dObj.getDate())}-${pad(dObj.getMonth() + 1)}-${dObj.getFullYear()}`;
@@ -16,8 +16,8 @@ export function formatDate(date: Date | string): string {
 
 export function formatDateTime(date: Date | string): string {
     if (!date) return '-';
-    const dObj = typeof date === 'string' ? parseCustomDate(date) : date;
-    if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' ? date : '-';
+    const dObj = typeof date === 'string' ? parseCustomDate(date) : (date instanceof Date && !isNaN(date.getTime()) ? date : parseCustomDate(String(date)));
+    if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' && date.trim() && date !== '-' ? date : '-';
     
     const pad = (n: number) => n.toString().padStart(2, '0');
     const day = pad(dObj.getDate());
@@ -38,8 +38,8 @@ export function formatTimestamp(date: Date | string): string {
 
 export function formatDateTimeFull(date: Date | string): string {
     if (!date) return '-';
-    const dObj = typeof date === 'string' ? parseCustomDate(date) : date;
-    if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' ? date : '-';
+    const dObj = typeof date === 'string' ? parseCustomDate(date) : (date instanceof Date && !isNaN(date.getTime()) ? date : parseCustomDate(String(date)));
+    if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' && date.trim() && date !== '-' ? date : '-';
     
     const pad = (n: number) => n.toString().padStart(2, '0');
     const day = pad(dObj.getDate());
@@ -53,7 +53,7 @@ export function formatDateTimeFull(date: Date | string): string {
 }
 
 /**
- * Robustly parse dates from Supabase, handling both ISO and DD/MM/YY formats
+ * Robustly parse dates from Supabase, handling ISO, DD-MM-YYYY, and DD/MM/YYYY formats
  */
 export function parseCustomDate(dateStr: any): Date {
     if (!dateStr) return new Date(NaN);
@@ -61,12 +61,31 @@ export function parseCustomDate(dateStr: any): Date {
 
     if (typeof dateStr === 'string') {
         const cleanStr = dateStr.trim();
-        
-        // 1. Handle ISO-like timestamps from DB (e.g. "2024-03-31 10:00:00")
-        // If it has hyphens and colons but no timezone indicator (Z or +/-), assume UTC
+        if (!cleanStr || cleanStr === '-') return new Date(NaN);
+
+        // 1. Handle DD-MM-YYYY or DD/MM/YYYY with optional time and AM/PM (e.g. "28-07-2026 12:00:00 AM", "28/07/2026")
+        const match = cleanStr.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?$/i);
+        if (match) {
+            const day = parseInt(match[1], 10);
+            const month = parseInt(match[2], 10) - 1;
+            let year = parseInt(match[3], 10);
+            if (year < 100) year += 2000;
+
+            let hours = match[4] ? parseInt(match[4], 10) : 0;
+            const minutes = match[5] ? parseInt(match[5], 10) : 0;
+            const seconds = match[6] ? parseInt(match[6], 10) : 0;
+            const ampm = match[7] ? match[7].toUpperCase() : null;
+
+            if (ampm === 'PM' && hours < 12) hours += 12;
+            if (ampm === 'AM' && hours === 12) hours = 0;
+
+            const localD = new Date(year, month, day, hours, minutes, seconds);
+            if (!isNaN(localD.getTime())) return localD;
+        }
+
+        // 2. Handle ISO-like timestamps from DB (e.g. "2024-03-31 10:00:00")
         if (cleanStr.includes('-') && cleanStr.includes(':')) {
             if (!cleanStr.match(/([+-]\d{2,4}|[A-Z]{1,4}|Z)$/)) {
-                // Ensure there's a 'T' between date and time for standard ISO parsing
                 const isoFormatted = cleanStr.includes(' ') ? cleanStr.replace(' ', 'T') : cleanStr;
                 const withZ = isoFormatted + 'Z';
                 const d = new Date(withZ);
@@ -74,26 +93,9 @@ export function parseCustomDate(dateStr: any): Date {
             }
         }
 
-        // 2. Try standard parsing (handles "2024-03-31T10:00:00Z" etc.)
+        // 3. Try standard parsing (handles "2024-03-31T10:00:00Z" etc.)
         const standardDate = new Date(cleanStr);
         if (!isNaN(standardDate.getTime())) return standardDate;
-
-        // 3. Handle custom DD/MM/YY formats
-        const match = cleanStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
-        if (match) {
-            const day = parseInt(match[1], 10);
-            const month = parseInt(match[2], 10) - 1;
-            let year = parseInt(match[3], 10);
-            if (year < 100) year += 2000;
-
-            const hours = match[4] ? parseInt(match[4], 10) : 0;
-            const minutes = match[5] ? parseInt(match[5], 10) : 0;
-            const seconds = match[6] ? parseInt(match[6], 10) : 0;
-
-            // Note: This constructor uses LOCAL time
-            const localD = new Date(year, month, day, hours, minutes, seconds);
-            if (!isNaN(localD.getTime())) return localD;
-        }
     }
 
     return new Date(NaN);
@@ -171,3 +173,26 @@ export function formatNumber(num: number) {
     }
     return num.toString();
 }
+
+/**
+ * Formats a file or image path/URL into an absolute URL that opens safely in a new tab.
+ * Prevents relative paths (like /uploads/...) from triggering SPA fallback (Dashboard).
+ */
+export function getPublicFileUrl(pathOrUrl?: string | null): string {
+    if (!pathOrUrl || typeof pathOrUrl !== 'string') return '';
+    const cleanUrl = pathOrUrl.trim().replace(/^["']|["']$/g, '');
+    if (!cleanUrl || cleanUrl === '-' || cleanUrl === 'null' || cleanUrl === 'undefined') return '';
+
+    // 1. Absolute web URLs, blob URLs, or data URIs
+    if (/^(https?:\/\/|blob:|data:)/i.test(cleanUrl)) {
+        return cleanUrl;
+    }
+
+    // 2. Relative paths (like /uploads/Payment Images/..., uploads/..., etc.)
+    const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:5001/api';
+    const backendOrigin = apiBase.replace(/\/api\/?$/, '');
+    const relativePath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+
+    return `${backendOrigin}${relativePath}`;
+}
+

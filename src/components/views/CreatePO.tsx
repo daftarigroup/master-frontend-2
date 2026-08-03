@@ -10,7 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '../ui/form';
 import type { PoMasterSheet } from '@/types';
 import { uploadFile } from '@/lib/fetchers';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
@@ -30,7 +30,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '../ui/textarea';
 import { pdf } from '@react-pdf/renderer';
 import POPdf, { type POPdfProps } from '../element/POPdf';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { PDFViewer } from '@react-pdf/renderer';
 import { supabase, supabaseEnabled } from '@/lib/supabase';
 import { fetchIndents, fetchPoMaster, fetchMasterData, insertPoRecords, updateIndentsAfterPoCreation } from '@/services/poService';
@@ -171,6 +171,7 @@ interface IndentSheetItem {
     approvedPaymentTerm?: string;
     approvedAdvancePercent?: string;
     vendorType?: string;
+    poRequired?: string;
 }
 
 interface MasterDetails {
@@ -196,6 +197,8 @@ interface MasterDetails {
         destinationAddress: string;
         companyGstin: string;
         companyPan: string;
+        billingAddress?: string;
+        companyContactPerson?: string;
     }>;
     companyName: string;
     companyPhone: string;
@@ -215,20 +218,20 @@ const schema = z.object({
     poDate: z.coerce.date(),
     supplierName: z.string().nonempty(),
     supplierAddress: z.string().nonempty(),
-    gstin: z.string(),
+    gstin: z.string().optional(),
     companyEmail: z.union([z.string().email(), z.literal('')]).optional(),
 
     ourEnqNo: z.string().optional(),
     enquiryDate: z.union([z.coerce.date(), z.any().transform(() => undefined)]).optional(),
-    description: z.string(),
+    description: z.string().optional(),
     indents: z.array(
         z.object({
-            id: z.number(),
-            indentNumber: z.string().nonempty(),
+            id: z.union([z.number(), z.string(), z.any()]).optional(),
+            indentNumber: z.string().optional(),
             quotationNumber: z.string().optional(),
             productName: z.string().optional(),
             specifications: z.string().optional(),
-            gst: z.coerce.number(),
+            gst: z.coerce.number().optional(),
             discount: z.coerce.number().default(0).optional(),
             quantity: z.coerce.number().optional(),
             unit: z.string().optional(),
@@ -237,13 +240,16 @@ const schema = z.object({
             numberOfDays: z.coerce.number().optional(),
         })
     ),
-    terms: z.array(z.string().nonempty()),
+    terms: z.array(z.string()).optional(),
     deliveryDate: z.coerce.date(),
     deliveryDays: z.coerce.number().optional(),
     deliveryType: z.enum(['for', 'exfactory']).optional(),
-    siteEngineerName: z.string().optional(),
-    siteEngineerEmail: z.string().optional(),
-    siteEngineerPhoneNo: z.string().optional(),
+    siteEngineerName: z.string().min(1, 'Site Engineer Details 1 Name is required'),
+    siteEngineerEmail: z.string().min(1, 'Site Engineer Details 1 Email is required'),
+    siteEngineerPhoneNo: z.string().min(1, 'Site Engineer Details 1 Phone is required'),
+    siteEngineerName2: z.string().optional(),
+    siteEngineerEmail2: z.string().optional(),
+    siteEngineerPhoneNo2: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -281,7 +287,9 @@ const CreatePO = () => {
 
         try {
             setDataLoading(true);
-            const permittedFirms = user?.firm_access || [];
+            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
+                ? undefined
+                : user.firm_access;
             const [indents, poMaster, masterData] = await Promise.all([
                 fetchIndents(permittedFirms),
                 fetchPoMaster(permittedFirms),
@@ -318,7 +326,7 @@ const CreatePO = () => {
         } finally {
             setDataLoading(false);
         }
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, user?.firm_access, user?.administrate]);
 
     useEffect(() => {
         loadData();
@@ -356,6 +364,31 @@ const CreatePO = () => {
         }
     };
 
+    const handleEngineerSave2 = async () => {
+        const name = form.getValues('siteEngineerName2');
+        const number = form.getValues('siteEngineerPhoneNo2');
+        const email = form.getValues('siteEngineerEmail2');
+
+        if (!name || !number || !email) {
+            toast.error('Please fill all engineer 2 details');
+            return;
+        }
+
+        try {
+            const res = await upsertSiteEngineer({ name, number, email });
+            if (res.success) {
+                toast.success('Engineer 2 saved');
+                loadData(); // Refresh local state
+                updateMasterSheet(); // Sync other components
+            } else {
+                toast.error('Failed to save engineer');
+            }
+        } catch (error) {
+            console.error('Error saving engineer:', error);
+            toast.error('Error saving engineer');
+        }
+    };
+
 
 
     useEffect(() => {
@@ -379,10 +412,12 @@ const CreatePO = () => {
             deliveryType: undefined,
             description: '',
             indents: [],
-            terms: [],
             siteEngineerName: '',
             siteEngineerEmail: '',
             siteEngineerPhoneNo: '',
+            siteEngineerName2: '',
+            siteEngineerEmail2: '',
+            siteEngineerPhoneNo2: '',
         },
     });
 
@@ -403,75 +438,88 @@ const CreatePO = () => {
         name: 'indents' as any,
     });
 
+    const existingPoCompoundKeys = useMemo(() => {
+        return new Set(
+            (poMasterSheet || [])
+                .map((p: any) => {
+                    const code = String(p.internalCode || p.internal_code || '').trim();
+                    const product = String(p.product || '').trim();
+                    const party = String(p.partyName || p.party_name || '').trim();
+                    return `${code}_${product}_${party}`;
+                })
+                .filter((k) => k !== '__')
+        );
+    }, [poMasterSheet]);
+
     // Vendor selection effect for CREATE mode
     useEffect(() => {
-        if (!vendor || !details || !(details as MasterDetails).vendors || mode !== 'create') return;
-
+        if (!vendor || mode !== 'create') return;
 
         const normalize = (str: any) => {
-            // ✅ FIX: Handle cases where str might not be a string
             if (!str) return '';
             if (typeof str !== 'string') return String(str).trim().toLowerCase();
             return str.trim().toLowerCase();
         };
 
-        const selectedVendor = (details as MasterDetails).vendors?.find(
+        const selectedVendor = (details as MasterDetails)?.vendors?.find(
             (v) => normalize(v.vendorName) === normalize(vendor)
         );
 
+        const matchingIndents = indentSheet.filter((i: IndentSheetItem) => {
+            const vendorName = i.approvedVendorName;
+            const hasVendor = vendorName && (typeof vendorName === 'string' || typeof vendorName === 'number') && String(vendorName).trim() !== '';
+            const normalizedVendorName = normalize(vendorName);
+            const normalizedSelectedVendor = normalize(vendor);
+
+            const hasPoNumber = Boolean((i as any).poNumber && String((i as any).poNumber).trim() !== '') || Boolean((i as any).po_number && String((i as any).po_number).trim() !== '');
+            const isManagementDone = i.actual4 !== '' || i.planned4 !== '' || (i as any).po_requred === 'Yes' || i.poRequired === 'Yes' || !!vendorName;
+
+            return hasVendor && isManagementDone && !hasPoNumber && normalizedVendorName === normalizedSelectedVendor;
+        });
+
         if (selectedVendor) {
-            form.setValue('supplierAddress', selectedVendor.address || '', { shouldValidate: true });
-            form.setValue('gstin', selectedVendor.gstin || '', { shouldValidate: true });
-            form.setValue('companyEmail', selectedVendor.vendorEmail || '', { shouldValidate: true });
+            form.setValue('supplierAddress', selectedVendor.address || (matchingIndents[0] as any)?.supplierAddress || '', { shouldValidate: true });
+            form.setValue('gstin', selectedVendor.gstin || (matchingIndents[0] as any)?.supplierGstin || '', { shouldValidate: true });
+            form.setValue('companyEmail', selectedVendor.vendorEmail || (matchingIndents[0] as any)?.companyEmail || '', { shouldValidate: true });
+        } else if (matchingIndents.length > 0) {
+            form.setValue('supplierAddress', (matchingIndents[0] as any)?.supplierAddress || '', { shouldValidate: true });
+            form.setValue('gstin', (matchingIndents[0] as any)?.supplierGstin || '', { shouldValidate: true });
+            form.setValue('companyEmail', (matchingIndents[0] as any)?.companyEmail || '', { shouldValidate: true });
         } else {
-            console.warn("⚠️ Vendor not found in master list:", vendor);
+            console.warn("⚠️ Vendor details not found in master list or indents:", vendor);
             form.setValue('supplierAddress', '', { shouldValidate: true });
             form.setValue('gstin', '', { shouldValidate: true });
             form.setValue('companyEmail', '', { shouldValidate: true });
         }
 
-        // ✅ FIX: Update the matching indents filter to handle non-string vendor names
-        const matchingIndents = indentSheet.filter((i: IndentSheetItem) => {
-            const vendorName = i.approvedVendorName;
-            const hasVendor = vendorName && (typeof vendorName === 'string' || typeof vendorName === 'number');
-            const normalizedVendorName = normalize(vendorName);
-            const normalizedSelectedVendor = normalize(vendor);
-
-            return hasVendor &&
-                i.approvedVendorName !== '' &&
-                i.planned4 !== '' &&
-                i.actual4 === '' &&
-                normalizedVendorName === normalizedSelectedVendor;
-        });
         const firmName = matchingIndents[0]?.firmNameMatch || matchingIndents[0]?.firmName || '';
         setCurrentProjectName(firmName || 'Project Name');
 
-        if (firmName && (details as MasterDetails).firmCompanyMap) {
+        if (firmName && (details as MasterDetails)?.firmCompanyMap) {
             const firmKey = Object.keys((details as MasterDetails).firmCompanyMap!).find(
                 (key) => normalize(key) === normalize(firmName)
             );
 
             const companyDetails = firmKey ? (details as MasterDetails).firmCompanyMap![firmKey] : null;
 
+            const compName = companyDetails?.companyName || (details as MasterDetails)?.companyName || firmName || 'Project Name';
+            const compAddr = companyDetails?.billingAddress || companyDetails?.companyAddress || (details as MasterDetails)?.billingAddress || (details as MasterDetails)?.companyAddress || '';
+            const compGstin = companyDetails?.companyGstin || (details as MasterDetails)?.companyGstin || '';
+            const compPan = companyDetails?.companyPan || (details as MasterDetails)?.companyPan || '';
+
+            setFirmCompanyName(compName);
+            setFirmCompanyAddress(cleanAddress(compAddr));
+            setFirmCompanyGstin(compGstin);
+            setFirmCompanyPan(compPan);
+
             if (companyDetails) {
-                setFirmCompanyName(companyDetails.companyName || '');
-                setFirmCompanyAddress(companyDetails.companyAddress || '');
-                setFirmCompanyGstin(companyDetails.companyGstin || '');
-                setFirmCompanyPan(companyDetails.companyPan || '');
                 setDestinationAddress(
-                    cleanAddress(companyDetails.destinationAddress || (details as MasterDetails).destinationAddress || '')
+                    cleanAddress(companyDetails.destinationAddress || (matchingIndents[0] as any)?.destinationAddress || (matchingIndents[0] as any)?.destination_address || '')
                 );
             } else {
-                setFirmCompanyName((details as MasterDetails).companyName || 'Project Name');
-                setFirmCompanyAddress((details as MasterDetails).companyAddress || 'Shri Ram Business Park , Block - C, 2nd floor , Room No. 212');
-                setFirmCompanyGstin((details as MasterDetails).companyGstin || '');
-                setFirmCompanyPan((details as MasterDetails).companyPan || '');
-                setDestinationAddress(cleanAddress((details as MasterDetails).destinationAddress || ''));
+                setDestinationAddress(cleanAddress((matchingIndents[0] as any)?.destinationAddress || (matchingIndents[0] as any)?.destination_address || ''));
             }
         }
-
-        // Payment terms are now handled per item in the table
-        // No longer setting top-level paymentTerms and numberOfDays
 
         form.setValue(
             'indents',
@@ -491,9 +539,9 @@ const CreatePO = () => {
                     quotationNumber: i.quotationNumber || '',
                     productName: i.productName || '',
                     specifications: i.specifications || '',
-                    gst: gstValue,
+                    gst: gstValue || 18,
                     discount: 0,
-                    quantity: i.approvedQuantity || 0,
+                    quantity: i.approvedQuantity || i.indentQuantity || 0,
                     unit: i.uom || '',
                     rate: i.approvedRate || 0,
                     paymentTerm: i.approvedPaymentTerm || '',
@@ -502,11 +550,9 @@ const CreatePO = () => {
             })
         );
 
-        // Dynamic Terms Population based on Product and Vendor Type - REMOVED for manual entry
-
         setTimeout(() => form.trigger(['supplierAddress', 'gstin']), 100);
 
-    }, [vendor, details, indentSheet, mode, form]);
+    }, [vendor, details, indentSheet, poMasterSheet, mode, form]);
 
     // Mode change effect
     useEffect(() => {
@@ -661,27 +707,32 @@ const CreatePO = () => {
 
                     const companyDetails = firmKey ? (details as MasterDetails).firmCompanyMap![firmKey] : null;
 
+                    const compName = companyDetails?.companyName || (details as MasterDetails)?.companyName || firmName || 'Project Name';
+                    const compAddr = companyDetails?.billingAddress || companyDetails?.companyAddress || (details as MasterDetails)?.billingAddress || (details as MasterDetails)?.companyAddress || '';
+                    const compGstin = companyDetails?.companyGstin || (details as MasterDetails)?.companyGstin || '';
+                    const compPan = companyDetails?.companyPan || (details as MasterDetails)?.companyPan || '';
+
+                    setFirmCompanyName(compName);
+                    setFirmCompanyAddress(cleanAddress(compAddr));
+                    setFirmCompanyGstin(compGstin);
+                    setFirmCompanyPan(compPan);
+
                     if (companyDetails) {
-                        setFirmCompanyName(companyDetails.companyName || '');
-                        setFirmCompanyAddress(companyDetails.companyAddress || '');
-                        setFirmCompanyGstin(companyDetails.companyGstin || '');
-                        setFirmCompanyPan(companyDetails.companyPan || '');
                         setDestinationAddress(
-                            cleanAddress(firstPoItem.destinationAddress || companyDetails.destinationAddress || (details as MasterDetails).destinationAddress || '')
+                            cleanAddress(firstPoItem.destinationAddress || companyDetails.destinationAddress || (firstPoItem as any)?.destination_address || '')
                         );
                     } else {
-                        setFirmCompanyName((details as MasterDetails).companyName || 'Project Name');
-                        setFirmCompanyAddress((details as MasterDetails).companyAddress || 'Shri Ram Business Park , Block - C, 2nd floor , Room No. 212');
-                        setFirmCompanyGstin((details as MasterDetails).companyGstin || '');
-                        setFirmCompanyPan((details as MasterDetails).companyPan || '');
-                        setDestinationAddress(cleanAddress(firstPoItem.destinationAddress || (details as MasterDetails).destinationAddress || ''));
+                        setDestinationAddress(cleanAddress(firstPoItem.destinationAddress || (firstPoItem as any)?.destination_address || ''));
                     }
                 }
 
                 // Populate Site Engineer Details in Revise Mode
-                form.setValue('siteEngineerName', firstPoItem.siteEngineerName || '');
-                form.setValue('siteEngineerEmail', firstPoItem.siteEngineerEmail || '');
-                form.setValue('siteEngineerPhoneNo', firstPoItem.siteEngineerPhoneNo || '');
+                form.setValue('siteEngineerName', firstPoItem.siteEngineerName || (firstPoItem as any).site_engineer_name || '');
+                form.setValue('siteEngineerEmail', firstPoItem.siteEngineerEmail || (firstPoItem as any).site_engineer_email || '');
+                form.setValue('siteEngineerPhoneNo', firstPoItem.siteEngineerPhoneNo || (firstPoItem as any).site_engineer_phoneNo || '');
+                form.setValue('siteEngineerName2', firstPoItem.siteEngineerName2 || (firstPoItem as any).site_engineer_name_2 || '');
+                form.setValue('siteEngineerEmail2', firstPoItem.siteEngineerEmail2 || (firstPoItem as any).site_engineer_email_2 || '');
+                form.setValue('siteEngineerPhoneNo2', firstPoItem.siteEngineerPhoneNo2 || (firstPoItem as any).site_engineer_phoneNo_2 || '');
             }
         }
     }, [poNumber, mode, poMasterSheet, details, indentSheet, form]);
@@ -719,6 +770,19 @@ const CreatePO = () => {
     };
 
     const getLogoBase64 = async (): Promise<string> => {
+        try {
+            const res = await fetch(window.location.origin + '/logo.png');
+            if (res.ok) {
+                const blob = await res.blob();
+                return await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve((reader.result as string) || '/logo.png');
+                    reader.readAsDataURL(blob);
+                });
+            }
+        } catch (e) {
+            console.warn('Could not convert logo to base64:', e);
+        }
         return '/logo.png';
     };
 
@@ -739,13 +803,14 @@ const CreatePO = () => {
         const projectName = currentProjectName;
 
         // Parse terms from form values
+        const userTerms = values.terms || [];
         const parsedTerms = [
-            ...values.terms.map((text, index) => ({
+            ...userTerms.map((text, index) => ({
                 num: (index + 1).toString(),
                 text: text
             })),
             ...localTerms.map((t, index) => ({
-                num: (values.terms.length + index + 1).toString(),
+                num: (userTerms.length + index + 1).toString(),
                 text: `${t.title}: ${t.name}`
             }))
         ];
@@ -760,7 +825,7 @@ const CreatePO = () => {
             companyContactPerson: details?.companyContactPerson || '',
             supplierName: values.supplierName,
             supplierAddress: values.supplierAddress,
-            supplierGstin: values.gstin,
+            supplierGstin: values.gstin || '',
             supplierContactPerson: selectedVendor?.personName || '',
             supplierPhone: selectedVendor?.phone || '',
             supplierEmail: values.companyEmail || '',
@@ -775,6 +840,9 @@ const CreatePO = () => {
             siteEngineerName: values.siteEngineerName || '',
             siteEngineerEmail: values.siteEngineerEmail || '',
             siteEngineerPhoneNo: values.siteEngineerPhoneNo || '',
+            siteEngineerName2: values.siteEngineerName2 || '',
+            siteEngineerEmail2: values.siteEngineerEmail2 || '',
+            siteEngineerPhoneNo2: values.siteEngineerPhoneNo2 || '',
             subtotal,
             totalGst,
             items: values.indents.map((item) => {
@@ -831,14 +899,14 @@ const CreatePO = () => {
             const selectedVendor = details?.vendors?.find(v => v.vendorName === values.supplierName);
             const projectName = currentProjectName;
 
-            // Parse terms from form values
+            const userTerms = values.terms || [];
             const parsedTerms = [
-                ...values.terms.map((text, index) => ({
+                ...userTerms.map((text, index) => ({
                     num: (index + 1).toString(),
                     text: text
                 })),
                 ...localTerms.map((t, index) => ({
-                    num: (values.terms.length + index + 1).toString(),
+                    num: (userTerms.length + index + 1).toString(),
                     text: `${t.title}: ${t.name}`
                 }))
             ];
@@ -853,7 +921,7 @@ const CreatePO = () => {
                 companyContactPerson: details?.companyContactPerson || '',
                 supplierName: values.supplierName,
                 supplierAddress: values.supplierAddress,
-                supplierGstin: values.gstin,
+                supplierGstin: values.gstin || '',
                 supplierContactPerson: selectedVendor?.personName || '',
                 supplierPhone: selectedVendor?.phone || '',
                 supplierEmail: values.companyEmail || '',
@@ -868,6 +936,9 @@ const CreatePO = () => {
                 siteEngineerName: values.siteEngineerName || '',
                 siteEngineerEmail: values.siteEngineerEmail || '',
                 siteEngineerPhoneNo: values.siteEngineerPhoneNo || '',
+                siteEngineerName2: values.siteEngineerName2 || '',
+                siteEngineerEmail2: values.siteEngineerEmail2 || '',
+                siteEngineerPhoneNo2: values.siteEngineerPhoneNo2 || '',
                 subtotal,
                 totalGst,
                 items: values.indents.map((item) => {
@@ -938,22 +1009,22 @@ const CreatePO = () => {
 
                 return {
                     discountPercent: v.discount || 0,
-                    gstPercent: v.gst,
+                    gstPercent: v.gst || 0,
                     timestamp: values.poDate.toISOString(),
                     partyName: values.supplierName,
                     poNumber,
-                    internalCode: v.indentNumber,
+                    internalCode: v.indentNumber || '',
                     product: v.productName || indent?.productName || '',
-                    description: values.description,
+                    description: values.description || '',
                     quantity: v.quantity || 0,
                     unit: v.unit || '',
                     rate: v.rate || 0,
-                    gst: v.gst,
+                    gst: v.gst || 0,
                     companyEmail: values.companyEmail || '',
                     discount: v.discount || 0,
                     amount: calculateTotal(
                         v.rate || 0,
-                        v.gst,
+                        v.gst || 0,
                         v.discount || 0,
                         v.quantity || 0
                     ),
@@ -963,16 +1034,16 @@ const CreatePO = () => {
                     quotationDate: '',
                     enquiryNumber: values.ourEnqNo || '',
                     enquiryDate: values.enquiryDate ? formatDateTime(values.enquiryDate) : '',
-                    term1: values.terms[0] || '',
-                    term2: values.terms[1] || '',
-                    term3: values.terms[2] || '',
-                    term4: values.terms[3] || '',
-                    term5: values.terms[4] || '',
-                    term6: values.terms[5] || '',
-                    term7: values.terms[6] || '',
-                    term8: values.terms[7] || '',
-                    term9: values.terms[8] || '',
-                    term10: values.terms[9] || '',
+                    term1: userTerms[0] || '',
+                    term2: userTerms[1] || '',
+                    term3: userTerms[2] || '',
+                    term4: userTerms[3] || '',
+                    term5: userTerms[4] || '',
+                    term6: userTerms[5] || '',
+                    term7: userTerms[6] || '',
+                    term8: userTerms[7] || '',
+                    term9: userTerms[8] || '',
+                    term10: userTerms[9] || '',
                     deliveryDate: formatDateTime(values.deliveryDate),
                     paymentTerms: v.paymentTerm || '',
                     numberOfDays: v.numberOfDays || 0,
@@ -981,9 +1052,9 @@ const CreatePO = () => {
                     firmNameMatch: (indent as any)?.firmNameMatch ?? '',
                     firm_id: indent?.firm_id,
                     advancePercent: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (v.numberOfDays || 0) : 0,
-                    advanceAmount: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (calculateTotal(v.rate || 0, v.gst, v.discount || 0, v.quantity || 0) * (v.numberOfDays || 0)) / 100 : 0,
+                    advanceAmount: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (calculateTotal(v.rate || 0, v.gst || 0, v.discount || 0, v.quantity || 0) * (v.numberOfDays || 0)) / 100 : 0,
                     termsObject: {
-                        ...values.terms.reduce((acc, term, idx) => {
+                        ...userTerms.reduce((acc, term, idx) => {
                             acc[`term${idx + 1}`] = term;
                             return acc;
                         }, {} as Record<string, string>),
@@ -991,10 +1062,13 @@ const CreatePO = () => {
                     },
                     destinationAddress: destinationAddress,
                     supplierAddress: values.supplierAddress,
-                    supplierGstin: values.gstin,
+                    supplierGstin: values.gstin || '',
                     siteEngineerName: values.siteEngineerName || '',
                     siteEngineerEmail: values.siteEngineerEmail || '',
                     siteEngineerPhoneNo: values.siteEngineerPhoneNo || '',
+                    siteEngineerName2: values.siteEngineerName2 || '',
+                    siteEngineerEmail2: values.siteEngineerEmail2 || '',
+                    siteEngineerPhoneNo2: values.siteEngineerPhoneNo2 || '',
                 };
             });
 
@@ -1011,14 +1085,8 @@ const CreatePO = () => {
             toast.success(`Successfully ${mode}d purchase order`);
             form.reset();
 
-            // Refresh data from Supabase
-            const permittedFirms = user?.firm_access || [];
-            const [indents, poMaster] = await Promise.all([
-                fetchIndents(permittedFirms),
-                fetchPoMaster(permittedFirms),
-            ]);
-            setIndentSheet(indents);
-            setPoMasterSheet(poMaster);
+            // Refresh data from Supabase using loadData()
+            await loadData();
         } catch (e) {
             toast.error(`Failed to ${mode} purchase order`);
         }
@@ -1026,18 +1094,19 @@ const CreatePO = () => {
 
     function onError(errors: any) {
         console.error('Form validation errors:', errors);
-        toast.error('Please fill all required fields');
+        const errorFields = Object.keys(errors);
+        toast.error(`Please check form fields: ${errorFields.join(', ')}`);
     }
 
     return (
         <div className="grid place-items-center w-full bg-gradient-to-br from-blue-100 via-purple-50 to-blue-50 rounded-md">
             <div className="flex justify-between p-5 w-full">
                 <div className="flex gap-2 items-center">
-                    <FilePlus2 size={50} className="text-primary" />
+                    {/* <FilePlus2 size={50} className="text-primary" /> */}
                     <div>
-                        <h1 className="text-2xl font-bold text-primary">Create or Revise PO</h1>
+                        <h1 className="text-2xl font-bold text-primary"></h1>
                         <p className="text-muted-foreground text-sm">
-                            Create purchase order for indents or revise previous orders
+                            {/* Create purchase order for indents or revise previous orders */}
                         </p>
                     </div>
                 </div>
@@ -1132,23 +1201,31 @@ const CreatePO = () => {
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent>
-                                                            {[...new Map(
-                                                                indentSheet
-                                                                    .filter((i: IndentSheetItem) => {
-                                                                        const vendorName = i.approvedVendorName;
-                                                                        const hasVendor = vendorName && typeof vendorName === 'string' && vendorName.trim() !== '';
-                                                                        const hasApprovedVendor = i.approvedVendorName && typeof i.approvedVendorName === 'string' && i.approvedVendorName.trim() !== '';
-                                                                        const hasPlannedDate = i.planned4 !== '';
-                                                                        const hasNoActualDate = i.actual4 === '';
-                                                                        return hasVendor && hasApprovedVendor && hasPlannedDate && hasNoActualDate;
-                                                                    })
-                                                                    .map((i) => [i.approvedVendorName, i])
-                                                            ).values()]
-                                                                .map((i, k) => (
-                                                                    <SelectItem key={k} value={i.approvedVendorName as string}>
-                                                                        {i.approvedVendorName as string}
+                                                            {(() => {
+                                                                const pendingApprovedVendors = Array.from(
+                                                                    new Set(
+                                                                        indentSheet
+                                                                            .filter((i: IndentSheetItem) => {
+                                                                                const vendorName = i.approvedVendorName;
+                                                                                const hasVendor = vendorName && String(vendorName).trim() !== '';
+                                                                                const hasPoNumber = Boolean((i as any).poNumber && String((i as any).poNumber).trim() !== '') || Boolean((i as any).po_number && String((i as any).po_number).trim() !== '');
+                                                                                const isManagementDone = i.actual4 !== '' || i.planned4 !== '' || (i as any).po_requred === 'Yes' || i.poRequired === 'Yes' || !!vendorName;
+                                                                                return hasVendor && isManagementDone && !hasPoNumber;
+                                                                            })
+                                                                            .map((i) => String(i.approvedVendorName).trim())
+                                                                    )
+                                                                );
+
+                                                                if (pendingApprovedVendors.length === 0) {
+                                                                    return <SelectItem value="none" disabled>No pending suppliers available</SelectItem>;
+                                                                }
+
+                                                                return pendingApprovedVendors.map((vendorName, k) => (
+                                                                    <SelectItem key={k} value={vendorName}>
+                                                                        {vendorName}
                                                                     </SelectItem>
-                                                                ))}
+                                                                ));
+                                                            })()}
                                                         </SelectContent>
                                                     </Select>
                                                 </FormControl>
@@ -1231,7 +1308,7 @@ const CreatePO = () => {
                             <hr />
 
                             {/* Commercial Details Cards */}
-                            <div className="grid md:grid-cols-3 gap-3">
+                            <div className="grid md:grid-cols-4 gap-3">
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center truncate text-[12px]">Project Name</CardTitle>
@@ -1287,10 +1364,11 @@ const CreatePO = () => {
                                     </CardContent>
                                 </Card>
 
+                                {/* Card 3: Site Engineer Details 1 */}
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
-                                            Site Engineer Details
+                                            <span>Site Engineer Details 1 <span className="text-red-500">*</span></span>
                                             {mode === 'create' && (
                                                 <Button type="button" variant="ghost" size="sm" onClick={handleEngineerSave} className="h-5 w-5 p-0 hover:bg-gray-200">
                                                     <Save size={12} className="text-blue-600" />
@@ -1302,7 +1380,7 @@ const CreatePO = () => {
                                         {/* Name Field */}
                                         <FormField control={form.control} name="siteEngineerName" render={({ field }) => (
                                             <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Name</FormLabel>
+                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Name <span className="text-red-500">*</span></FormLabel>
                                                 <FormControl>
                                                     <div className="flex-1">
                                                         <Input 
@@ -1333,7 +1411,7 @@ const CreatePO = () => {
                                         {/* Phone Field */}
                                         <FormField control={form.control} name="siteEngineerPhoneNo" render={({ field }) => (
                                             <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Phone</FormLabel>
+                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Phone <span className="text-red-500">*</span></FormLabel>
                                                 <FormControl>
                                                     <div className="flex-1">
                                                         <Input 
@@ -1366,7 +1444,7 @@ const CreatePO = () => {
                                         {/* Email Field */}
                                         <FormField control={form.control} name="siteEngineerEmail" render={({ field }) => (
                                             <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Email</FormLabel>
+                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Email <span className="text-red-500">*</span></FormLabel>
                                                 <FormControl>
                                                     <div className="flex-1">
                                                         <Input 
@@ -1385,6 +1463,118 @@ const CreatePO = () => {
                                                             }}
                                                         />
                                                         <datalist id="siteEngineerEmailList">
+                                                            {(details?.siteEngineers || []).map((eng) => (
+                                                                <option key={eng.number} value={eng.email}>
+                                                                    {eng.name}
+                                                                </option>
+                                                            ))}
+                                                        </datalist>
+                                                    </div>
+                                                </FormControl>
+                                            </FormItem>
+                                        )} />
+                                    </CardContent>
+                                </Card>
+
+                                {/* Card 4: Site Engineer Details 2 */}
+                                <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
+                                    <CardHeader className="bg-muted px-4 py-1.5">
+                                        <CardTitle className="text-center flex items-center justify-between text-[12px]">
+                                            <span>Site Engineer Details 2 <span className="text-gray-400 font-normal"></span></span>
+                                            {mode === 'create' && (
+                                                <Button type="button" variant="ghost" size="sm" onClick={handleEngineerSave2} className="h-5 w-5 p-0 hover:bg-gray-200">
+                                                    <Save size={12} className="text-blue-600" />
+                                                </Button>
+                                            )}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-3 space-y-1">
+                                        {/* Name Field 2 */}
+                                        <FormField control={form.control} name="siteEngineerName2" render={({ field }) => (
+                                            <FormItem className="flex items-center gap-2 space-y-0">
+                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Name</FormLabel>
+                                                <FormControl>
+                                                    <div className="flex-1">
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-7 text-[11px]" 
+                                                            placeholder="Enter Name" 
+                                                            list="siteEngineerName2List" 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                field.onChange(val);
+                                                                const eng = details?.siteEngineers.find(e => e.name.toLowerCase().trim() === val.toLowerCase().trim());
+                                                                if (eng) {
+                                                                    form.setValue('siteEngineerPhoneNo2', eng.number);
+                                                                    form.setValue('siteEngineerEmail2', eng.email);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <datalist id="siteEngineerName2List">
+                                                            {(details?.siteEngineers || []).map((eng) => (
+                                                                <option key={eng.number} value={eng.name} />
+                                                            ))}
+                                                        </datalist>
+                                                    </div>
+                                                </FormControl>
+                                            </FormItem>
+                                        )} />
+
+                                        {/* Phone Field 2 */}
+                                        <FormField control={form.control} name="siteEngineerPhoneNo2" render={({ field }) => (
+                                            <FormItem className="flex items-center gap-2 space-y-0">
+                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Phone</FormLabel>
+                                                <FormControl>
+                                                    <div className="flex-1">
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-7 text-[11px]" 
+                                                            placeholder="Enter Phone" 
+                                                            list="siteEngineerPhone2List" 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                field.onChange(val);
+                                                                const eng = details?.siteEngineers.find(e => e.number === val);
+                                                                if (eng) {
+                                                                    form.setValue('siteEngineerName2', eng.name);
+                                                                    form.setValue('siteEngineerEmail2', eng.email);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <datalist id="siteEngineerPhone2List">
+                                                            {(details?.siteEngineers || []).map((eng) => (
+                                                                <option key={eng.number} value={eng.number}>
+                                                                    {eng.name}
+                                                                </option>
+                                                            ))}
+                                                        </datalist>
+                                                    </div>
+                                                </FormControl>
+                                            </FormItem>
+                                        )} />
+
+                                        {/* Email Field 2 */}
+                                        <FormField control={form.control} name="siteEngineerEmail2" render={({ field }) => (
+                                            <FormItem className="flex items-center gap-2 space-y-0">
+                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Email</FormLabel>
+                                                <FormControl>
+                                                    <div className="flex-1">
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-7 text-[11px]" 
+                                                            placeholder="Enter Email" 
+                                                            list="siteEngineerEmail2List" 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                field.onChange(val);
+                                                                const eng = details?.siteEngineers.find(e => e.email === val);
+                                                                if (eng) {
+                                                                    form.setValue('siteEngineerName2', eng.name);
+                                                                    form.setValue('siteEngineerPhoneNo2', eng.number);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <datalist id="siteEngineerEmail2List">
                                                             {(details?.siteEngineers || []).map((eng) => (
                                                                 <option key={eng.number} value={eng.email}>
                                                                     {eng.name}
@@ -1678,19 +1868,22 @@ const CreatePO = () => {
                             <DialogContent className="sm:max-w-lg">
                                 <DialogHeader>
                                     <DialogTitle>Edit Term</DialogTitle>
+                                    <DialogDescription className="sr-only">Edit purchase order term details</DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-4 py-2">
                                     <div className="grid gap-1.5">
-                                        <label className="text-sm font-medium">Heading</label>
+                                        <label htmlFor="edit-term-title" className="text-sm font-medium">Heading</label>
                                         <Input
+                                            id="edit-term-title"
                                             value={editingTerm?.title ?? ''}
                                             onChange={e => setEditingTerm(prev => prev ? { ...prev, title: e.target.value } : prev)}
                                             placeholder="e.g. Payment Terms"
                                         />
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <label className="text-sm font-medium">Condition</label>
+                                        <label htmlFor="edit-term-name" className="text-sm font-medium">Condition</label>
                                         <Textarea
+                                            id="edit-term-name"
                                             value={editingTerm?.name ?? ''}
                                             onChange={e => setEditingTerm(prev => prev ? { ...prev, name: e.target.value } : prev)}
                                             placeholder="e.g. Payment within 30 days of invoice"
@@ -1716,11 +1909,13 @@ const CreatePO = () => {
                             <DialogContent className="sm:max-w-md">
                                 <DialogHeader>
                                     <DialogTitle>Add Term</DialogTitle>
+                                    <DialogDescription className="sr-only">Add a new purchase order term</DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-4 py-2">
                                     <div className="grid gap-1.5">
-                                        <label className="text-sm font-medium">Heading</label>
+                                        <label htmlFor="add-term-title" className="text-sm font-medium">Heading</label>
                                         <input
+                                            id="add-term-title"
                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                                             value={newTerm.title}
                                             onChange={e => setNewTerm(prev => ({ ...prev, title: e.target.value }))}
@@ -1728,8 +1923,9 @@ const CreatePO = () => {
                                         />
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <label className="text-sm font-medium">Condition</label>
+                                        <label htmlFor="add-term-name" className="text-sm font-medium">Condition</label>
                                         <input
+                                            id="add-term-name"
                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                                             value={newTerm.name}
                                             onChange={e => setNewTerm(prev => ({ ...prev, name: e.target.value }))}
@@ -1756,6 +1952,7 @@ const CreatePO = () => {
                             <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] p-0 gap-0">
                                 <DialogHeader className="px-6 py-4 border-b">
                                     <DialogTitle>PO Preview</DialogTitle>
+                                    <DialogDescription className="sr-only">Purchase order PDF preview</DialogDescription>
                                 </DialogHeader>
                                 <div className="w-full h-[calc(95vh-70px)]">
                                     {previewData && (

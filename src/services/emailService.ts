@@ -15,7 +15,32 @@ export interface EmailParams {
  * Send an email using Resend
  */
 export async function sendEmail({ to, subject, html }: EmailParams) {
-    // In production, the serverless function handles the API key
+    const backendUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api'}/email/send`;
+
+    // 1. Try sending via backend Resend service endpoint
+    try {
+        const response = await fetch(backendUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: 'noreply@send.daftarigroup.com',
+                to,
+                subject,
+                html,
+            }),
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            return data;
+        }
+    } catch (backendError) {
+        console.warn('Backend email endpoint failed, attempting direct Resend call:', backendError);
+    }
+
+    // 2. Fallback to direct Resend API / Vite Proxy call
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
     };
@@ -42,12 +67,12 @@ export async function sendEmail({ to, subject, html }: EmailParams) {
 
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.message || 'Failed to send email');
+            throw new Error(data.message || data.error?.message || 'Failed to send email');
         }
 
         return data;
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('Error sending email via Resend:', error);
         throw error;
     }
 }

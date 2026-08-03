@@ -1,31 +1,39 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient, storeApi } from '@/lib/apiClient';
 import type { QuotationHistorySheet } from '@/types';
-import { applyFirmAccessFilter } from '@/lib/firmAccess';
-
+import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 
 /**
  * Quotation Service
- * Handles all Supabase operations for Quotations
+ * Handles all REST API operations for Quotations via master-backend.
+ * Replaces direct Supabase calls.
  */
 
 /**
- * Fetch all quotation history records from Supabase
+ * Fetch all quotation history records from backend API
  */
 export async function fetchQuotationHistory(permittedFirms?: (string | number)[]): Promise<QuotationHistorySheet[]> {
     try {
-        let query = supabase
-            .from('quotation_history')
-            .select('*');
-        
-        // ID-first: applyFirmAccessFilter uses firm_id
-        query = applyFirmAccessFilter(query, permittedFirms);
+        if (hasNoFirmAccess(permittedFirms as string[] | undefined)) return [];
+        const firms = normalizeFirmAccess(permittedFirms as string[] | undefined);
 
-        const { data, error } = await query.order('timestamp', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'timestamp.desc',
+        };
 
+        if (firms) {
+            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+            const names = firms.filter(f => !/^\d+$/.test(f));
+            if (ids.length > 0) {
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm'] = names.join(',');
+            }
+        }
 
-        if (error) throw error;
+        const res: any = await apiClient.get('/store/entity/quotation_history', { params });
+        const records: any[] = res.data || [];
 
-        return (data || []).map((r: any) => ({
+        return records.map((r: any) => ({
             timestamp: r.timestamp || '',
             quatationNo: r.quatationNo || '',
             supplierName: r.supplierName || '',
@@ -39,7 +47,7 @@ export async function fetchQuotationHistory(permittedFirms?: (string | number)[]
             pdfLink: r.pdfLink || '',
             firm: r.firm || '',
             token: r.token || '',
-            vendor_rate: r.vendor_rate || 0,
+            vendor_rate: (r.vendor_rate !== undefined && r.vendor_rate !== null && r.vendor_rate !== '') ? Number(r.vendor_rate) : undefined,
             responded_at: r.responded_at || '',
             firm_id: r.firm_id,
         }));
@@ -50,11 +58,10 @@ export async function fetchQuotationHistory(permittedFirms?: (string | number)[]
 }
 
 /**
- * Insert multiple quotation records into Supabase
+ * Insert multiple quotation records via backend API
  */
 export async function insertQuotationHistory(records: any[]) {
     try {
-        // Map any field name differences if necessary
         const mappedRecords = records.map(r => ({
             timestamp: r.timestamp,
             quatationNo: r.quatationNo,
@@ -74,11 +81,11 @@ export async function insertQuotationHistory(records: any[]) {
             firm_id: r.firm_id,
         }));
 
-        const { error } = await supabase
-            .from('quotation_history')
-            .insert(mappedRecords);
+        // Insert all records (one by one or batch depending on backend support)
+        await Promise.all(mappedRecords.map(record =>
+            storeApi.insert('quotation_history', record)
+        ));
 
-        if (error) throw error;
         return true;
     } catch (error) {
         console.error('Error inserting quotation history:', error);
@@ -91,13 +98,10 @@ export async function insertQuotationHistory(records: any[]) {
  */
 export async function fetchQuotationByToken(token: string) {
     try {
-        const { data, error } = await supabase
-            .from('quotation_history')
-            .select('*')
-            .eq('token', token);
-
-        if (error) throw error;
-        return data;
+        const res: any = await apiClient.get('/store/entity/quotation_history', {
+            params: { token },
+        });
+        return res.data || [];
     } catch (error) {
         console.error('Error fetching quotation by token:', error);
         throw error;
@@ -109,21 +113,26 @@ export async function fetchQuotationByToken(token: string) {
  */
 export async function updateVendorRate(token: string, indentNo: string, product: string, rate: number) {
     try {
-        const { data, error } = await supabase
-            .from('quotation_history')
-            .update({ 
-                vendor_rate: rate,
-                responded_at: new Date().toISOString()
-            })
-            .match({ token, indentNo, product })
-            .select();
+        // Fetch the record first to get its ID
+        const res: any = await apiClient.get('/store/entity/quotation_history', {
+            params: { token, indentNo },
+        });
+        const records: any[] = res.data || [];
 
-        if (error) throw error;
-        
-        if (!data || data.length === 0) {
+        // Filter by product
+        const target = records.find((r: any) =>
+            r.product?.trim().toLowerCase() === product?.trim().toLowerCase()
+        );
+
+        if (!target) {
             return false;
         }
-        
+
+        await storeApi.update('quotation_history', target.id, {
+            vendor_rate: rate,
+            responded_at: new Date().toISOString(),
+        });
+
         return true;
     } catch (error) {
         console.error('Error updating vendor rate:', error);

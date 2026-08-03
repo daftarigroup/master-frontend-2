@@ -124,17 +124,17 @@ export interface IndentPdfProps {
 const IndentPdf = ({ indentNumber, indenterName, firmName, indentStatus, date, products, logo, status }: IndentPdfProps) => (
     <Document>
         <Page size="A4" style={styles.page}>
-            {logo && (
+            {logo ? (
                 <View style={styles.logoContainer}>
                     <Image src={logo} style={styles.logo} />
                 </View>
-            )}
+            ) : null}
 
-            {status && (
+            {status ? (
                 <View style={{ position: 'absolute', top: 20, right: 30, padding: '4 8', backgroundColor: status === 'Completed' ? '#dcfce7' : '#fee2e2', borderRadius: 4, border: `1 solid ${status === 'Completed' ? '#166534' : '#991b1b'}` }}>
                     <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: status === 'Completed' ? '#166534' : '#991b1b', textTransform: 'uppercase' }}>{status}</Text>
                 </View>
-            )}
+            ) : null}
 
             <View style={styles.header}>
                 <Text style={styles.title}>PURCHASE INDENT</Text>
@@ -144,24 +144,24 @@ const IndentPdf = ({ indentNumber, indenterName, firmName, indentStatus, date, p
             <View style={styles.infoGrid}>
                 <View style={styles.infoItem}>
                     <Text style={styles.label}>INDENT NUMBER</Text>
-                    <Text style={styles.value}>{indentNumber}</Text>
+                    <Text style={styles.value}>{indentNumber || ''}</Text>
                 </View>
                 <View style={styles.infoItem}>
                     <Text style={styles.label}>DATE</Text>
-                    <Text style={styles.value}>{date}</Text>
+                    <Text style={styles.value}>{date || ''}</Text>
                 </View>
                 <View style={styles.infoItem}>
                     <Text style={styles.label}>PROJECT / FIRM</Text>
-                    <Text style={styles.value}>{firmName}</Text>
+                    <Text style={styles.value}>{firmName || ''}</Text>
                 </View>
                 <View style={styles.infoItem}>
                     <Text style={styles.label}>INDENTER NAME</Text>
-                    <Text style={styles.value}>{indenterName}</Text>
+                    <Text style={styles.value}>{indenterName || ''}</Text>
                 </View>
                 <View style={styles.infoItem}>
                     <Text style={styles.label}>PRIORITY STATUS</Text>
                     <Text style={[styles.value, { color: indentStatus === 'Critical' ? '#ef4444' : '#1e293b' }]}>
-                        {indentStatus}
+                        {indentStatus || ''}
                     </Text>
                 </View>
             </View>
@@ -178,23 +178,23 @@ const IndentPdf = ({ indentNumber, indenterName, firmName, indentStatus, date, p
 
                 {products.map((p, i) => (
                     <View key={i} style={styles.tableRow}>
-                        <Text style={styles.colSr}>{i + 1}</Text>
+                        <Text style={styles.colSr}>{String(i + 1)}</Text>
                         <View style={styles.colMain}>
-                            <Text style={{ fontFamily: 'Helvetica-Bold' }}>{p.productName}</Text>
-                            <Text style={styles.specText}>Group: {p.groupHead}</Text>
-                            {p.specifications && <Text style={styles.specText}>Specs: {p.specifications}</Text>}
-                            {p.areaOfUse && <Text style={styles.specText}>Area: {p.areaOfUse}</Text>}
+                            <Text style={{ fontFamily: 'Helvetica-Bold' }}>{p.productName || ''}</Text>
+                            {Boolean(p.groupHead) ? <Text style={styles.specText}>Group: {p.groupHead}</Text> : null}
+                            {Boolean(p.specifications) ? <Text style={styles.specText}>Specs: {p.specifications}</Text> : null}
+                            {Boolean(p.areaOfUse) ? <Text style={styles.specText}>Area: {p.areaOfUse}</Text> : null}
                         </View>
-                        <Text style={styles.colQty}>{p.quantity}</Text>
-                        <Text style={styles.colUom}>{p.uom}</Text>
+                        <Text style={styles.colQty}>{String(p.quantity ?? '')}</Text>
+                        <Text style={styles.colUom}>{String(p.uom ?? '')}</Text>
                         {/* <Text style={styles.colDept}>{p.department}</Text> */}
-                        <Text style={styles.colDate}>{p.expectedRequirementDate}</Text>
+                        <Text style={styles.colDate}>{String(p.expectedRequirementDate ?? '')}</Text>
                     </View>
                 ))}
             </View>
 
             <Text style={styles.footer}>
-                This is a computer generated indent created on {date} by botivate.in. Indent Number: {indentNumber}
+                This is a computer generated indent created on {date || ''} by botivate.in. Indent Number: {indentNumber || ''}
             </Text>
         </Page>
     </Document>

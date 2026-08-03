@@ -13,6 +13,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import App from './App';
 import { SheetsProvider } from './context/SheetsContext';
 const Login = React.lazy(() => import('./components/views/Login'));
+const CreateAccount = React.lazy(() => import('./components/views/CreateAccount'));
 const CreateIndent = React.lazy(() => import('./components/views/CreateIndent'));
 const Dashboard = React.lazy(() => import('./components/views/Dashboard'));
 const ApproveIndent = React.lazy(() => import('./components/views/ApproveIndent'));
@@ -90,6 +91,10 @@ const MasterManagement = React.lazy(() => import('./components/views/MasterManag
 const QuotationPage = React.lazy(() => import('./components/views/Quotation'));
 const VendorBidding = React.lazy(() => import('./components/views/VendorBidding'));
 import { isAllowedFirm } from '@/lib/firmAccess';
+import GlobalDashboard from '@/shared/components/layout/GlobalDashboard';
+import StoreSystemLayout from '@/systems/store/layout/StoreSystemLayout';
+import MaintenanceSystemLayout from '@/systems/maintenance/layout/MaintenanceSystemLayout';
+import MaintenanceDashboard from '@/systems/maintenance/views/MaintenanceDashboard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
@@ -905,47 +910,127 @@ const routes: RouteAttributes[] = [
 
 const rootElement = document.getElementById('root');
 
-// Cache the root instance to prevent "createRoot() called multiple times" warning
-let root: ReturnType<typeof createRoot> | null = null;
-
 if (rootElement) {
-    // Only create root once, reuse it on subsequent renders (HMR)
-    if (!root) {
-        root = createRoot(rootElement);
+    // Attach root to container element to prevent re-creation during Vite HMR module re-evaluations
+    const container = rootElement as any;
+    if (!container._reactRootContainer) {
+        container._reactRootContainer = createRoot(rootElement);
     }
+    const root = container._reactRootContainer;
 
     root.render(
         <StrictMode>
             <AuthProvider>
                 <BrowserRouter>
                     <React.Suspense fallback={<Loading />}>
-                    <Routes>
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/bid/:token" element={<VendorBidding />} />
-                        <Route
-                            path="/"
-                            element={
-                                <ProtectedRoute>
-                                    <SheetsProvider>
-                                        <App routes={routes} />
-                                    </SheetsProvider>
-                                </ProtectedRoute>
-                            }
-                        >
-                            {routes.map(({ path, element, gateKey }) => (
-                                <Route
-                                    key={path}
-                                    path={path}
-                                    element={
-                                        <GatedRoute identifier={gateKey}>
-                                            {element}
-                                        </GatedRoute>
-                                    }
-                                />
-                            ))}
-                            <Route path="*" element={<Navigate to="/" replace />} />
-                        </Route>
-                    </Routes>
+                        <Routes>
+                            {/* Public Routes */}
+                            <Route path="/login" element={<Login />} />
+                            <Route path="/create-account" element={<CreateAccount />} />
+                            <Route path="/bid/:token" element={<VendorBidding />} />
+
+                            {/* Layer 1 Protected Master Platform Shell */}
+                            <Route
+                                path="/"
+                                element={
+                                    <ProtectedRoute>
+                                        <SheetsProvider>
+                                            <App />
+                                        </SheetsProvider>
+                                    </ProtectedRoute>
+                                }
+                            >
+                                {/* Platform Dashboards */}
+                                <Route index element={<GlobalDashboard />} />
+                                <Route path="dashboard" element={<GlobalDashboard />} />
+
+                                {/* Layer 2 STORE & INVENTORY SYSTEM MODULE */}
+                                <Route path="store" element={<StoreSystemLayout />}>
+                                    <Route index element={<Navigate to="/store/dashboard" replace />} />
+                                    <Route path="dashboard" element={<Dashboard />} />
+
+                                    {/* Inventory Sub-Routes */}
+                                    <Route path="inventory/stock" element={<GatedRoute identifier="inventory"><Inventory /></GatedRoute>} />
+                                    <Route path="inventory/issue" element={<GatedRoute identifier="storeIssue"><StoreIssue /></GatedRoute>} />
+                                    <Route path="inventory/issue-return" element={<GatedRoute identifier="storeIssueReturn"><StoreIssueReturn /></GatedRoute>} />
+                                    <Route path="inventory/issue-data" element={<GatedRoute identifier="issueData"><IssueData /></GatedRoute>} />
+
+                                    {/* Indents Sub-Routes */}
+                                    <Route path="indents/create" element={<GatedRoute identifier="createIndent"><CreateIndent /></GatedRoute>} />
+                                    <Route path="indents/approve" element={<GatedRoute identifier="indentApprovalView"><ApproveIndent /></GatedRoute>} />
+                                    <Route path="indents/vendor-rates" element={<GatedRoute identifier="updateVendorView"><VendorUpdate /></GatedRoute>} />
+                                    <Route path="indents/technical-approval" element={<GatedRoute identifier="threePartyApprovalView"><DepartmentApproval /></GatedRoute>} />
+                                    <Route path="indents/management-approval" element={<GatedRoute identifier="threePartyApprovalView"><RateApproval /></GatedRoute>} />
+
+                                    {/* Procurement Sub-Routes */}
+                                    <Route path="procurement/enquiry" element={<GatedRoute identifier="createPo"><QuotationPage /></GatedRoute>} />
+                                    <Route path="procurement/pending-po" element={<GatedRoute identifier="pendingPo"><PendingPo /></GatedRoute>} />
+                                    <Route path="procurement/create-po" element={<GatedRoute identifier="createPo"><CreatePO /></GatedRoute>} />
+                                    <Route path="procurement/po-history" element={<GatedRoute identifier="ordersView"><Order /></GatedRoute>} />
+                                    <Route path="procurement/lifting" element={<GatedRoute identifier="ordersView"><GetLift /></GatedRoute>} />
+
+                                    {/* Receipts Sub-Routes */}
+                                    <Route path="receipts/store-in" element={<GatedRoute identifier="storeIn"><StoreIn /></GatedRoute>} />
+                                    <Route path="receipts/hod-check" element={<GatedRoute identifier="hodStoreApproval"><HodStoreApproval /></GatedRoute>} />
+                                    <Route path="receipts/grn-rejection" element={<GatedRoute identifier="insteadOfQualityCheckInReceivedItem"><QuantityCheckInReceiveItem /></GatedRoute>} />
+                                    <Route path="receipts/bill-pending" element={<GatedRoute identifier="billNotReceived"><BillNotReceived /></GatedRoute>} />
+
+                                    {/* Finance Sub-Routes */}
+                                    <Route path="finance/make-payment" element={<GatedRoute identifier="makePayment"><MakePayment /></GatedRoute>} />
+                                    <Route path="finance/freight-payment" element={<GatedRoute identifier="fullKiting"><FullKiting /></GatedRoute>} />
+                                    <Route path="finance/debit-note" element={<GatedRoute identifier="sendDebitNote"><SendDebitNote /></GatedRoute>} />
+
+                                    {/* Auditing Sub-Routes */}
+                                    <Route path="auditing/audit-data" element={<GatedRoute identifier="auditData"><AuditData /></GatedRoute>} />
+                                    <Route path="auditing/tally-entry" element={<GatedRoute identifier="takeEntryByTelly"><TakeEntryByTally /></GatedRoute>} />
+                                    <Route path="auditing/pc-report" element={<GatedRoute identifier="dbForPc"><DBforPc /></GatedRoute>} />
+
+                                    {/* Admin Sub-Routes */}
+                                    <Route path="admin/master-registry" element={<GatedRoute identifier="administrate"><MasterManagement /></GatedRoute>} />
+                                    <Route path="admin/manage-users" element={<GatedRoute identifier="administrate"><ManageUsers /></GatedRoute>} />
+                                    <Route path="admin/license" element={<Liecense />} />
+                                </Route>
+
+                                {/* Layer 2 MAINTENANCE SYSTEM MODULE (Proof of Concept) */}
+                                <Route path="maintenance" element={<MaintenanceSystemLayout />}>
+                                    <Route index element={<Navigate to="/maintenance/dashboard" replace />} />
+                                    <Route path="dashboard" element={<MaintenanceDashboard />} />
+                                    <Route path="machines" element={<MaintenanceDashboard />} />
+                                    <Route path="breakdowns" element={<MaintenanceDashboard />} />
+                                </Route>
+
+                                {/* LEGACY FLAT ROUTE BACKWARD COMPATIBILITY REDIRECTS */}
+                                <Route path="quotation" element={<Navigate to="/store/procurement/enquiry" replace />} />
+                                <Route path="store-issue" element={<Navigate to="/store/inventory/issue" replace />} />
+                                <Route path="store-issue-return" element={<Navigate to="/store/inventory/issue-return" replace />} />
+                                <Route path="Issue-data" element={<Navigate to="/store/inventory/issue-data" replace />} />
+                                <Route path="inventory" element={<Navigate to="/store/inventory/stock" replace />} />
+                                <Route path="create-indent" element={<Navigate to="/store/indents/create" replace />} />
+                                <Route path="approve-indent" element={<Navigate to="/store/indents/approve" replace />} />
+                                <Route path="vendor-rate-update" element={<Navigate to="/store/indents/vendor-rates" replace />} />
+                                <Route path="technical-approval" element={<Navigate to="/store/indents/technical-approval" replace />} />
+                                <Route path="management-approval" element={<Navigate to="/store/indents/management-approval" replace />} />
+                                <Route path="pending-poss" element={<Navigate to="/store/procurement/pending-po" replace />} />
+                                <Route path="create-po" element={<Navigate to="/store/procurement/create-po" replace />} />
+                                <Route path="po-history" element={<Navigate to="/store/procurement/po-history" replace />} />
+                                <Route path="get-lift" element={<Navigate to="/store/procurement/lifting" replace />} />
+                                <Route path="store-in" element={<Navigate to="/store/receipts/store-in" replace />} />
+                                <Route path="hod-store-check" element={<Navigate to="/store/receipts/hod-check" replace />} />
+                                <Route path="Full-Kiting" element={<Navigate to="/store/finance/freight-payment" replace />} />
+                                <Route path="Make-Payment" element={<Navigate to="/store/finance/make-payment" replace />} />
+                                <Route path="Quality-Check-In-Received-Item" element={<Navigate to="/store/receipts/grn-rejection" replace />} />
+                                <Route path="Send-Debit-Note" element={<Navigate to="/store/finance/debit-note" replace />} />
+                                <Route path="audit-data" element={<Navigate to="/store/auditing/audit-data" replace />} />
+                                <Route path="Bill-Not-Received" element={<Navigate to="/store/receipts/bill-pending" replace />} />
+                                <Route path="DBforPc" element={<Navigate to="/store/auditing/pc-report" replace />} />
+                                <Route path="master-registry" element={<Navigate to="/store/admin/master-registry" replace />} />
+                                <Route path="manage-users" element={<Navigate to="/store/admin/manage-users" replace />} />
+                                <Route path="license" element={<Navigate to="/store/admin/license" replace />} />
+
+                                {/* Fallback route */}
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Route>
+                        </Routes>
                     </React.Suspense>
                 </BrowserRouter>
             </AuthProvider>

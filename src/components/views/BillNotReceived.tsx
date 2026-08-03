@@ -31,6 +31,8 @@ import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
+import { filterByFirmAccess } from '@/lib/firmAccess';
+import { getPublicFileUrl } from '@/lib/utils';
 
 interface StoreInPendingData {
     liftNumber: string;
@@ -99,19 +101,11 @@ export default () => {
     }, []);
 
     useEffect(() => {
-        const permittedFirms = user?.firm_access || [];
-        const permittedIds = permittedFirms
-            .filter(f => /^\d+$/.test(f))
-            .map(Number);
-        const hasAll = permittedFirms.includes('all');
-
-        const filteredByFirm = allData.filter((item) => {
-            if (hasAll) return true;
-            // Primary: match by firm_id (ID-based security model)
-            if (item.firm_id != null) return permittedIds.includes(item.firm_id);
-            // Fallback: if firm_id is missing, deny access to keep data isolated
-            return false;
-        });
+        const filteredByFirm = filterByFirmAccess(
+            allData,
+            user?.firm_access || [],
+            { id: (i: any) => i.firm_id, name: (i: any) => i.firmNameMatch }
+        );
 
         setTableData(
             filteredByFirm
@@ -250,8 +244,9 @@ export default () => {
             header: 'Photo Of Bill',
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
-                return photo ? (
-                    <a href={photo} target="_blank">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         View
                     </a>
                 ) : null;
@@ -266,8 +261,9 @@ export default () => {
             header: 'Challan Image',
             cell: ({ row }) => {
                 const photo = row.original.challanImage;
-                return photo ? (
-                    <a href={photo} target="_blank" className="text-primary hover:underline font-medium">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
                         View Challan
                     </a>
                 ) : <span className="text-muted-foreground">-</span>;

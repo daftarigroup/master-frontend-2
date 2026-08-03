@@ -339,7 +339,7 @@ export default function MakePayment() {
 
                 // Group by Bill No + Party Name
                 const groupedPendingMap = new Map<string, DisplayPayment>();
-                pendingItems.forEach(item => {
+                pendingItems.forEach((item: any) => {
                     const billKey = item.billNo || item.uniqueNo || item.poNumber || String(item.rowIndex);
                     const uniqueKey = `${item.partyName || 'NoVendor'}-${billKey}`;
 
@@ -351,7 +351,7 @@ export default function MakePayment() {
                         existing.rowIds = [...existing.rowIds, ...item.rowIds];
 
                         // Concatenate products
-                        const existingProducts = existing.product.split(', ').map(p => p.trim());
+                        const existingProducts = existing.product.split(', ').map((p: any) => p.trim());
                         if (item.product && !existingProducts.includes(item.product.trim())) {
                             existing.product = [...existingProducts, item.product.trim()].join(', ');
                         }
@@ -398,7 +398,7 @@ export default function MakePayment() {
 
                 // 3. Merge History: items from payment_history table + completed items from payments table
                 const completedPaymentsFromTable = mappedPayments
-                    .filter(p => p.paymentDone && isAllowedFirm({ id: p.firm_id, name: p.firmNameMatch }, user?.firm_access))
+                    .filter((p: any) => p.paymentDone && isAllowedFirm({ id: p.firm_id, name: p.firmNameMatch }, user?.firm_access))
                     .map((p) => ({
                         rowIndex: p.rowIndex || 0,
                         timestamp: p.actual || p.timestamp || '',
@@ -440,9 +440,9 @@ export default function MakePayment() {
 
                 // Combine and deduplicate by uniqueNumber + amount
                 const combinedHistory = [...historyItemsFromDb];
-                const seenHistoryKeys = new Set(historyItemsFromDb.map(h => `${h.uniqueNumber}-${h.amountToBePaid}`));
+                const seenHistoryKeys = new Set(historyItemsFromDb.map((h: any) => `${h.uniqueNumber}-${h.amountToBePaid}`));
                 
-                completedPaymentsFromTable.forEach(p => {
+                completedPaymentsFromTable.forEach((p: any) => {
                     const key = `${p.uniqueNumber}-${p.amountToBePaid}`;
                     if (!seenHistoryKeys.has(key)) {
                         combinedHistory.push(p);
@@ -512,7 +512,7 @@ export default function MakePayment() {
         const currentDateOnly = isoNow.split('T')[0];
 
         try {
-            const selectedItems = Array.from(selectedRows).map(index => pendingData[index]);
+            const selectedItems = Array.from(selectedRows).map((index: any) => pendingData[index]);
             const ids = selectedItems.flatMap(item => item.rowIds).filter(Boolean);
             
             if (ids.length === 0) {
@@ -533,8 +533,8 @@ export default function MakePayment() {
 
             if (updateError) throw updateError;
 
-            const historyRows = selectedItems.map(item => {
-                const storeIn = storeInRecords.find(si =>
+            const historyRows = selectedItems.map((item: any) => {
+                const storeIn = storeInRecords.find((si: any) =>
                     si.po_number === item.poNumber &&
                     (si.indent_no === item.internalCode || si.indent_number === item.internalCode)
                 );
@@ -551,8 +551,8 @@ export default function MakePayment() {
                     remarks: item.remark || `Payment completed for ${item.uniqueNo}`,
                     any_attachments: item.file || item.pdf || '',
                     timestamp1: isoNow,
-                    planned: item.planned || '',
-                    payment_terms: item.paymentTerms || '',
+                    planned: item.planned || null,
+                    payment_terms: item.paymentTerms || null,
                     indent_no: item.internalCode,
                     po_number: item.poNumber,
                     product_name: item.product,
@@ -606,7 +606,7 @@ export default function MakePayment() {
 
             if (updateError) throw updateError;
 
-            const storeIn = storeInRecords.find(si =>
+            const storeIn = storeInRecords.find((si: any) =>
                 si.po_number === selectedPaymentItem.poNumber &&
                 (si.indent_no === selectedPaymentItem.internalCode || si.indent_number === selectedPaymentItem.internalCode)
             );

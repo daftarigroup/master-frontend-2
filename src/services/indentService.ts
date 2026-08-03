@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient, storeApi } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 
 /**
  * Indent Service
- * Handles all Supabase operations for Indents
+ * Handles all REST API operations for Indents via master-backend
  */
 
 // ==================== INTERFACES ====================
@@ -12,7 +12,6 @@ export interface IndentRecord {
     id: number;
     indent_number: string;
     indenter_name: string;
-    // department: string;
     product_name: string;
     quantity: number;
     uom: string;
@@ -71,48 +70,44 @@ export interface IndentRecord {
     vendor1_rank?: string;
     vendor2_rank?: string;
     vendor3_rank?: string;
-    indent_url?: string; // Added for PDF link
-    expected_req_date?: string; // Added
-    group_head?: string; // Added
-    min_stock_qty?: number; // Added
+    indent_url?: string;
+    expected_req_date?: string;
+    group_head?: string;
+    min_stock_qty?: number;
 }
 
 // ==================== FETCH FUNCTIONS ====================
 
 /**
- * Fetch all indent records from Supabase
- * @param permittedFirms Optional array of firm names to filter by (for project-based access)
+ * Fetch all indent records from REST API
+ * @param permittedFirms Optional array of firm names/IDs to filter by
  */
 export async function fetchIndentRecords(permittedFirms?: string[]): Promise<IndentRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
         const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('indent')
-            .select('*')
-            .order('indent_number', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'indent_number.desc',
+        };
 
         if (firms) {
-            const ids   = firms.filter(f => /^\d+$/.test(f)).map(Number);
+            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
             const names = firms.filter(f => !/^\d+$/.test(f));
-            // ID-first: when firm_access contains IDs, use firm_id only (secure)
             if (ids.length > 0) {
-                query = query.in('firm_id', ids);
-            } else {
-                query = query.in('firm_name', names); // legacy fallback
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm_name'] = names.join(',');
             }
         }
 
-        const { data, error } = await query;
+        const res: any = await apiClient.get('/store/entity/indent', { params });
+        const records = res.data || [];
 
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        return records.map((r: any) => ({
             id: r.id,
             indent_number: r.indent_number || '',
             indenter_name: r.indenter_name || '',
-            // department: r.department || '',
             product_name: r.product_name || '',
             quantity: Number(r.quantity) || 0,
             uom: r.uom || '',
@@ -157,7 +152,6 @@ export async function fetchIndentRecords(permittedFirms?: string[]): Promise<Ind
             status: r.status || '',
             lifting_status: r.lifting_status || '',
             po_qty: Number(r.po_qty) || 0,
-            // DB column is received_qty (received_quantity does not exist on indent)
             received_quantity: Number(r.received_qty) || 0,
             pending_qty: Number(r.pending_qty) || 0,
             approved_vendor_name: r.approved_vendor_name || '',
@@ -195,19 +189,14 @@ export async function updateIndentApproval(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({
-                actual1: updateData.actual1,
-                vendor_type: updateData.vendor_type,
-                approved_quantity: updateData.approved_quantity,
-                planned2: updateData.planned2,
-                status: updateData.status,
-                indent_url: updateData.indent_url,
-            })
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.patch(`/store/entity/indent/${id}`, {
+            actual1: updateData.actual1,
+            vendor_type: updateData.vendor_type,
+            approved_quantity: updateData.approved_quantity,
+            planned2: updateData.planned2,
+            status: updateData.status,
+            indent_url: updateData.indent_url,
+        });
         return true;
     } catch (error) {
         console.error('Error updating indent approval:', error);
@@ -220,12 +209,7 @@ export async function updateIndentApproval(
  */
 export async function updateIndentSpecifications(id: number, specifications: string) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({ specifications })
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.patch(`/store/entity/indent/${id}`, { specifications });
         return true;
     } catch (error) {
         console.error('Error updating indent specifications:', error);
@@ -245,12 +229,7 @@ export async function updateIndentHistoryFields(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update(updateData)
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.patch(`/store/entity/indent/${id}`, updateData);
         return true;
     } catch (error) {
         console.error('Error updating indent history fields:', error);
@@ -271,17 +250,12 @@ export async function updateIndentVendorSelection(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({
-                actual2: updateData.actual2,
-                vendor_name: updateData.vendor_name,
-                negotiated_rate: updateData.negotiated_rate,
-                planned3: updateData.planned3,
-            })
-            .eq('indent_number', indentNumber);
-
-        if (error) throw error;
+        await storeApi.updateWhere('indent', { indent_number: indentNumber }, {
+            actual2: updateData.actual2,
+            vendor_name: updateData.vendor_name,
+            negotiated_rate: updateData.negotiated_rate,
+            planned3: updateData.planned3,
+        });
         return true;
     } catch (error) {
         console.error('Error updating indent vendor selection:', error);
@@ -302,17 +276,12 @@ export async function updateIndentHODApproval(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({
-                actual3: updateData.actual3,
-                comparative_analysis: updateData.comparative_analysis,
-                attachment3: updateData.attachment3,
-                planned4: updateData.planned4,
-            })
-            .eq('indent_number', indentNumber);
-
-        if (error) throw error;
+        await storeApi.updateWhere('indent', { indent_number: indentNumber }, {
+            actual3: updateData.actual3,
+            comparative_analysis: updateData.comparative_analysis,
+            attachment3: updateData.attachment3,
+            planned4: updateData.planned4,
+        });
         return true;
     } catch (error) {
         console.error('Error updating indent HOD approval:', error);
@@ -334,18 +303,13 @@ export async function updateIndentPOCreation(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({
-                actual4: updateData.actual4,
-                po_number: updateData.po_number,
-                po_date: updateData.po_date,
-                po_copy: updateData.po_copy,
-                planned5: updateData.planned5,
-            })
-            .eq('indent_number', indentNumber);
-
-        if (error) throw error;
+        await storeApi.updateWhere('indent', { indent_number: indentNumber }, {
+            actual4: updateData.actual4,
+            po_number: updateData.po_number,
+            po_date: updateData.po_date,
+            po_copy: updateData.po_copy,
+            planned5: updateData.planned5,
+        });
         return true;
     } catch (error) {
         console.error('Error updating indent PO creation:', error);
@@ -367,18 +331,13 @@ export async function updateIndentPaymentTerms(
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({
-                actual5: updateData.actual5,
-                transportation_include: updateData.transportation_include,
-                tax_extra: updateData.tax_extra,
-                credit_days: updateData.credit_days,
-                remarks5: updateData.remarks5,
-            })
-            .eq('indent_number', indentNumber);
-
-        if (error) throw error;
+        await storeApi.updateWhere('indent', { indent_number: indentNumber }, {
+            actual5: updateData.actual5,
+            transportation_include: updateData.transportation_include,
+            tax_extra: updateData.tax_extra,
+            credit_days: updateData.credit_days,
+            remarks5: updateData.remarks5,
+        });
         return true;
     } catch (error) {
         console.error('Error updating indent payment terms:', error);
@@ -395,22 +354,16 @@ export async function updateIndentStoreOutApproval(
         approved_by: string;
         approved_date: string;
         approved_quantity: number;
-        status: string; // 'Approved' or 'Rejected'
-        // We might want to update notes/remarks if available in schema
+        status: string;
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('indent')
-            .update({
-                indent_approved_by: updateData.approved_by, // Map to correct column
-                approved_date: updateData.approved_date,
-                approved_quantity: updateData.approved_quantity,
-                indent_status: updateData.status, // Assuming this is the status column
-            })
-            .eq('indent_number', indentNumber);
-
-        if (error) throw error;
+        await storeApi.updateWhere('indent', { indent_number: indentNumber }, {
+            indent_approved_by: updateData.approved_by,
+            approved_date: updateData.approved_date,
+            approved_quantity: updateData.approved_quantity,
+            indent_status: updateData.status,
+        });
         return true;
     } catch (error) {
         console.error('Error updating Store Out Approval:', error);

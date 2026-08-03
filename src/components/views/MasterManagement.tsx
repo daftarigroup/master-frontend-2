@@ -86,12 +86,13 @@ const siteLocationSchema = z.object({
     location: z.string().min(1, 'Required'),
 });
 const itemSchema = z.object({
+    firm_name: z.string().min(1, 'Project selection is required'),
+    firm_id: optionalText(),
     item_name: z.string().min(1, 'Required'),
     group_head: z.string().min(1, 'Required'),
     uom: optionalText(),
     include_in_inventory: z.boolean().default(false),
     inventory_quantity: z.coerce.number().min(0, 'Quantity cannot be negative').default(0),
-    firm_name: optionalText(),
     regular_conditions: z.any().optional(),
     third_party_conditions: z.any().optional(),
 }).superRefine((data, ctx) => {
@@ -111,7 +112,7 @@ const itemSchema = z.object({
     }
 });
 const departmentSchema = z.object({ department: z.string().min(1, 'Required') });
-const projectSchema = z.object({ firm_name: z.string().min(1, 'Required') });
+const projectSchema = z.object({ firm_name: z.string().min(1, 'Required'), destination_address: optionalText() });
 const ghSchema = z.object({ group_head: z.string().min(1, 'Required') });
 const uomSchema = z.object({ uom: z.string().min(1, 'Required') });
 const aouSchema = z.object({ area_of_use: z.string().min(1, 'Required') });
@@ -218,7 +219,7 @@ export default function MasterManagement() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const iForm = useForm<z.infer<typeof itemSchema>>({ resolver: zodResolver(itemSchema) as any, defaultValues: { item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] } });
     const dForm = useForm<z.infer<typeof departmentSchema>>({ resolver: zodResolver(departmentSchema), defaultValues: { department: '' } });
-    const pForm = useForm<z.infer<typeof projectSchema>>({ resolver: zodResolver(projectSchema), defaultValues: { firm_name: '' } });
+    const pForm = useForm<z.infer<typeof projectSchema>>({ resolver: zodResolver(projectSchema) as any, defaultValues: { firm_name: '', destination_address: '' } });
     const ghForm = useForm<z.infer<typeof ghSchema>>({ resolver: zodResolver(ghSchema), defaultValues: { group_head: '' } });
     const uomForm = useForm<z.infer<typeof uomSchema>>({ resolver: zodResolver(uomSchema), defaultValues: { uom: '' } });
     const aouForm = useForm<z.infer<typeof aouSchema>>({ resolver: zodResolver(aouSchema), defaultValues: { area_of_use: '' } });
@@ -330,7 +331,7 @@ export default function MasterManagement() {
             if (openDialog === 'vendor') vForm.reset({ vendor_name: '', vendor_gstin: '', vendor_address: '', vendor_email: '', payment_term: '', responsible_person: '', location: '', phone: '' });
             if (openDialog === 'item') iForm.reset({ item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] });
             if (openDialog === 'dept') dForm.reset({ department: '' });
-            if (openDialog === 'project') pForm.reset({ firm_name: '' });
+            if (openDialog === 'project') pForm.reset({ firm_name: '', destination_address: '' });
             if (openDialog === 'gh') ghForm.reset({ group_head: '' });
             if (openDialog === 'uom') uomForm.reset({ uom: '' });
             if (openDialog === 'areaofuse') aouForm.reset({ area_of_use: '' });
@@ -455,6 +456,7 @@ export default function MasterManagement() {
 
     const itemColumns: ColumnDef<any>[] = [
         { header: 'Actions', id: 'actions', cell: ({ row }) => getActions(row.original, 'item') },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500" />{row.original.firm_name || row.original.firm?.firm_name || '--'}</div> },
         { accessorKey: 'item_name', header: 'Product Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Package size={16} className="text-blue-500" />{row.original.item_name}</div> },
         { accessorKey: 'group_head', header: 'Group Head' },
         { accessorKey: 'uom', header: 'UOM' },
@@ -483,6 +485,7 @@ export default function MasterManagement() {
     ];
     const projectColumns: ColumnDef<any>[] = [
         { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500" />{row.original.firm_name}</div> },
+        { accessorKey: 'destination_address', header: 'Destination Address', cell: ({ row }) => <span className="text-xs truncate max-w-[200px] block" title={row.original.destination_address}>{row.original.destination_address || '--'}</span> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'project') }
     ];
 
@@ -543,8 +546,12 @@ export default function MasterManagement() {
                     phone: values.phone || null,
                 }
                 : values;
+            const selectedFirm = masterSheet?.firmObjects?.find((f) => f.name === values.firm_name || String(f.id) === String(values.firm_id));
+            const firmIdVal = selectedFirm?.id ? Number(selectedFirm.id) : (values.firm_id && Number(values.firm_id) > 0 ? Number(values.firm_id) : null);
             const itemPayload = type === 'item'
                 ? {
+                    firm_name: values.firm_name || selectedFirm?.name || null,
+                    firm_id: firmIdVal,
                     item_name: values.item_name,
                     group_head: values.group_head,
                     uom: values.uom,
@@ -568,6 +575,7 @@ export default function MasterManagement() {
             const finalPayload = type === 'project'
                 ? {
                     firm_name: values.firm_name,
+                    destination_address: values.destination_address || null,
                 }
                 : type === 'ghuom'
                     ? { group_head: values.group_head || null, uom: values.uom || null }
@@ -580,8 +588,12 @@ export default function MasterManagement() {
                     const results = await Promise.all(updates);
                     res = { success: results.every(r => r.success) };
                 } else if (type === 'project') {
-                    const targets = allRecords.filter(r => r.firm_name === editingRecord.firm_name);
-                    const updates = targets.map(t => updateMasterData(t.id, { firm_name: values.firm_name }));
+                    const targets = allRecords.filter(r => (r.firm_name === editingRecord.firm_name || r.id === editingRecord.id) && r.__table === 'firm');
+                    const targetList = targets.length > 0 ? targets : [{ id: editingRecord.id }];
+                    const updates = targetList.map(t => updateMasterData(t.id, {
+                        firm_name: values.firm_name,
+                        destination_address: values.destination_address || null,
+                    }));
                     const results = await Promise.all(updates);
                     res = { success: results.every(r => r.success) };
                 } else if (type === 'gh') {
@@ -667,8 +679,13 @@ export default function MasterManagement() {
         return { department: name, id: original?.id };
     });
     const projectsData = Array.from(new Set(allRecords.map(r => r.firm_name).filter(Boolean))).map(name => {
-        const original = allRecords.find(r => r.firm_name === name);
-        return { firm_name: name, id: original?.id };
+        const original = allRecords.find(r => r.firm_name === name && r.__table === 'firm') || allRecords.find(r => r.firm_name === name);
+        return {
+            ...original,
+            firm_name: name,
+            id: original?.id,
+            destination_address: original?.destination_address || '',
+        };
     });
     const ghData = Array.from(new Set(allRecords.map(r => r.group_head).filter(Boolean))).map(name => {
         const original = allRecords.find(r => r.group_head === name);
@@ -952,10 +969,32 @@ export default function MasterManagement() {
                                 {openDialog === 'item' && (
                                     <Form {...iForm}>
                                         <form className="grid gap-4" onSubmit={iForm.handleSubmit(v => onSubmit(v, 'item'), onInvalid)}>
+                                            <FormField control={iForm.control} name="firm_name" render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Select Project / Firm *</FormLabel>
+                                                    <Select onValueChange={(val) => {
+                                                        field.onChange(val);
+                                                        const firmObj = masterSheet?.firmObjects?.find(f => f.name === val);
+                                                        if (firmObj) iForm.setValue('firm_id', String(firmObj.id));
+                                                    }} value={field.value || ''}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="w-full">
+                                                                <SelectValue placeholder="Select Project / Firm" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            {masterSheet?.firms?.map((firm) => (
+                                                                <SelectItem key={firm} value={firm}>{firm}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )} />
                                             <FormField control={iForm.control} name="item_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Item Name</FormLabel>
-                                                    <FormControl><Input {...field} placeholder="" /></FormControl>
+                                                    <FormControl><Input {...field} placeholder="Enter item name..." /></FormControl>
                                                     <FormMessage />
                                                 </FormItem>
                                             )} />
@@ -1048,25 +1087,7 @@ export default function MasterManagement() {
                                                 </FormItem>
                                             )} />
                                             {includeInInventory && (
-                                                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                    <FormField control={iForm.control} name="firm_name" render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>Select Project</FormLabel>
-                                                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                                                                <FormControl>
-                                                                    <SelectTrigger className="w-full">
-                                                                        <SelectValue placeholder="Select Project" />
-                                                                    </SelectTrigger>
-                                                                </FormControl>
-                                                                <SelectContent>
-                                                                    {masterSheet?.firms?.map((firm) => (
-                                                                        <SelectItem key={firm} value={firm}>{firm}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )} />
+                                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
                                                     <FormField control={iForm.control} name="inventory_quantity" render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel>Opening Quantity {currentOpeningQty !== null && `(${currentOpeningQty})`}</FormLabel>
@@ -1129,6 +1150,13 @@ export default function MasterManagement() {
                                                 <FormItem>
                                                     <FormLabel>Project Name</FormLabel>
                                                     <FormControl><Input {...field} placeholder="e.g., Project Raipur Phase 2" /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )} />
+                                            <FormField control={pForm.control} name="destination_address" render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Destination Address</FormLabel>
+                                                    <FormControl><Input {...field} placeholder="Enter destination address" /></FormControl>
                                                     <FormMessage />
                                                 </FormItem>
                                             )} />

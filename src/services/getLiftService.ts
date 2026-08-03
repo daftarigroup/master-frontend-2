@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
 
 /**
@@ -103,6 +104,16 @@ export interface StoreInInsertData {
     materialDate?: string | null;
 }
 
+export function parseNumericQty(val: any): number {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const str = String(val).trim();
+    const parsed = parseFloat(str);
+    if (!isNaN(parsed)) return parsed;
+    const match = str.match(/[-+]?\d*\.?\d+/);
+    return match ? parseFloat(match[0]) : 0;
+}
+
 // ==================== FETCH FUNCTIONS ====================
 
 /**
@@ -124,34 +135,41 @@ export async function fetchIndentRecords(permittedFirms?: string[]) {
         const { data, error } = await filteredQuery;
 
         if (error) throw error;
-        return (data || []).map((r: any) => ({
-            indentNumber: r.indent_number || '',
-            firmNameMatch: r.firm_name,
-            firm_id: r.firm_id,
-            approvedVendorName: r.approved_vendor_name || '',
-            poNumber: r.po_number || '',
-            actual4: r.actual4 || '',
-            poDate: r.actual4 || '',
-            deliveryDate: r.delivery_date || '',
-            planned5: r.planned5 || '',
-            actual5: r.actual5 || '',
-            productName: r.product_name || '',
-            totalQty: Number(r.total_qty) || 0,
-            quantity: Number(r.quantity) || 0,
-            pendingQty: Number(r.pending_qty) || 0,
-            liftingStatus: r.lifting_status || '',
-            cancelQty: Number(r.cancel_qty) || 0,
-            approvedRate: r.approved_rate || '',
-            taxValue: Number(r.tax_value4) || 0,
-            withTax: r.with_tax_or_not4 || 'No',
-            // department: r.department || '',
-            areaOfUse: r.area_of_use || '',
-            timestamp: r.timestamp || '',
-            expectedDate: r.expected_req_date || '',
-            approvedQuantity: Number(r.approved_quantity) || 0,
-            receivedQuantity: 0,
-            uom: r.uom || '',
-        }));
+        return (data || []).map((r: any) => {
+            const rawQuantity = parseNumericQty(r.quantity);
+            const rawApproved = parseNumericQty(r.approved_quantity);
+            const rawPending = parseNumericQty(r.pending_qty || r.pending_po_qty);
+            const approvedQty = rawApproved > 0 ? rawApproved : (rawPending > 0 ? rawPending : rawQuantity);
+
+            return {
+                indentNumber: r.indent_number || '',
+                firmNameMatch: r.firm_name,
+                firm_id: r.firm_id,
+                approvedVendorName: r.approved_vendor_name || '',
+                poNumber: r.po_number || '',
+                actual4: r.actual4 || '',
+                poDate: r.actual4 || '',
+                deliveryDate: r.delivery_date || '',
+                planned5: r.planned5 || '',
+                actual5: r.actual5 || '',
+                productName: r.product_name || '',
+                totalQty: parseNumericQty(r.total_qty),
+                quantity: rawQuantity,
+                pendingQty: rawPending,
+                liftingStatus: r.lifting_status || '',
+                cancelQty: parseNumericQty(r.cancel_qty),
+                approvedRate: r.approved_rate || '',
+                taxValue: parseNumericQty(r.tax_value4),
+                withTax: r.with_tax_or_not4 || 'No',
+                // department: r.department || '',
+                areaOfUse: r.area_of_use || '',
+                timestamp: r.timestamp || '',
+                expectedDate: r.expected_req_date || '',
+                approvedQuantity: approvedQty,
+                receivedQuantity: 0,
+                uom: r.uom || '',
+            };
+        });
     } catch (error) {
         console.error('Error fetching indent records:', error);
         throw error;
@@ -216,10 +234,10 @@ export const fetchVendorOptions = async (): Promise<string[]> => {
 
         // Filter out null/undefined/empty values and remove duplicates
         const vendorNames = data
-            .map(item => item.vendor_name?.trim())
-            .filter((name): name is string => !!name && name.length > 0);
+            .map((item: any) => item.vendor_name?.trim())
+            .filter((name: any): name is string => !!name && name.length > 0);
 
-        return [...new Set(vendorNames)]; // Remove duplicates
+        return [...new Set(vendorNames)] as string[]; // Remove duplicates
     } catch (error) {
         console.error('Error fetching vendors:', error);
         throw error;
@@ -234,22 +252,20 @@ export const fetchVendorOptions = async (): Promise<string[]> => {
  */
 export async function insertStoreInRecord(storeInData: StoreInInsertData) {
     try {
-        // 1. Fetch latest lift_number by timestamp to reliably continue sequence (using LN- prefix)
-        const { data: latestLifts, error: fetchError } = await supabase
-            .from('store_in')
-            .select('lift_number')
-            .like('lift_number', 'LN-%');
+        // 1. Fetch all lift_numbers and filter LN- prefix in JS (avoids .like() which is not supported)
+        const allLifts = await storeApi.fetch('store_in', { _limit: 9999 });
+        const lnLifts = (allLifts || []).filter((r: any) =>
+            r.lift_number && String(r.lift_number).startsWith('LN-')
+        );
 
         let liftNumber = 'LN-1';
-        if (latestLifts && latestLifts.length > 0) {
+        if (lnLifts.length > 0) {
             let maxNum = 0;
-            latestLifts.forEach(record => {
-                if (record.lift_number) {
-                    const matches = record.lift_number.match(/LN-(\d+)/);
-                    if (matches && matches[1]) {
-                        const num = parseInt(matches[1], 10);
-                        if (num > maxNum) maxNum = num;
-                    }
+            lnLifts.forEach((record: any) => {
+                const matches = String(record.lift_number).match(/LN-(\d+)/);
+                if (matches && matches[1]) {
+                    const num = parseInt(matches[1], 10);
+                    if (num > maxNum) maxNum = num;
                 }
             });
             liftNumber = `LN-${maxNum + 1}`;
@@ -268,7 +284,7 @@ export async function insertStoreInRecord(storeInData: StoreInInsertData) {
             bill_status: storeInData.billStatus || null,
             bill_no: storeInData.billNo || null,
             qty: String(storeInData.qty || '0'),
-            lead_time_to_lift_material: null, // As seen in SQL
+            lead_time_to_lift_material: null,
             type_of_bill: storeInData.typeOfBill || null,
             bill_amount: String(storeInData.billAmount || '0'),
             discount_amount: String(storeInData.discountAmount || '0'),
@@ -334,22 +350,9 @@ export async function insertStoreInRecord(storeInData: StoreInInsertData) {
             receiver_name: null,
         };
 
-        const { data, error } = await supabase
-            .from('store_in')
-            .insert([mappedData])
-            .select();
-
-        if (error) {
-            console.error('insert error', {
-                code: error?.code, message: error?.message,
-                details: error?.details,
-                hint: error?.hint,
-            });
-            console.error('❌ Supabase insert error:', error);
-            throw error;
-        }
-
-        return data;
+        // Use storeApi.insert directly (no .like() needed)
+        const inserted = await storeApi.insert('store_in', mappedData);
+        return inserted;
     } catch (error) {
         console.error('Error inserting store-in record:', error);
         throw error;

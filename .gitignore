@@ -25,7 +25,7 @@ dist-ssr
 
 # variables
 
-.env
+*.env
 
 
 

@@ -1,8 +1,12 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import daftariImg from '@/assets/daftari2.png';
+import poojaImg from '@/assets/logo.png';
+import signatureImg from '@/assets/AutoRocket Post (1).png';
+import sealImg from '@/assets/seal (2).png';
 
 const styles = StyleSheet.create({
     page: {
-        padding: 20,
+        padding: '15 8',
         fontFamily: 'Helvetica',
         fontSize: 9,
         color: '#000000',
@@ -13,30 +17,42 @@ const styles = StyleSheet.create({
     },
     headerContainer: {
         flexDirection: 'row',
-        padding: 10,
+        padding: '6 12',
         borderBottom: '1 solid #000000',
         alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    daftariLogoContainer: {
+        width: '45%',
+        alignItems: 'flex-start',
+    },
+    daftariLogo: {
+        width: 100,
+        height: 60,
+        objectFit: 'contain',
     },
     logoContainer: {
-        width: '40%',
+        width: '45%',
+        alignItems: 'flex-end',
     },
     logo: {
-        width: 180,
-        height: 80,
+        width: 130,
+        height: 55,
         objectFit: 'contain',
     },
     companyInfo: {
-        width: '70%',
-        textAlign: 'right',
+        width: '100%',
+        textAlign: 'left',
     },
     companyName: {
-        fontSize: 14,
+        fontSize: 11,
         fontFamily: 'Helvetica-Bold',
-        marginBottom: 4,
+        marginBottom: 2,
     },
     companyText: {
         fontSize: 8,
-        marginBottom: 2,
+        lineHeight: 1.3,
+        marginBottom: 1,
     },
     poHeader: {
         flexDirection: 'row',
@@ -170,9 +186,7 @@ const styles = StyleSheet.create({
     },
     signatureBox: {
         width: '40%',
-        borderTop: '1 solid #000000',
         textAlign: 'center',
-        paddingTop: 5,
     },
     pdfFooter: {
         marginTop: 12,
@@ -253,14 +267,11 @@ const QuotationPdf = (props: POPdfProps) => {
             <Page size="A4" style={styles.page}>
                 <View style={styles.mainContainer}>
                     <View style={styles.headerContainer}>
-                        <View style={styles.logoContainer}>
-                            {logo && <Image src={logo} style={styles.logo} />}
+                        <View style={styles.daftariLogoContainer}>
+                            <Image src={daftariImg} style={styles.daftariLogo} />
                         </View>
-                        <View style={styles.companyInfo}>
-                            <Text style={styles.companyName}>{companyName}</Text>
-                            <Text style={styles.companyText}>{companyAddress}</Text>
-                            <Text style={styles.companyText}>GSTIN: {companyGstin} | PAN: {companyPan}</Text>
-                            <Text style={styles.companyText}>Phone: {companyPhone}</Text>
+                        <View style={styles.logoContainer}>
+                            <Image src={poojaImg} style={styles.logo} />
                         </View>
                     </View>
 
@@ -277,15 +288,11 @@ const QuotationPdf = (props: POPdfProps) => {
                             <Text style={styles.companyText}>GSTIN: {supplierGstin}</Text>
                         </View>
                         <View style={styles.rightCol}>
-                            <Text style={styles.sectionHeading}>Project Details:</Text>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Billing:</Text>
-                                <Text style={styles.infoValue}>{billingAddress}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Destination:</Text>
-                                <Text style={styles.infoValue}>{destinationAddress}</Text>
-                            </View>
+                            <Text style={styles.sectionHeading}>Company Details:</Text>
+                            <Text style={styles.companyName}>{companyName || 'POOJA CONSTRUCTIONS'}</Text>
+                            <Text style={styles.companyText}>{companyAddress}</Text>
+                            <Text style={styles.companyText}>GSTIN: {companyGstin} | PAN: {companyPan}</Text>
+                            <Text style={styles.companyText}>Phone: {companyPhone}</Text>
                         </View>
                     </View>
 
@@ -335,10 +342,17 @@ const QuotationPdf = (props: POPdfProps) => {
 
                     <View style={styles.signatureContainer}>
                         <View style={styles.signatureBox}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+                                <Image src={signatureImg} style={{ width: 75, height: 45, objectFit: 'contain' }} />
+                                <Image src={sealImg} style={{ width: 45, height: 45, objectFit: 'contain', marginLeft: 6 }} />
+                            </View>
+                            <View style={{ borderBottom: '1 solid #000000', width: '100%', marginBottom: 4 }} />
                             <Text style={[styles.infoValue, { marginBottom: 2 }]}>Pooja Constructions</Text>
                             <Text style={styles.companyText}>Prepared By</Text>
                         </View>
                         <View style={styles.signatureBox}>
+                            <View style={{ height: 45, marginBottom: 2 }} />
+                            <View style={{ borderBottom: '1 solid #000000', width: '100%', marginBottom: 4 }} />
                             <Text style={[styles.infoValue, { marginBottom: 2 }]}>{supplierName}</Text>
                             <Text style={styles.companyText}>Authorized Signatory</Text>
                         </View>

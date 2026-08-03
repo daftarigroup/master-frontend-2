@@ -31,8 +31,9 @@ import { Truck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
-import { formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 
 interface StoreInPendingData {
     liftNumber: string;
@@ -155,19 +156,11 @@ export default () => {
     }, [user?.firm_access]);
 
     useEffect(() => {
-        const permittedFirms = user?.firm_access || [];
-        const permittedIds = permittedFirms
-            .filter(f => /^\d+$/.test(f))
-            .map(Number);
-        const hasAll = permittedFirms.includes('all');
-
-        const filteredByFirm = storeInRecords.filter((item) => {
-            if (hasAll) return true;
-            // Primary: match by firm_id (ID-based security model)
-            if (item.firm_id != null) return permittedIds.includes(item.firm_id);
-            // Fallback: if firm_id is missing, deny access to keep data isolated
-            return false;
-        });
+        const filteredByFirm = filterByFirmAccess(
+            storeInRecords,
+            user?.firm_access || [],
+            { id: (i: any) => i.firm_id, name: (i: any) => i.firmNameMatch }
+        );
 
         setPendingData(
             filteredByFirm
@@ -346,8 +339,9 @@ export default () => {
             header: 'Photo Of Bill',
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
-                return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         Bill
                     </a>
                 ) : (
@@ -418,8 +412,9 @@ export default () => {
             header: 'Photo Of Bill',
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
-                return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         Bill
                     </a>
                 ) : (
@@ -455,8 +450,9 @@ export default () => {
             header: 'Bill Copy Attached',
             cell: ({ row }) => {
                 const billCopy = row.original.billCopyAttached;
-                return billCopy ? (
-                    <a href={billCopy} target="_blank" rel="noopener noreferrer">
+                const fileUrl = getPublicFileUrl(billCopy);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                         View
                     </a>
                 ) : (

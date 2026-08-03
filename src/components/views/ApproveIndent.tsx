@@ -33,7 +33,7 @@ import {
     SheetTitle,
     SheetDescription,
 } from '@/components/ui/sheet';
-import { formatDate, formatDateTimeFull } from '@/lib/utils';
+import { formatDate, formatDateTimeFull, getPublicFileUrl } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
@@ -64,11 +64,46 @@ export default function ApproveIndent() {
     const [editedStatuses, setEditedStatuses] = useState<Record<number, string>>({});
     const [editedQuantities, setEditedQuantities] = useState<Record<number, number>>({});
     const [bulkSubmitting, setBulkSubmitting] = useState(false);
+    const [submittingRowId, setSubmittingRowId] = useState<number | null>(null);
+
+    const handleSingleRowSubmit = async (row: IndentRecord) => {
+        const id = row.id;
+        const qtyToApprove = editedQuantities[id] ?? row.quantity;
+        const status = editedStatuses[id] ?? 'Regular';
+
+        if (status !== 'Reject' && qtyToApprove > row.quantity) {
+            toast.error(`Indent ${row.indent_number}: Approved qty (${qtyToApprove}) exceeds requested (${row.quantity})`);
+            return;
+        }
+
+        setSubmittingRowId(id);
+        try {
+            const currentDateTime = new Date().toISOString();
+            await updateIndentApproval(id, {
+                actual1: currentDateTime,
+                vendor_type: status,
+                approved_quantity: status === 'Reject' ? 0 : qtyToApprove,
+                status: status === 'Reject' ? 'Rejected' : 'Completed',
+                ...(status !== 'Reject' && { planned2: currentDateTime }),
+            });
+
+            toast.success(`Successfully submitted approval for ${row.indent_number}`);
+            setEditedStatuses(prev => { const n = { ...prev }; delete n[id]; return n; });
+            setEditedQuantities(prev => { const n = { ...prev }; delete n[id]; return n; });
+            setRowSelection(prev => { const n = { ...prev }; delete n[id]; return n; });
+            fetchData();
+        } catch (err) {
+            console.error('Error submitting row:', err);
+            toast.error('Failed to submit approval');
+        } finally {
+            setSubmittingRowId(null);
+        }
+    };
 
     const fetchData = async () => {
         setDataLoading(true);
         try {
-            const permittedFirms = user?.firm_access || [];
+            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
             const records = await fetchIndentRecords(permittedFirms);
             
             // Secondary frontend check for absolute security/robustness
@@ -88,14 +123,14 @@ export default function ApproveIndent() {
 
     useEffect(() => {
         fetchData();
-    }, [user?.firm_access]);
+    }, [user?.firm_access, user?.administrate]);
 
     const pendingData = useMemo(() => {
-        return allData.filter(i => i.planned1 && !i.actual1);
+        return allData.filter(i => !i.actual1);
     }, [allData]);
 
     const historyData = useMemo(() => {
-        return allData.filter(i => i.planned1 && i.actual1);
+        return allData.filter(i => !!i.actual1);
     }, [allData]);
 
     const handleDownload = (data: any[]) => {
@@ -138,8 +173,22 @@ export default function ApproveIndent() {
                 }
             } catch {}
 
-            const rows = allData.filter(r => r.indent_number === indentNo);
-            if (rows.length === 0) return;
+            let rows = allData.filter(r => r.indent_number === indentNo);
+            if (rows.length === 0) {
+                const { data } = await supabase
+                    .from('indent')
+                    .select('*')
+                    .eq('indent_number', indentNo);
+                if (data && data.length > 0) {
+                    rows = data as any;
+                }
+            }
+
+            if (rows.length === 0) {
+                toast.error('Indent data not found');
+                return;
+            }
+
             const first = rows[0];
 
             const blob = await pdf(
@@ -223,71 +272,68 @@ export default function ApproveIndent() {
     };
 
     const columns = useMemo<ColumnDef<IndentRecord>[]>(() => [
-        ...(user?.indentApprovalAction
-            ? [
-                {
-                    id: 'select',
-                    header: ({ table }: { table: any }) => (
-                        <Checkbox
-                            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-                            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-                            aria-label="Select all"
-                        />
-                    ),
-                    cell: ({ row }: { row: any }) => (
-                        <Checkbox
-                            checked={row.getIsSelected()}
-                            onCheckedChange={(value) => row.toggleSelected(!!value)}
-                            aria-label="Select row"
-                        />
-                    ),
-                    enableSorting: false,
-                    enableHiding: false,
-                },
-                {
-                    header: 'Action',
-                    id: 'action',
-                    cell: ({ row, table }: { row: Row<IndentRecord>, table: any }) => {
-                        const id = row.original.id;
-                        const status = table.options.meta?.editedStatuses[id] ?? 'Regular';
+        {
+            id: 'select',
+            header: ({ table }: { table: any }) => (
+                <Checkbox
+                    checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+                    onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                    aria-label="Select all"
+                />
+            ),
+            cell: ({ row }: { row: any }) => (
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(value) => row.toggleSelected(!!value)}
+                    aria-label="Select row"
+                />
+            ),
+            enableSorting: false,
+            enableHiding: false,
+        },
+        {
+            header: 'Action',
+            id: 'action',
+            cell: ({ row, table }: { row: Row<IndentRecord>, table: any }) => {
+                const id = row.original.id;
+                const status = table.options.meta?.editedStatuses[id] ?? 'Regular';
 
-                        return (
-                            <div className="flex items-center gap-2">
-                                <Select
-                                    value={status}
-                                    onValueChange={(val) => table.options.meta?.updateStatus(id, val)}
-                                >
-                                    <SelectTrigger className="w-[100px] h-8 text-xs">
-                                        <SelectValue placeholder="Action" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Regular">Accept</SelectItem>
-                                        <SelectItem value="Reject">Reject</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => {
-                                        setSelectedIndent(row.original);
-                                        setOpenDialog(true);
-                                    }}
-                                >
-                                    <ListTodo className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        );
-                    },
-                },
-            ]
-            : []),
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <Select
+                            value={status}
+                            onValueChange={(val) => table.options.meta?.updateStatus(id, val)}
+                        >
+                            <SelectTrigger className="w-[90px] h-8 text-xs">
+                                <SelectValue placeholder="Action" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Regular">Accept</SelectItem>
+                                <SelectItem value="Reject">Reject</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs flex items-center gap-1"
+                            onClick={() => {
+                                setSelectedIndent(row.original);
+                                setOpenDialog(true);
+                            }}
+                        >
+                            <PenSquare className="h-3.5 w-3.5 text-slate-600" />
+                            Edit
+                        </Button>
+                    </div>
+                );
+            },
+        },
         { accessorKey: 'indent_number', header: 'Indent No.' },
         {
             accessorKey: 'product_name',
             header: 'Product',
             cell: ({ getValue }) => (
-                <div className="max-w-[150px] break-words whitespace-normal">
+                <div className="max-w-[150px] break-words whitespace-normal font-medium">
                     {getValue() as string}
                 </div>
             ),
@@ -296,34 +342,28 @@ export default function ApproveIndent() {
             accessorKey: 'quantity',
             header: 'Req Qty',
         },
-        ...(user?.indentApprovalAction
-            ? [
-                {
-                    header: 'Approve Qty',
-                    id: 'approve_qty',
-                    cell: ({ row, table }: { row: Row<IndentRecord>, table: any }) => {
-                        const id = row.original.id;
-                        const qty = table.options.meta?.editedQuantities[id] ?? row.original.quantity;
-                        return (
-                            <div className="flex items-center gap-1">
-                                <Input
-                                    type="number"
-                                    className="w-20 h-8"
-                                    value={qty}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        table.options.meta?.updateQuantity(id, val === '' ? 0 : Number(val));
-                                    }}
-                                />
-                                <span className="text-[10px] text-muted-foreground">{row.original.uom}</span>
-                            </div>
-                        );
-                    },
-                }
-            ]
-            : [
-                { accessorKey: 'uom', header: 'UOM' }
-            ]),
+        {
+            header: 'Approve Qty',
+            id: 'approve_qty',
+            cell: ({ row, table }: { row: Row<IndentRecord>, table: any }) => {
+                const id = row.original.id;
+                const qty = table.options.meta?.editedQuantities[id] ?? row.original.quantity;
+                return (
+                    <div className="flex items-center gap-1">
+                        <Input
+                            type="number"
+                            className="w-20 h-8 text-xs"
+                            value={qty}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                table.options.meta?.updateQuantity(id, val === '' ? 0 : Number(val));
+                            }}
+                        />
+                        <span className="text-[10px] text-muted-foreground">{row.original.uom}</span>
+                    </div>
+                );
+            },
+        },
         { accessorKey: 'firm_name', header: 'Project Name' },
         { accessorKey: 'indenter_name', header: 'Indenter' },
 
@@ -411,23 +451,32 @@ export default function ApproveIndent() {
             header: 'Attachment',
             cell: ({ row }: { row: Row<IndentRecord> }) => {
                 const attachment = row.original.attachment;
-                return attachment ? (
-                    <a href={attachment} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline whitespace-nowrap flex items-center gap-1">
+                const fileUrl = getPublicFileUrl(attachment);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline whitespace-nowrap flex items-center gap-1">
                         <DownloadOutlined className="text-[10px]" /> User File
                     </a>
                 ) : <span className="text-muted-foreground text-[10px]">None</span>;
             },
         },
         {
-            accessorKey: 'indent_url',
+            id: 'export_pdf',
             header: 'PDF',
-            cell: ({ row }: { row: Row<IndentRecord> }) => {
-                const indentUrl = row.original.indent_url;
-                return indentUrl ? (
-                    <a href={indentUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-medium hover:underline whitespace-nowrap flex items-center gap-1">
-                        <DownloadOutlined className="text-[10px]" /> Indent PDF
-                    </a>
-                ) : <span className="text-muted-foreground text-[10px]">None</span>;
+            cell: ({ row, table }: { row: Row<IndentRecord>, table: any }) => {
+                const indentNo = row.original.indent_number;
+                const isLoading = table.options.meta?.exportingIndentNo === indentNo;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={isLoading}
+                        onClick={() => table.options.meta?.onExportPdf(indentNo)}
+                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 h-7 px-2 text-xs"
+                    >
+                        {isLoading ? <ClipLoader size={11} color="currentColor" /> : <Download size={11} />}
+                        View PDF
+                    </Button>
+                );
             },
         },
         {
@@ -572,8 +621,9 @@ export default function ApproveIndent() {
             header: 'Attachment',
             cell: ({ row }: { row: Row<IndentRecord> }) => {
                 const attachment = row.original.attachment;
-                return attachment ? (
-                    <a href={attachment} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline whitespace-nowrap flex items-center gap-1">
+                const fileUrl = getPublicFileUrl(attachment);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline whitespace-nowrap flex items-center gap-1">
                         <DownloadOutlined className="text-[10px]" /> User File
                     </a>
                 ) : <span className="text-muted-foreground text-[10px]">None</span>;
@@ -820,8 +870,10 @@ export default function ApproveIndent() {
                         meta={{
                             editedStatuses,
                             editedQuantities,
+                            submittingRowId,
                             updateStatus: (id: number, val: string) => setEditedStatuses(prev => ({ ...prev, [id]: val })),
                             updateQuantity: (id: number, val: number) => setEditedQuantities(prev => ({ ...prev, [id]: val })),
+                            onSubmitRow: handleSingleRowSubmit,
                             exportingIndentNo,
                             onExportPdf: handleExportIndentPdf,
                         }}

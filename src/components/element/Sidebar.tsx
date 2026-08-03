@@ -171,7 +171,7 @@ export default ({ items }: SidebarProps) => {
                                 return (
                                     <SidebarMenuItem key={i}>
                                         <SidebarMenuButton
-                                            className="transition-all duration-200 rounded-md py-6 flex justify-between font-medium text-secondary-foreground items-center"
+                                            className="transition-all duration-200 rounded-md py-6 flex justify-between font-medium text-secondary-foreground items-center no-underline hover:no-underline [text-decoration:none]"
                                             onClick={() => navigate(item.path)}
                                             isActive={window.location.pathname.slice(1) === item.path}
                                             tooltip={item.name}

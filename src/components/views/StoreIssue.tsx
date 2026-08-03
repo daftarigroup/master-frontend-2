@@ -21,34 +21,7 @@ import {
 } from '@/components/ui/card';
 import { ClipLoader as Loader } from 'react-spinners';
 import { ClipboardList, Trash, Search, RotateCcw } from 'lucide-react';
-import { pdf } from '@react-pdf/renderer';
-import IssuePdf from '../element/IssuePdf';
 import { isAllowedFirm } from '@/lib/firmAccess';
-
-const logo = "/logo.png";
-
-// Cache the base64 logo for the session so it's fetched + encoded only once.
-let logoBase64Promise: Promise<string> | null = null;
-const getLogoBase64 = (url: string): Promise<string> => {
-    if (!logoBase64Promise) {
-        logoBase64Promise = (async () => {
-            try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                return await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(blob);
-                });
-            } catch (error) {
-                console.error('Error fetching logo:', error);
-                logoBase64Promise = null; // allow retry on next attempt
-                return '';
-            }
-        })();
-    }
-    return logoBase64Promise;
-};
 
 import {
     Tabs,
@@ -184,116 +157,25 @@ export default () => {
         );
     }, [inventorySheet, indentSheet, storeInSheet, sheetIssues, stockTransferSheet, selectedProject]);
 
-    const processPdfSlip = async (type: 'issue' | 'return', issueNumber: string, data: any) => {
-        try {
-            // Pre-fetch logo as base64 to avoid Buffer errors in browser (cached per session)
-            const logoBase64 = await getLogoBase64(logo);
-
-            const blob = await pdf(
-                <IssuePdf
-                    type={type}
-                    issueNumber={issueNumber}
-                    date={new Date().toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true
-                    })}
-                    constructorName={data.constructorName}
-                    siteLocation={data.siteLocation}
-                    projectName={data.projectName}
-                    plannedDate={data.issueDate ? new Date(`${data.issueDate}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
-                    remarks={data.remarks}
-                    issuePersonName={data.issuePersonName}
-                    returnPersonName={data.returnPersonName}
-                    damageRemark={data.damageRemark}
-                    rejectedDamageQty={data.rejectedDamageQty}
-                    products={data.products}
-                    logo={logoBase64}
-                />
-            ).toBlob();
-
-            const fileName = `${issueNumber}_${type}_${Date.now()}.pdf`;
-            const filePath = `indent-pdfs/${fileName}`;
-
-            // Convert blob to File for better compatibility
-            const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-
-            const { error: uploadError } = await supabase.storage
-                .from('indent_attachment')
-                .upload(filePath, pdfFile);
-
-            if (uploadError) {
-                console.error("Supabase Storage Error:", uploadError);
-                throw uploadError;
-            }
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('indent_attachment')
-                .getPublicUrl(filePath);
-
-            return publicUrl;
-        } catch (error) {
-            console.error(`Error processing ${type} PDF:`, error);
-            toast.error(`Failed to generate ${type} slip PDF`);
-            return '';
-        }
-    };
-
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
-            const getNextIssueNumber = (existingIssues: any[]) => {
-                if (!Array.isArray(existingIssues) || existingIssues.length === 0) return 'IS-0001';
-
-                const availableNumbers = existingIssues
-                    .filter((issue) => issue.issueNo && typeof issue.issueNo === 'string')
-                    .map((issue) => issue.issueNo!)
-                    .filter((num) => /^IS-\d+$/.test(num))
-                    .map((num) => parseInt(num.split('-')[1], 10));
-
-                if (availableNumbers.length === 0) return 'IS-0001';
-
-                const lastIssueNumber = Math.max(...availableNumbers);
-                return `IS-${String(lastIssueNumber + 1).padStart(4, '0')}`;
-            };
-
-            const nextIssueNumber = getNextIssueNumber(sheetIssues);
-
             const rows: Partial<IssueRecord>[] = [];
             for (const product of data.products) {
-                // Check Inventory
-                const inv = realInventory.find(i => i.itemName === product.productName);
-                if (!inv || inv.current < product.quantity) {
-                    toast.error(`Insufficient stock for ${product.productName}. Available: ${inv?.current || 0}`);
-                    return;
-                }
-
                 const row: Partial<IssueRecord> = {
                     timestamp: new Date().toISOString(),
-                    planned1: data.issueDate,
-                    issue_no: nextIssueNumber,
-                    issue_to: data.remarks || '',
                     uom: product.uom,
                     group_head: product.groupHead,
                     product_name: product.productName,
-                    quantity: product.quantity,
-                    // department: product.department,
+                    quantity: Number(product.quantity || 0),
                     constructor_name: data.constructorName,
                     site_location: data.siteLocation,
                     firm_name: data.projectName,
-                    firm_id: data.firmId || options?.firmObjects?.find(f => f.name === data.projectName)?.id,
+                    issue_to: data.remarks,
                     issue_person_name: data.issuePersonName,
-
-
                     return_person_name: data.returnPersonName,
                     damage_remark: data.damageRemark,
                     rejected_damage_qty: String(data.rejectedDamageQty || 0),
-                    status: 'Pending',
                 };
-
                 rows.push(row);
             }
 
@@ -302,19 +184,11 @@ export default () => {
                 const updateData: Partial<IssueRecord> = rows[0];
                 delete updateData.issue_no;
 
-                // Auto-generate Return PDF
-                const currentIssueNumber = sheetIssues.find(i => i.id === data.id)?.issueNo || 'IS-UNKNOWN';
-                const returnPdfUrl = await processPdfSlip('return', currentIssueNumber, data);
-                updateData.return_slip = returnPdfUrl;
-
                 await updateIssueRecordById(data.id, updateData);
                 toast.success('Return updated successfully');
             } else {
                 // Create Logic (Issue)
-                const issuePdfUrl = await processPdfSlip('issue', nextIssueNumber, data);
-                const rowsWithSlip = rows.map(r => ({ ...r, issue_slip: issuePdfUrl }));
-
-                await createIssueRecords(rowsWithSlip);
+                await createIssueRecords(rows);
                 toast.success('Issue created successfully');
             }
 

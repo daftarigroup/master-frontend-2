@@ -142,6 +142,11 @@ export function calculateRealInventory(
                   transfers.find(t => nameMatches(t.productName))?.uom || '';
         }
 
+        const projectNames = Array.from(new Set(relevantMasterRecords.map(r => r.firmName).filter(Boolean)));
+        const resolvedFirmName = currentProject === 'All'
+            ? (projectNames.length > 0 ? projectNames.join(', ') : (indents.find(i => nameMatches(i.productName))?.firmName || storeIns.find(s => nameMatches(s.productName))?.firmNameMatch || '--'))
+            : currentProject;
+
         const item = {
             itemName,
             groupHead,
@@ -149,7 +154,7 @@ export function calculateRealInventory(
             opening,
             individualRate,
             stockTransfer: masterStockTransfer,
-            firmName: currentProject === 'All' ? '' : currentProject,
+            firmName: resolvedFirmName,
             purchaseReturn: currentProject === 'All' 
                 ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.purchaseReturn) || 0), 0)
                 : (relevantMasterRecords.find(r => r.firmName === currentProject)?.purchaseReturn || 0),

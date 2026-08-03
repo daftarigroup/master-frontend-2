@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient, storeApi } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 
 /**
  * Issue Service
- * Handles all Supabase operations for the Issue component
+ * Handles all REST API operations for the Issue component via master-backend
  */
 
 // ==================== INTERFACES ====================
@@ -15,7 +15,6 @@ export interface IssueRecord {
     uom: string;
     product_name: string;
     quantity: number;
-    // department: string;
     group_head: string;
     planned1: string;
     actual1: string;
@@ -39,42 +38,38 @@ export interface IssueRecord {
 // ==================== FETCH FUNCTIONS ====================
 
 /**
- * Fetch all issue records from Supabase
- * @param permittedFirms Optional array of firm names to filter by
+ * Fetch all issue records from REST API
+ * @param permittedFirms Optional array of firm names/IDs to filter by
  */
 export async function fetchIssueRecords(permittedFirms?: string[]): Promise<IssueRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
         const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('issue')
-            .select('*')
-            .order('issue_no', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'issue_no.desc',
+        };
 
         if (firms) {
-            const ids   = firms.filter(f => /^\d+$/.test(f)).map(Number);
+            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
             const names = firms.filter(f => !/^\d+$/.test(f));
-            // ID-first: when firm_access contains IDs, use firm_id only (secure)
             if (ids.length > 0) {
-                query = query.in('firm_id', ids);
-            } else {
-                query = query.in('firm_name', names); // legacy fallback
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm_name'] = names.join(',');
             }
         }
 
-        const { data, error } = await query;
+        const res: any = await apiClient.get('/store/entity/issue', { params });
+        const records = res.data || [];
 
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        return records.map((r: any) => ({
             id: r.id,
             issue_no: r.issue_no || '',
             issue_to: r.issue_to || '',
             uom: r.uom || '',
             product_name: r.product_name || '',
             quantity: Number(r.quantity) || 0,
-            // department: r.department || '',
             group_head: r.group_head || '',
             planned1: r.planned1 || '',
             actual1: r.actual1 || '',
@@ -103,9 +98,53 @@ export async function fetchIssueRecords(permittedFirms?: string[]): Promise<Issu
 // ==================== UPDATE FUNCTIONS ====================
 
 /**
+ * Update inventory record out_quantity and current stock when a store issue is approved.
+ */
+export async function updateInventoryOnIssue(
+    productName: string,
+    firmId: number | null | undefined,
+    firmName: string | null | undefined,
+    givenQty: number,
+    previousGivenQty: number = 0
+) {
+    try {
+        const delta = givenQty - previousGivenQty;
+        if (delta === 0 || !productName) return;
+
+        const params: Record<string, any> = {
+            item_name: productName.trim(),
+        };
+        if (firmId) {
+            params.firm_id = firmId;
+        } else if (firmName && firmName.trim()) {
+            params.firm_name = firmName.trim();
+        }
+
+        const records = await storeApi.fetch('inventory', params);
+
+        if (records && records.length > 0) {
+            const inv = records[0];
+            const currentOut = Number(inv.out_quantity) || 0;
+            const currentStock = Number(inv.current) || 0;
+            const newOut = currentOut + delta;
+            const newStock = Math.max(0, currentStock - delta);
+            const colorCode = newStock <= 0 ? 'red' : (newStock < 5 ? 'red' : 'green');
+
+            await storeApi.update('inventory', inv.id, {
+                out_quantity: String(newOut),
+                current: String(newStock),
+                color_code: colorCode,
+            });
+        }
+    } catch (err) {
+        console.error('Error updating inventory on issue:', err);
+    }
+}
+
+/**
  * Update issue record with approval details
  * @param issue_no - Issue number to identify the record
- * @param updateData - Data to update
+ *        updateData - Data to update
  */
 export async function updateIssueApproval(
     issue_no: string,
@@ -114,20 +153,32 @@ export async function updateIssueApproval(
         status: string;
         given_qty?: number | null;
         issue_slip?: string;
+        product_name?: string;
+        firm_id?: number | null;
+        firm_name?: string;
+        previous_given_qty?: number;
     }
 ) {
     try {
-        const { error } = await supabase
-            .from('issue')
-            .update({
-                actual1: updateData.actual1,
-                status: updateData.status,
-                given_qty: updateData.given_qty,
-                issue_slip: updateData.issue_slip,
-            })
-            .eq('issue_no', issue_no);
+        const payload: Record<string, any> = {
+            actual1: updateData.actual1,
+            status: updateData.status,
+            given_qty: updateData.given_qty,
+        };
+        if (updateData.issue_slip !== undefined) {
+            payload.issue_slip = updateData.issue_slip;
+        }
+        await storeApi.updateWhere('issue', { issue_no }, payload);
 
-        if (error) throw error;
+        if (updateData.status === 'Approved' && updateData.given_qty && updateData.given_qty > 0 && updateData.product_name) {
+            await updateInventoryOnIssue(
+                updateData.product_name,
+                updateData.firm_id,
+                updateData.firm_name,
+                updateData.given_qty,
+                updateData.previous_given_qty || 0
+            );
+        }
 
         return true;
     } catch (error) {
@@ -137,18 +188,11 @@ export async function updateIssueApproval(
 }
 
 /**
- * TEMP: update only the planned (issue) date of a record.
- * Stores the plain YYYY-MM-DD string so no timezone shift occurs.
- * Remove this once users have corrected their planned dates.
+ * Update planned date of an issue record
  */
 export async function updateIssuePlannedDate(id: number, plannedDate: string) {
     try {
-        const { error } = await supabase
-            .from('issue')
-            .update({ planned1: plannedDate })
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.patch(`/store/entity/issue/${id}`, { planned1: plannedDate });
         return true;
     } catch (error) {
         console.error(`Error updating planned date for issue ID ${id}:`, error);
@@ -158,25 +202,19 @@ export async function updateIssuePlannedDate(id: number, plannedDate: string) {
 
 /**
  * Update a specific issue record by ID
- * @param id - The primary ID of the record
- * @param data - The data to update
  */
 export async function updateIssueRecordById(id: number, data: Partial<IssueRecord>) {
     try {
-        const { error } = await supabase
-            .from('issue')
-            .update(data)
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.patch(`/store/entity/issue/${id}`, data);
         return true;
     } catch (error) {
         console.error(`Error updating issue record with ID ${id}:`, error);
         throw error;
     }
 }
+
 /**
- * Create new issue records in Supabase
+ * Create new issue records in master-backend
  * @param rows - Array of issue records to insert
  */
 export async function createIssueRecords(rows: Partial<IssueRecord>[]) {
@@ -188,7 +226,6 @@ export async function createIssueRecords(rows: Partial<IssueRecord>[]) {
             uom: r.uom,
             product_name: r.product_name,
             quantity: r.quantity,
-            // department: r.department,
             group_head: r.group_head,
             planned1: r.planned1,
             actual1: r.actual1,
@@ -206,13 +243,8 @@ export async function createIssueRecords(rows: Partial<IssueRecord>[]) {
             return_slip: r.return_slip || '',
         }));
 
-        const { data, error } = await supabase
-            .from('issue')
-            .insert(mappedRows)
-            .select();
-
-        if (error) throw error;
-        return data;
+        const res: any = await apiClient.post('/store/entity/issue', mappedRows);
+        return res.data;
     } catch (error) {
         console.error('Error creating issue records:', error);
         throw error;

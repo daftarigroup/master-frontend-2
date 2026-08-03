@@ -123,7 +123,7 @@ button {
     min-width: 0;
 }
 a {
-    text-decoration: underline;
+    text-decoration: none;
 }
 
 @layer utilities {
@@ -158,4 +158,28 @@ a {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
+}
+
+/* ─────────────────────────────────────────────
+   Global: Red Glow on invalid / required-empty fields
+   Works on any element with aria-invalid="true"
+   (automatically set by React Hook Form's <FormControl>)
+───────────────────────────────────────────── */
+@keyframes error-pulse {
+  0%   { box-shadow: 0 0 0 0 oklch(70.4% 0.191 22.216 / 0.7); }
+  50%  { box-shadow: 0 0 0 6px oklch(70.4% 0.191 22.216 / 0.25); }
+  100% { box-shadow: 0 0 0 3px oklch(70.4% 0.191 22.216 / 0.5); }
+}
+
+[aria-invalid="true"] {
+  border-color: oklch(70.4% 0.191 22.216) !important;
+  animation: error-pulse 0.4s ease-out forwards;
+  box-shadow: 0 0 0 3px oklch(70.4% 0.191 22.216 / 0.35);
+  outline: none;
+}
+
+[aria-invalid="true"]:focus,
+[aria-invalid="true"]:focus-visible {
+  box-shadow: 0 0 0 3px oklch(70.4% 0.191 22.216 / 0.5);
+  border-color: oklch(70.4% 0.191 22.216) !important;
 }

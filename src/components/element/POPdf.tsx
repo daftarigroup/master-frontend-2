@@ -1,10 +1,11 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import sealImg from '@/assets/IMG-20260606-WA0002.jpg';
-import signatureImg from '@/assets/IMG-20260606-WA0003.jpg';
+import signatureImg from '@/assets/AutoRocket Post (1).png';
+import daftariImg from '@/assets/daftari2.png';
 
 const styles = StyleSheet.create({
     page: {
-        padding: 20,
+        padding: '15 8',
         fontFamily: 'Helvetica',
         fontSize: 9,
         color: '#000000',
@@ -15,21 +16,30 @@ const styles = StyleSheet.create({
     },
     headerContainer: {
         flexDirection: 'row',
-        padding: 10,
+        padding: '2 4',
         borderBottom: '1 solid #000000',
         alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    daftariLogoContainer: {
+        width: '45%',
+        alignItems: 'flex-start',
+    },
+    daftariLogo: {
+        width: 100,
+        height: 75,
+        objectFit: 'contain',
+        alignSelf: 'flex-start',
+        marginLeft: -4,
     },
     logoContainer: {
-        width: '30%',
+        width: '55%',
+        alignItems: 'flex-end',
     },
     logo: {
-        width: 150,
-        height: 60,
+        width: 190,
+        height: 80,
         objectFit: 'contain',
-    },
-    companyInfo: {
-        width: '70%',
-        textAlign: 'right',
     },
     companyName: {
         fontSize: 14,
@@ -111,6 +121,15 @@ const styles = StyleSheet.create({
         width: '33.33%',
         padding: 8,
     },
+    commercialBox4: {
+        width: '25%',
+        padding: 6,
+        borderRight: '1 solid #000000',
+    },
+    commercialBox4Last: {
+        width: '25%',
+        padding: 6,
+    },
     commercialLabel: {
         fontSize: 8.5,
         fontFamily: 'Helvetica-Bold',
@@ -146,16 +165,14 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         borderRight: '1 solid #000000',
     },
-    colSr: { width: '4%' },
-    colInternalCode: { width: '10%' },
-    colQuotationNo: { width: '10%' },
-    colProduct: { width: '15%' },
-    colPaymentTerm: { width: '12%' },
-    colQty: { width: '6%' },
-    colUnit: { width: '6%' },
-    colRate: { width: '8%' },
+    colSr: { width: '5%' },
+    colInternalCode: { width: '12%' },
+    colProduct: { width: '30%' },
+    colQty: { width: '7%' },
+    colUnit: { width: '7%' },
+    colRate: { width: '9%' },
     colGst: { width: '7%' },
-    colDiscount: { width: '7%' },
+    colDiscount: { width: '8%' },
     colAmount: { width: '15%' },
     rightAlign: { textAlign: 'right' },
     centerAlign: { textAlign: 'center' },
@@ -206,20 +223,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        padding: 12,
+        padding: '4 6',
         borderBottom: '1 solid #000000',
     },
     signatureLeft: {
-        width: '50%',
+        width: '55%',
     },
     signatureRight: {
-        width: '50%',
+        width: '45%',
         alignItems: 'flex-end',
     },
     forText: {
         fontSize: 10,
         fontFamily: 'Helvetica-Bold',
-        marginBottom: 30,
+        marginBottom: 2,
     },
     signText: {
         fontSize: 10,
@@ -239,7 +256,7 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     signLine: {
-        width: 200,
+        width: 240,
         borderTop: '1 solid #000000',
         marginTop: 4,
     },
@@ -252,16 +269,18 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-start',
-        marginBottom: 4,
+        marginBottom: 2,
+        marginLeft: -4,
     },
     authSignatureImg: {
-        width: 90,
-        height: 45,
+        width: 140,
+        height: 65,
         objectFit: 'contain',
+        alignSelf: 'flex-start',
     },
     authSealImg: {
-        width: 60,
-        height: 60,
+        width: 65,
+        height: 65,
         objectFit: 'contain',
     },
 });
@@ -297,6 +316,9 @@ export interface POPdfProps {
     siteEngineerName?: string;
     siteEngineerEmail?: string;
     siteEngineerPhoneNo?: string;
+    siteEngineerName2?: string;
+    siteEngineerEmail2?: string;
+    siteEngineerPhoneNo2?: string;
     items: Item[];
     totalAmount: number;
     logo?: string;
@@ -332,6 +354,9 @@ export default function PoojaPOFormat(props: POPdfProps) {
         siteEngineerName,
         siteEngineerEmail,
         siteEngineerPhoneNo,
+        siteEngineerName2,
+        siteEngineerEmail2,
+        siteEngineerPhoneNo2,
         items,
         totalAmount,
         logo,
@@ -359,14 +384,11 @@ export default function PoojaPOFormat(props: POPdfProps) {
 
                     {/* Header */}
                     <View style={styles.headerContainer}>
+                        <View style={styles.daftariLogoContainer}>
+                            <Image src={daftariImg} style={styles.daftariLogo} />
+                        </View>
                         <View style={styles.logoContainer}>
                             {logo && <Image src={logo} style={styles.logo} />}
-                        </View>
-                        <View style={styles.companyInfo}>
-                            <Text style={styles.companyName}>{companyName}</Text>
-                            <Text style={styles.companyText}>{companyAddress}</Text>
-                            {companyPhone && <Text style={styles.companyText}>Phone: {companyPhone}</Text>}
-                            {companyEmail && <Text style={styles.companyText}>Email: {companyEmail}</Text>}
                         </View>
                     </View>
 
@@ -425,6 +447,10 @@ export default function PoojaPOFormat(props: POPdfProps) {
                                 <Text style={styles.infoValue}>{companyContactPerson}</Text>
                             </View>
                             <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Phone No.:</Text>
+                                <Text style={styles.infoValue}>{companyPhone}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Email ID:</Text>
                                 <Text style={styles.infoValue}>{companyEmail}</Text>
                             </View>
@@ -433,19 +459,25 @@ export default function PoojaPOFormat(props: POPdfProps) {
 
                     {/* Project and Delivery */}
                     <View style={styles.commercialSection}>
-                        <View style={styles.commercialBox}>
+                        <View style={styles.commercialBox4}>
                             <Text style={styles.commercialLabel}>Project Name:</Text>
-                            <Text style={[styles.commercialValue, { fontFamily: 'Helvetica-Bold', fontSize: 9 }]}>{projectName}</Text>
+                            <Text style={[styles.commercialValue, { fontFamily: 'Helvetica-Bold', fontSize: 8.5 }]}>{projectName}</Text>
                         </View>
-                        <View style={styles.commercialBox}>
+                        <View style={styles.commercialBox4}>
                             <Text style={styles.commercialLabel}>Destination Address:</Text>
                             <Text style={styles.commercialValue}>{deliveryAddress}</Text>
                         </View>
-                        <View style={styles.commercialBoxLast}>
-                            <Text style={styles.commercialLabel}>Site Engineer Details:</Text>
+                        <View style={styles.commercialBox4}>
+                            <Text style={styles.commercialLabel}>Site Engineer Details 1:</Text>
                             <Text style={styles.commercialValue}>Name: {siteEngineerName || '--'}</Text>
                             <Text style={styles.commercialValue}>Phone: {siteEngineerPhoneNo || '--'}</Text>
                             <Text style={styles.commercialValue}>Email: {siteEngineerEmail || '--'}</Text>
+                        </View>
+                        <View style={styles.commercialBox4Last}>
+                            <Text style={styles.commercialLabel}>Site Engineer Details 2:</Text>
+                            <Text style={styles.commercialValue}>Name: {siteEngineerName2 || '--'}</Text>
+                            <Text style={styles.commercialValue}>Phone: {siteEngineerPhoneNo2 || '--'}</Text>
+                            <Text style={styles.commercialValue}>Email: {siteEngineerEmail2 || '--'}</Text>
                         </View>
                     </View>
 
@@ -456,9 +488,7 @@ export default function PoojaPOFormat(props: POPdfProps) {
                         <View style={styles.tableHeaderRow}>
                             <Text style={[styles.tableHeaderCell, styles.colSr]}>S/N</Text>
                             <Text style={[styles.tableHeaderCell, styles.colInternalCode]}>Internal Code</Text>
-                            <Text style={[styles.tableHeaderCell, styles.colQuotationNo]}>Quotation No.</Text>
                             <Text style={[styles.tableHeaderCell, styles.colProduct]}>Product</Text>
-                            <Text style={[styles.tableHeaderCell, styles.colPaymentTerm]}>Payment Term</Text>
                             <Text style={[styles.tableHeaderCell, styles.colQty]}>Qty</Text>
                             <Text style={[styles.tableHeaderCell, styles.colUnit]}>Unit</Text>
                             <Text style={[styles.tableHeaderCell, styles.colRate]}>Rate</Text>
@@ -471,9 +501,7 @@ export default function PoojaPOFormat(props: POPdfProps) {
                             <View style={styles.tableRow} key={index}>
                                 <Text style={[styles.tableCell, styles.colSr]}>{index + 1}</Text>
                                 <Text style={[styles.tableCell, styles.colInternalCode]}>{item.internalCode}</Text>
-                                <Text style={[styles.tableCell, styles.colQuotationNo]}>{item.quotationNo}</Text>
                                 <Text style={[styles.tableCell, styles.colProduct]}>{item.product}</Text>
-                                <Text style={[styles.tableCell, styles.colPaymentTerm]}>{item.paymentTerm}</Text>
                                 <Text style={[styles.tableCell, styles.colQty, styles.rightAlign]}>{item.qty}</Text>
                                 <Text style={[styles.tableCell, styles.colUnit]}>{item.unit}</Text>
                                 <Text style={[styles.tableCell, styles.colRate, styles.rightAlign]}>{formatCurrency(item.rate)}</Text>

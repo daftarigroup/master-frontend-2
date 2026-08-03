@@ -37,7 +37,7 @@ import { UserCheck, X, Package2, FileCheck, CheckCircle2, XCircle, AlertCircle, 
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
-import { formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
 
 interface HodPendingData {
@@ -220,7 +220,8 @@ export default () => {
                     hodStatus: values.status,
                     hodRemark: values.remark || '',
                     triggerStage7: triggerStage7
-                }
+                },
+                selectedItem.id
             );
 
             // ✅ Create Integrations ONLY if HOD approves
@@ -471,7 +472,7 @@ export default () => {
                                                 {selectedItem.challanImage && (
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-[9px] font-bold text-slate-400">Challan</span>
-                                                        <a href={selectedItem.challanImage} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-600 underline">View Image</a>
+                                                        <a href={getPublicFileUrl(selectedItem.challanImage)} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-600 underline">View Image</a>
                                                     </div>
                                                 )}
                                                 <div className="flex justify-between items-center">

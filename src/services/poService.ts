@@ -97,7 +97,7 @@ export async function fetchIndents(permittedFirms?: string[]) {
                 id: r.id,
                 planned4: r.planned4 || '',
                 actual4: r.actual4 || '',
-                approvedVendorName: r.approved_vendor_name || '',
+                approvedVendorName: r.approved_vendor_name || r.vendor_name1 || '',
                 firmName: r.firm_name || '',
                 firmNameMatch: r.firm_name || '',
                 firm_id: r.firm_id,
@@ -116,6 +116,9 @@ export async function fetchIndents(permittedFirms?: string[]) {
                 approvedPaymentTerm: r.approved_payment_term || '',
                 approvedAdvancePercent: r.approved_advance_percent || '',
                 vendorType: r.vendor_type || 'Regular',
+                poRequired: r.po_requred || '',
+                poNumber: r.po_number || '',
+                po_number: r.po_number || '',
             };
         });
     } catch (error) {
@@ -214,11 +217,18 @@ export async function fetchPoMaster(permittedFirms?: string[]) {
             emailSendStatus: r.email_send_status || '',
             preparedBy: r.prepared_by || '',
             approvedBy: r.approved_by || '',
-            terms: r.terms || null,
-            destinationAddress: r.destination_address || '',
             siteEngineerName: r.site_engineer_name || '',
             siteEngineerEmail: r.site_engineer_email || '',
             siteEngineerPhoneNo: r.site_engineer_phoneNo || '',
+            site_engineer_name: r.site_engineer_name || '',
+            site_engineer_email: r.site_engineer_email || '',
+            site_engineer_phoneNo: r.site_engineer_phoneNo || '',
+            siteEngineerName2: r.site_engineer_name_2 || '',
+            siteEngineerEmail2: r.site_engineer_email_2 || '',
+            siteEngineerPhoneNo2: r.site_engineer_phoneNo_2 || '',
+            site_engineer_name_2: r.site_engineer_name_2 || '',
+            site_engineer_email_2: r.site_engineer_email_2 || '',
+            site_engineer_phoneNo_2: r.site_engineer_phoneNo_2 || '',
         }));
     } catch (error) {
         console.error('Error fetching PO master:', error);
@@ -284,19 +294,24 @@ export async function fetchMasterData() {
             const company = r.company || {};
             if (r.firm_name) {
                 firmCompanyMap[r.firm_name] = {
-                    companyName: company.company_name || '',
-                    companyAddress: company.address || '',
-                    destinationAddress: r.destination_address || company.destination_address || '',
-                    companyGstin: company.gstin || '',
-                    companyPan: company.pan || '',
+                    companyName: company.company_name || firstCompany.company_name || '',
+                    companyAddress: company.billing_address || company.address || firstCompany.billing_address || firstCompany.address || '',
+                    billingAddress: company.billing_address || company.address || firstCompany.billing_address || firstCompany.address || '',
+                    destinationAddress: r.destination_address || '',
+                    companyGstin: company.gstin || firstCompany.gstin || '',
+                    companyPan: company.pan || firstCompany.pan || '',
                 };
             }
         });
 
         const items = itemRows.map((r: any) => ({
             itemName: r.item_name,
-            regularConditions: r.regular_pay_condition || [],
-            thirdPartyConditions: r.third_party_pay_condition || [],
+            regularConditions: typeof r.regular_pay_condition === 'string' && r.regular_pay_condition
+                ? r.regular_pay_condition.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : (Array.isArray(r.regular_pay_condition) ? r.regular_pay_condition : []),
+            thirdPartyConditions: typeof r.third_party_pay_condition === 'string' && r.third_party_pay_condition
+                ? r.third_party_pay_condition.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : (Array.isArray(r.third_party_pay_condition) ? r.third_party_pay_condition : []),
         }));
 
         return {
@@ -388,10 +403,12 @@ export async function insertPoRecords(poRecords: any[]) {
             advance_percent: record.advancePercent || 0,
             advance_amount: record.advanceAmount || 0,
             terms: record.termsObject || {},
-            destination_address: record.destinationAddress || '',
             site_engineer_name: record.siteEngineerName || '',
             site_engineer_email: record.siteEngineerEmail || '',
             site_engineer_phoneNo: record.siteEngineerPhoneNo || '',
+            site_engineer_name_2: record.siteEngineerName2 || record.site_engineer_name_2 || '',
+            site_engineer_email_2: record.siteEngineerEmail2 || record.site_engineer_email_2 || '',
+            site_engineer_phoneNo_2: record.siteEngineerPhoneNo2 || record.site_engineer_phoneNo_2 || '',
         }));
 
         const { data, error } = await supabase

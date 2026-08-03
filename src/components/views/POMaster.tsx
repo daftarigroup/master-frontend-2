@@ -71,7 +71,7 @@ export default () => {
             setDataLoading(true);
             const data = await fetchPoMaster();
             setTableData(
-                data.map((sheet) => ({
+                data.map((sheet: any) => ({
                     ...sheet,
                     timestamp: sheet.timestamp ? formatDate(new Date(sheet.timestamp)) : '',
                     quotationDate: sheet.quotationDate ? formatDate(new Date(sheet.quotationDate)) : '',

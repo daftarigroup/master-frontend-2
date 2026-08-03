@@ -19,14 +19,21 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { PuffLoader as Loader } from 'react-spinners';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Users } from 'lucide-react';
+import { Users, PenSquare, CheckSquare } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
+import { Pill } from '../ui/pill';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { Input } from '../ui/input';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { normalizeFirmAccess } from '@/lib/firmAccess';
+import {
+    fetchPendingTechnicalApprovals,
+    fetchCompletedTechnicalApprovals,
+    submitTechnicalApproval,
+    updateTechnicalApprovalRanks,
+    type TechnicalApprovalIndent,
+    type TechnicalHistoryIndent,
+} from '@/services/technicalApprovalService';
 
 
 interface RateApprovalData {
@@ -75,15 +82,6 @@ type HistoryUpdateValues = z.infer<typeof historyUpdateSchema>;
 
 export default () => {
     const { user } = useAuth();
-    const applyFirmAccessFilter = (query: any) => {
-        const userFirms = normalizeFirmAccess(user?.firm_access);
-        if (userFirms === undefined) return query;
-        if (userFirms.length === 0) return null;
-
-        const firmIds = userFirms.filter((firm) => /^\d+$/.test(firm)).map(Number);
-        if (firmIds.length === 0) return null;
-        return query.in('firm_id', firmIds);
-    };
 
     const [selectedIndent, setSelectedIndent] = useState<RateApprovalData | null>(null);
     const [selectedHistory, setSelectedHistory] = useState<HistoryData | null>(null);
@@ -92,87 +90,11 @@ export default () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [dataLoading, setDataLoading] = useState(false);
 
-    // Fetch pending three party approvals from Supabase
     const fetchPendingApprovals = async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
-            let query = supabase
-                .from('indent')
-                .select('id, timestamp, indent_number, firm_name, firm_id, indenter_name, product_name, comparison_sheet, planned3, vendor_name1, rate1, payment_term1, select_rate_type1, with_tax_or_not1, tax_value1, quotation_no1, quotation_date1, vendor1_rank, delivery_time1, make1, vendor_name2, rate2, payment_term2, select_rate_type2, with_tax_or_not2, tax_value2, quotation_no2, quotation_date2, vendor2_rank, delivery_time2, make2, vendor_name3, rate3, payment_term3, select_rate_type3, with_tax_or_not3, tax_value3, quotation_no3, quotation_date3, vendor3_rank, delivery_time3, make3')
-                .not('planned3', 'is', null)
-                .is('actual3', null)
-                .in('vendor_type', ['Three Party', 'Regular']);
-
-            const filteredQuery = applyFirmAccessFilter(query);
-            if (!filteredQuery) {
-                setTableData([]);
-                return;
-            }
-
-            const { data, error } = await filteredQuery.order('indent_number', { ascending: false });
-
-            if (error) throw error;
-
-            const rows = (data ?? []) as any[];
-
-            setTableData(
-                rows.filter(r => !r.vendor1_rank && !r.vendor2_rank && !r.vendor3_rank)
-
-                    .map((r): RateApprovalData => ({
-                        id: r.id,
-                        indentNo: r.indent_number || '',
-                        firmNameMatch: r.firm_name || '',
-                        indenter: r.indenter_name || '',
-                        // department: r.department || '',
-                        product: r.product_name || '',
-                        comparisonSheet: r.comparison_sheet || '',
-                        date: formatDateTime(new Date(r.timestamp)).replace(/\//g, '-'),
-                        plannedDate: r.planned3 ? formatDate(new Date(r.planned3)) : 'Not Set',
-                        vendors: [
-                            [
-                                r.vendor_name1 || '',
-                                r.rate1?.toString() || '0',
-                                r.payment_term1 || '',
-                                r.select_rate_type1 || 'With Tax',
-                                r.with_tax_or_not1 || 'Yes',
-                                r.tax_value1?.toString() || '0',
-                                r.quotation_no1 || '',
-                                r.quotation_date1 || '',
-                                r.vendor1_rank || '',
-                                r.delivery_time1 || '',
-                                r.make1 || ''
-                            ],
-                            [
-                                r.vendor_name2 || '',
-                                r.rate2?.toString() || '0',
-                                r.payment_term2 || '',
-                                r.select_rate_type2 || 'With Tax',
-                                r.with_tax_or_not2 || 'Yes',
-                                r.tax_value2?.toString() || '0',
-                                r.quotation_no2 || '',
-                                r.quotation_date2 || '',
-                                r.vendor2_rank || '',
-                                r.delivery_time2 || '',
-                                r.make2 || ''
-                            ],
-                            [
-                                r.vendor_name3 || '',
-                                r.rate3?.toString() || '0',
-                                r.payment_term3 || '',
-                                r.select_rate_type3 || 'With Tax',
-                                r.with_tax_or_not3 || 'Yes',
-                                r.tax_value3?.toString() || '0',
-                                r.quotation_no3 || '',
-                                r.quotation_date3 || '',
-                                r.vendor3_rank || '',
-                                r.delivery_time3 || '',
-                                r.make3 || ''
-                            ],
-                        ].filter(vendor => vendor[0] !== '') as [string, string, string, string, string, string, string, string, string, string, string][],
-                    }))
-            );
+            const data = await fetchPendingTechnicalApprovals(user?.firm_access);
+            setTableData(data as any);
         } catch (err) {
             console.error('Error fetching pending approvals:', err);
             toast.error('Failed to fetch pending approvals');
@@ -188,84 +110,11 @@ export default () => {
     }, [user?.username, user?.firm_access]);
 
 
-    // Fetch completed three party approvals from Supabase
     const fetchCompletedApprovals = async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
-            let query = supabase
-                .from('indent')
-                .select('id, timestamp, actual3, indent_number, firm_name, firm_id, indenter_name, product_name, vendor_name1, rate1, payment_term1, select_rate_type1, with_tax_or_not1, tax_value1, quotation_no1, quotation_date1, vendor1_rank, delivery_time1, make1, vendor_name2, rate2, payment_term2, select_rate_type2, with_tax_or_not2, tax_value2, quotation_no2, quotation_date2, vendor2_rank, delivery_time2, make2, vendor_name3, rate3, payment_term3, select_rate_type3, with_tax_or_not3, tax_value3, quotation_no3, quotation_date3, vendor3_rank, delivery_time3, make3')
-                .not('planned3', 'is', null)
-                .in('vendor_type', ['Three Party', 'Regular']);
-
-            const filteredQuery = applyFirmAccessFilter(query);
-            if (!filteredQuery) {
-                setHistoryData([]);
-                return;
-            }
-
-            const { data, error } = await filteredQuery.order('indent_number', { ascending: false });
-
-            if (error) throw error;
-
-            const rows = (data ?? []) as any[];
-
-            setHistoryData(
-                rows.filter(r => r.vendor1_rank || r.vendor2_rank || r.vendor3_rank)
-
-                    .map((r): HistoryData => ({
-                        id: r.id,
-                        indentNo: r.indent_number || '',
-                        firmNameMatch: r.firm_name || '',
-                        indenter: r.indenter_name || '',
-                        // department: r.department || '',
-                        product: r.product_name || '',
-                        date: r.actual3 ? formatDate(new Date(r.actual3)) : formatDate(new Date(r.timestamp)),
-                        vendors: [
-                            [
-                                r.vendor_name1 || '',
-                                r.rate1?.toString() || '0',
-                                r.payment_term1 || '',
-                                r.select_rate_type1 || 'With Tax',
-                                r.with_tax_or_not1 || 'Yes',
-                                r.tax_value1?.toString() || '0',
-                                r.quotation_no1 || '',
-                                r.quotation_date1 || '',
-                                r.vendor1_rank || '',
-                                r.delivery_time1 || '',
-                                r.make1 || ''
-                            ],
-                            [
-                                r.vendor_name2 || '',
-                                r.rate2?.toString() || '0',
-                                r.payment_term2 || '',
-                                r.select_rate_type2 || 'With Tax',
-                                r.with_tax_or_not2 || 'Yes',
-                                r.tax_value2?.toString() || '0',
-                                r.quotation_no2 || '',
-                                r.quotation_date2 || '',
-                                r.vendor2_rank || '',
-                                r.delivery_time2 || '',
-                                r.make2 || ''
-                            ],
-                            [
-                                r.vendor_name3 || '',
-                                r.rate3?.toString() || '0',
-                                r.payment_term3 || '',
-                                r.select_rate_type3 || 'With Tax',
-                                r.with_tax_or_not3 || 'Yes',
-                                r.tax_value3?.toString() || '0',
-                                r.quotation_no3 || '',
-                                r.quotation_date3 || '',
-                                r.vendor3_rank || '',
-                                r.delivery_time3 || '',
-                                r.make3 || ''
-                            ],
-                        ].filter(vendor => vendor[0] !== '') as [string, string, string, string, string, string, string, string, string, string, string][],
-                    }))
-            );
+            const data = await fetchCompletedTechnicalApprovals(user?.firm_access);
+            setHistoryData(data as any);
         } catch (err) {
             console.error('Error fetching completed approvals:', err);
             toast.error('Failed to fetch completed approvals');
@@ -282,28 +131,29 @@ export default () => {
     }, [user?.username, user?.firm_access]);
 
     const columns: ColumnDef<RateApprovalData>[] = [
-        ...(user.threePartyApprovalAction
-            ? [
-                {
-                    header: 'Action',
-                    id: 'action',
-                    cell: ({ row }: { row: Row<RateApprovalData> }) => {
-                        const indent = row.original;
-                        return (
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setSelectedIndent(indent);
-                                    setOpenDialog(true);
-                                }}
-                            >
-                                Approve
-                            </Button>
-                        );
-                    },
-                },
-            ]
-            : []),
+        {
+            header: 'Action',
+            id: 'action',
+            cell: ({ row }: { row: Row<RateApprovalData> }) => {
+                const indent = row.original;
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs flex items-center gap-1"
+                            onClick={() => {
+                                setSelectedIndent(indent);
+                                setOpenDialog(true);
+                            }}
+                        >
+                            <PenSquare className="h-3.5 w-3.5 text-slate-600" />
+                            Update
+                        </Button>
+                    </div>
+                );
+            },
+        },
         { accessorKey: 'date', header: 'Timestamp' },
         { accessorKey: 'indentNo', header: 'Indent No.' },
         { accessorKey: 'firmNameMatch', header: 'Project Name' },
@@ -343,26 +193,30 @@ export default () => {
     ];
 
     const historyColumns: ColumnDef<HistoryData>[] = [
-        ...(user.updateVendorAction ? [
-            {
-                header: 'Action',
-                cell: ({ row }: { row: Row<HistoryData> }) => {
-                    const indent = row.original;
+        {
+            header: 'Action',
+            id: 'action',
+            cell: ({ row }: { row: Row<HistoryData> }) => {
+                const indent = row.original;
 
-                    return (
+                return (
+                    <div className="flex items-center gap-1.5">
                         <Button
                             variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs flex items-center gap-1"
                             onClick={() => {
                                 setSelectedHistory(indent);
                                 setOpenDialog(true);
                             }}
                         >
+                            <PenSquare className="h-3.5 w-3.5 text-slate-600" />
                             Update
                         </Button>
-                    );
-                },
+                    </div>
+                );
             },
-        ] : []),
+        },
         { accessorKey: 'date', header: 'Timestamp' },
         { accessorKey: 'indentNo', header: 'Indent No.' },
         { accessorKey: 'firmNameMatch', header: ' Project Name' },
@@ -491,24 +345,17 @@ export default () => {
 
     const onSubmit: SubmitHandler<TechnicalApprovalValues> = async () => {
         try {
-            const updates: any = {
-                actual3: new Date().toISOString(),
-                planned4: new Date().toISOString(),
-            };
+            if (!selectedIndent?.id) return;
+            const ranks: Record<string, string> = {};
 
             Object.entries(ranking).forEach(([rank, vendorIdx]) => {
                 if (vendorIdx === null) return;
-                if (vendorIdx === 0) updates.vendor1_rank = rank;
-                if (vendorIdx === 1) updates.vendor2_rank = rank;
-                if (vendorIdx === 2) updates.vendor3_rank = rank;
+                if (vendorIdx === 0) ranks.vendor1_rank = rank;
+                if (vendorIdx === 1) ranks.vendor2_rank = rank;
+                if (vendorIdx === 2) ranks.vendor3_rank = rank;
             });
 
-            const { error } = await supabase
-                .from('indent')
-                .update(updates)
-                .eq('id', selectedIndent?.id);
-
-            if (error) throw error;
+            await submitTechnicalApproval(selectedIndent.id, ranks);
 
             toast.success(`Completed Technical Approval for ${selectedIndent?.indentNo}`);
             setOpenDialog(false);
@@ -568,20 +415,16 @@ export default () => {
 
     const onSubmitHistoryUpdate: SubmitHandler<HistoryUpdateValues> = async () => {
         try {
-            const updates: any = {};
+            if (!selectedHistory?.id) return;
+            const ranks: Record<string, string> = {};
             orderedHistoryIndices.forEach((originalIdx, position) => {
                 const rankVal = `T${position + 1}`;
-                if (originalIdx === 0) updates.vendor1_rank = rankVal;
-                if (originalIdx === 1) updates.vendor2_rank = rankVal;
-                if (originalIdx === 2) updates.vendor3_rank = rankVal;
+                if (originalIdx === 0) ranks.vendor1_rank = rankVal;
+                if (originalIdx === 1) ranks.vendor2_rank = rankVal;
+                if (originalIdx === 2) ranks.vendor3_rank = rankVal;
             });
 
-            const { error } = await supabase
-                .from('indent')
-                .update(updates)
-                .eq('id', selectedHistory?.id);
-
-            if (error) throw error;
+            await updateTechnicalApprovalRanks(selectedHistory.id, ranks);
 
             toast.success(`Updated ranks for ${selectedHistory?.indentNo}`);
             setOpenDialog(false);
@@ -660,7 +503,7 @@ export default () => {
                                     <div className="grid grid-cols-3 gap-4">
                                         {['T1', 'T2', 'T3'].map((rank) => {
                                             const vendorIdx = ranking[rank];
-                                            const vendor = vendorIdx !== null ? selectedIndent.vendors[vendorIdx] : null;
+                                            const vendor = (vendorIdx !== null && vendorIdx !== undefined) ? selectedIndent?.vendors?.[vendorIdx] : null;
 
                                             return (
                                                 <div
@@ -727,7 +570,8 @@ export default () => {
 
                                         <div className="flex flex-wrap gap-3 justify-center">
                                             {unrankedIndices.map((idx) => {
-                                                const vendor = selectedIndent.vendors[idx];
+                                                const vendor = selectedIndent?.vendors?.[idx];
+                                                if (!vendor) return null;
                                                 return (
                                                     <div
                                                         key={idx}

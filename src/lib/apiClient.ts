@@ -1,0 +1,73 @@
+import axios from 'axios';
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_PUBLIC_API_URL ||
+  'http://localhost:5001/api';
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: true,
+});
+
+// Response interceptor to unwrap data and format errors
+apiClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    const message = error.response?.data?.message || error.message || 'API Request failed';
+    return Promise.reject(new Error(message));
+  }
+);
+
+// Store API Helper Utilities
+export const storeApi = {
+  async fetch(table: string, params?: Record<string, any>) {
+    const res: any = await apiClient.get(`/store/entity/${table}`, { params });
+    return res.data || [];
+  },
+
+  async fetchById(table: string, id: string | number) {
+    const res: any = await apiClient.get(`/store/entity/${table}/${id}`);
+    return res.data;
+  },
+
+  async insert(table: string, data: any) {
+    const res: any = await apiClient.post(`/store/entity/${table}`, data);
+    return res.data;
+  },
+
+  async update(table: string, id: string | number, data: any) {
+    const res: any = await apiClient.patch(`/store/entity/${table}/${id}`, data);
+    return res.data;
+  },
+
+  async updateWhere(table: string, where: Record<string, any>, data: any) {
+    const res: any = await apiClient.patch(`/store/entity/${table}`, { where, data });
+    return res.data;
+  },
+
+  async delete(table: string, id: string | number) {
+    const res: any = await apiClient.delete(`/store/entity/${table}/${id}`);
+    return res.data;
+  },
+};
+
+// Email API Helper Utilities via Resend
+export const emailApi = {
+  async sendEmail(payload: {
+    to: string | string[];
+    subject: string;
+    html?: string;
+    text?: string;
+    from?: string;
+    cc?: string | string[];
+    bcc?: string | string[];
+    attachments?: any[];
+  }) {
+    const res: any = await apiClient.post('/email/send', payload);
+    return res;
+  },
+};

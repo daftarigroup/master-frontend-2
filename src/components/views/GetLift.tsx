@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ShoppingCart, X, Truck, FileText, IndianRupee, CreditCard, User, Phone, CheckCircle2, Package, Info, Upload, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
-import { formatDate, formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import {
     fetchIndentRecords,
@@ -36,6 +36,7 @@ import {
     updateActual5Timestamp,
     updateLiftingStatus,
     updatePendingLiftQty,
+    parseNumericQty,
     type GetLiftIndentRecord,
     type GetLiftStoreInRecord,
 } from '@/services/getLiftService';
@@ -190,7 +191,7 @@ export default function GetPurchase() {
             if (!user?.username) return;
             setLoading(true);
             try {
-                const firms = user?.firm_access;
+                const firms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
                 const [vendors, indents, storeIns] = await Promise.all([
                     fetchVendorOptions(),
                     fetchIndentRecords(firms),
@@ -220,34 +221,34 @@ export default function GetPurchase() {
         const processedData = filteredByFirm
             .map((sheet) => {
                 // Calculate received quantity from STORE IN records
-                const receivedQty = (Number(sheet.receivedQuantity) || 0) + storeInRecords
+                const receivedQty = (parseNumericQty(sheet.receivedQuantity) || 0) + storeInRecords
                     .filter(
                         (store) =>
                             store.indentNo === sheet.indentNumber?.toString() &&
-                            store.firmNameMatch === sheet.firmNameMatch &&
+                            (store.firmNameMatch === sheet.firmNameMatch || (!store.firmNameMatch && !sheet.firmNameMatch)) &&
                             store.productName === sheet.productName
                     )
                     .reduce(
                         (sum, store) =>
-                            sum + (Number(store.qty) || 0),
+                            sum + (parseNumericQty(store.qty) || 0),
                         0
                     );
 
-                const approvedQtySafe = Number(sheet.approvedQuantity) || Number(sheet.quantity) || 0;
-                const cancelQtySafe = Number(sheet.cancelQty) || 0;
+                const appQty = parseNumericQty(sheet.approvedQuantity);
+                const origQty = parseNumericQty(sheet.quantity);
+                const approvedQtySafe = appQty > 0 ? appQty : origQty;
+                const cancelQtySafe = parseNumericQty(sheet.cancelQty);
                 const pendingPoQty = approvedQtySafe - receivedQty - cancelQtySafe;
 
                 return { ...sheet, pendingPoQty, receivedQty, receivedQuantity: sheet.receivedQuantity };
             })
             .filter((item) => {
-                // Lifting stage starts once the PO planned date exists
-                const hasPlanned5 = item.planned5 && item.planned5.toString().trim() !== '';
+                // Lifting stage starts once PO is created (has valid non-empty PO number)
+                const poNumStr = (item.poNumber || '').toString().trim();
+                const isPoCreated = Boolean(poNumStr !== '' && poNumStr !== '-');
 
-                // ✅ Quantity is the single source of truth: keep showing while
-                // anything remains to lift. lifting_status/actual5 are derived
-                // flags and can drift (stale snapshot, refresh race, bad write) —
-                // relying on them made rows vanish while qty was still pending.
-                return hasPlanned5 && item.pendingPoQty > 0;
+                // Keep showing while anything remains to lift
+                return isPoCreated && item.pendingPoQty > 0;
             });
 
         // Group by PO Number
@@ -524,6 +525,7 @@ export default function GetPurchase() {
             header: 'Photo Of Bill',
             cell: ({ row }) => {
                 const photoUrl = row.original.photoOfBill;
+                const fileUrl = getPublicFileUrl(photoUrl);
                 const liftNo = row.original.liftNumber;
                 const isUploading = uploadingLiftNo === liftNo;
 
@@ -546,8 +548,8 @@ export default function GetPurchase() {
 
                 return (
                     <div className="flex items-center gap-1">
-                        {photoUrl ? (
-                            <Button variant="outline" size="sm" onClick={() => window.open(photoUrl, '_blank')}>
+                        {fileUrl ? (
+                            <Button variant="outline" size="sm" onClick={() => window.open(fileUrl, '_blank')}>
                                 View Bill
                             </Button>
                         ) : (
@@ -651,7 +653,10 @@ export default function GetPurchase() {
             indentNo: z.string(),
             product: z.string(),
             poNumber: z.string(),
-            firm_id: z.number().nullable().optional(),
+            firm_id: z.preprocess(
+                (val) => (val === null || val === undefined || val === '' ? null : Number(val)),
+                z.number().nullable().optional()
+            ),
             quantity: z.coerce.number(),
             pendingLiftQty: z.coerce.number(),
             receivedQty: z.coerce.number(),
@@ -1035,11 +1040,28 @@ export default function GetPurchase() {
     function onError(e: any) {
         console.error('Form validation errors:', e);
         
-        // Extract field names from errors
-        const errorFields = Object.keys(e).map(field => {
-            // Make field names more readable
-            return field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
-        });
+        // Check for array-level items error (e.g. "At least one item must have lift qty > 0")
+        if (e?.items?.message) {
+            toast.error(e.items.message);
+            return;
+        }
+
+        // Check for per-item field errors inside items array
+        if (Array.isArray(e?.items)) {
+            for (const itemError of e.items) {
+                if (!itemError) continue;
+                const firstMsg = Object.values(itemError)?.[0] as any;
+                if (firstMsg?.message) {
+                    toast.error(firstMsg.message);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: show top-level field errors
+        const errorFields = Object.keys(e).map(field =>
+            field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')
+        );
 
         if (errorFields.length > 0) {
             toast.error(`Please fill required fields: ${errorFields.join(', ')}`);
@@ -1097,6 +1119,9 @@ export default function GetPurchase() {
                                             <span>Update Purchase Details</span>
                                         </div>
                                     </DialogTitle>
+                                    <DialogDescription>
+                                        Fill in the bill, challan, and lifting quantity details for PO: {selectedIndent?.poNumber}
+                                    </DialogDescription>
                                 </DialogHeader>
 
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-muted/50 p-4 rounded-xl border shadow-sm">

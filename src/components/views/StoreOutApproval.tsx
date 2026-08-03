@@ -18,6 +18,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '../ui/form';
 import { Input } from '../ui/input';
 import { PuffLoader as Loader } from 'react-spinners';
+import { getPublicFileUrl } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
 import { PackageCheck } from 'lucide-react';
@@ -209,8 +210,9 @@ export default () => {
             header: 'Attachment',
             cell: ({ row }) => {
                 const attachment = row.original.attachment;
-                return attachment ? (
-                    <a href={attachment} target="_blank">
+                const fileUrl = getPublicFileUrl(attachment);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         Attachment
                     </a>
                 ) : (

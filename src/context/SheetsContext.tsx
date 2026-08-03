@@ -347,7 +347,7 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
     }, [user]);
 
     const updateMasterSheet = useCallback(() => {
-        const permittedFirms = user?.firm_access || [];
+        const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
         fetchMasterOptions(permittedFirms)
             .then((res) => {
                 setMasterSheet(res as unknown as MasterSheet);
