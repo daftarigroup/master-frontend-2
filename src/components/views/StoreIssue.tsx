@@ -159,6 +159,9 @@ export default () => {
 
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
+            const firmObj = options?.firmObjects?.find(f => f.name === data.projectName);
+            const firmId = data.firmId || firmObj?.id;
+
             const rows: Partial<IssueRecord>[] = [];
             for (const product of data.products) {
                 const row: Partial<IssueRecord> = {
@@ -170,6 +173,8 @@ export default () => {
                     constructor_name: data.constructorName,
                     site_location: data.siteLocation,
                     firm_name: data.projectName,
+                    firm_id: firmId,
+                    planned1: data.issueDate,
                     issue_to: data.remarks,
                     issue_person_name: data.issuePersonName,
                     return_person_name: data.returnPersonName,

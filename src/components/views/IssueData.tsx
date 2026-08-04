@@ -159,7 +159,7 @@ export default function IssueData() {
 
     const pendingData = useMemo(() => {
         const filteredData = filterByFirmAccess(
-            allData.filter((item) => item.status === 'Pending'),
+            allData.filter((item) => !item.status || item.status === 'Pending' || item.status.toLowerCase() === 'pending'),
             user?.firm_access || [],
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );

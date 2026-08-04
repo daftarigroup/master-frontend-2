@@ -1,5 +1,5 @@
 import { apiClient, storeApi } from '@/lib/apiClient';
-import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
+import { filterByFirmAccess, hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 
 /**
  * Issue Service
@@ -44,26 +44,15 @@ export interface IssueRecord {
 export async function fetchIssueRecords(permittedFirms?: string[]): Promise<IssueRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
-        const firms = normalizeFirmAccess(permittedFirms);
 
         const params: Record<string, any> = {
             order: 'issue_no.desc',
         };
 
-        if (firms) {
-            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
-            const names = firms.filter(f => !/^\d+$/.test(f));
-            if (ids.length > 0) {
-                params['in__firm_id'] = ids.join(',');
-            } else if (names.length > 0) {
-                params['in__firm_name'] = names.join(',');
-            }
-        }
-
         const res: any = await apiClient.get('/store/entity/issue', { params });
         const records = res.data || [];
 
-        return records.map((r: any) => ({
+        const mapped: IssueRecord[] = records.map((r: any) => ({
             id: r.id,
             issue_no: r.issue_no || '',
             issue_to: r.issue_to || '',
@@ -80,7 +69,7 @@ export async function fetchIssueRecords(permittedFirms?: string[]): Promise<Issu
             constructor_name: r.constructor_name || '',
             site_location: r.site_location || '',
             firm_name: r.firm_name || '',
-            firm_id: r.firm_id,
+            firm_id: r.firm_id ? Number(r.firm_id) : undefined,
             rejected_damage_qty: r.rejected_damage_qty || '',
             damage_remark: r.damage_remark || '',
             return_person_name: r.return_person_name || '',
@@ -89,6 +78,11 @@ export async function fetchIssueRecords(permittedFirms?: string[]): Promise<Issu
             return_slip: r.return_slip || '',
             firmNameMatch: r.firm_name || '',
         }));
+
+        return filterByFirmAccess(mapped, permittedFirms, {
+            id: (row) => row.firm_id,
+            name: (row) => row.firm_name,
+        });
     } catch (error) {
         console.error('Error fetching issue records:', error);
         throw error;
