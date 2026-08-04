@@ -2,6 +2,7 @@
 
 import {
     type ColumnDef,
+    type Row,
     flexRender,
     getCoreRowModel,
     getFilteredRowModel,
@@ -19,11 +20,116 @@ import {
 import { useState, useRef, type ReactNode, useEffect } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Card } from '../ui/card';
+import { Package, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { ClipLoader } from 'react-spinners';
 import { HorizontalScrollIndicator } from '../ui/horizontal-scroll-indicator';
 import { cn } from '@/lib/utils';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(useGSAP);
+
+/**
+ * Mobile (<768px) row rendering: the first two visible cells become the
+ * card's title/badge row, the rest collapse into a GSAP-animated details
+ * accordion (label = column header, value = rendered cell) — see
+ * APP_DESIGN_LAYOUT_DOCUMENTATION.md §5 for the reference card template.
+ */
+function MobileRowCard<TData>({ row }: { row: Row<TData> }) {
+    const [expanded, setExpanded] = useState(false);
+    const detailRef = useRef<HTMLDivElement>(null);
+    const isFirstRender = useRef(true);
+
+    useGSAP(
+        () => {
+            const el = detailRef.current;
+            if (!el) return;
+
+            if (isFirstRender.current) {
+                isFirstRender.current = false;
+                gsap.set(el, { height: 0, opacity: 0, display: 'none' });
+                return;
+            }
+
+            if (expanded) {
+                gsap.set(el, { display: 'block' });
+                gsap.fromTo(el, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.25, ease: 'power2.out' });
+            } else {
+                gsap.to(el, {
+                    height: 0,
+                    opacity: 0,
+                    duration: 0.2,
+                    ease: 'power1.out',
+                    onComplete: () => {
+                        if (el) el.style.display = 'none';
+                    },
+                });
+            }
+        },
+        { dependencies: [expanded], scope: detailRef }
+    );
+
+    const cells = row.getVisibleCells();
+    if (!cells.length) return null;
+    const [primary, secondary, ...rest] = cells;
+
+    return (
+        <Card className="p-3 gap-2 text-xs border shadow-xs rounded-lg">
+            <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0 flex-1 font-bold truncate">
+                    {flexRender(primary.column.columnDef.cell, primary.getContext())}
+                </div>
+                {secondary && (
+                    <div className="shrink-0">
+                        {flexRender(secondary.column.columnDef.cell, secondary.getContext())}
+                    </div>
+                )}
+            </div>
+
+            {rest.length > 0 && (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => setExpanded((v) => !v)}
+                        className="flex items-center gap-1 text-primary font-semibold pt-1 text-[11px]"
+                    >
+                        {expanded ? 'Hide details' : 'View details'}
+                        <ChevronDown size={12} className={cn('transition-transform duration-200', expanded && 'rotate-180')} />
+                    </button>
+                    <div ref={detailRef} className="overflow-hidden">
+                        <div className="grid grid-cols-1 gap-1.5 pt-2 border-t">
+                            {rest.map((cell) => {
+                                const headerDef = cell.column.columnDef.header;
+                                const headerLabel = typeof headerDef === 'string'
+                                    ? headerDef
+                                    : typeof headerDef === 'function'
+                                        ? flexRender(headerDef, {
+                                            header: { column: cell.column } as any,
+                                            column: cell.column,
+                                            table: cell.getContext().table,
+                                          })
+                                        : (cell.column.id || '');
+
+                                return (
+                                    <div key={cell.id} className="flex justify-between gap-3">
+                                        <span className="text-muted-foreground shrink-0">
+                                            {headerLabel}
+                                        </span>
+                                        <span className="text-right font-medium min-w-0 truncate">
+                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </>
+            )}
+        </Card>
+    );
+}
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -165,7 +271,8 @@ export default function DataTable<TData, TValue>({
                 {extraActions && extraActions}
             </div>
 
-            <div className="relative w-full min-w-0 overflow-hidden">
+            {/* Desktop / tablet (>=768px): standard scrollable data table */}
+            <div className="relative w-full min-w-0 overflow-hidden hidden md:block">
                 <div
                     ref={scrollRef}
                     className={cn('rounded-sm border h-[74dvh] w-full overflow-auto scroll-smooth pb-4', className)}
@@ -244,6 +351,22 @@ export default function DataTable<TData, TValue>({
                 <div className="absolute bottom-1.5 inset-x-1 z-10 pointer-events-none">
                     <HorizontalScrollIndicator containerRef={scrollRef} className="pointer-events-auto" />
                 </div>
+            </div>
+
+            {/* Mobile (<768px): stacked cards, primary fields up top, rest in an expandable accordion */}
+            <div className={cn('md:hidden w-full space-y-2.5 overflow-y-auto pb-4', className)}>
+                {dataLoading ? (
+                    <div className="flex justify-center items-center w-full py-20">
+                        <ClipLoader color="#9333ea" size={40} />
+                    </div>
+                ) : table.getRowModel().rows?.length ? (
+                    table.getRowModel().rows.map((row) => row && <MobileRowCard key={row.id} row={row} />)
+                ) : (
+                    <div className="flex flex-col justify-center items-center w-full gap-1 py-16">
+                        <Package className="text-gray-400" size={50} />
+                        <p className="text-muted-foreground font-semibold text-sm">No records found.</p>
+                    </div>
+                )}
             </div>
         </div>
     );

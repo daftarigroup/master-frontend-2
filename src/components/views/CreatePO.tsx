@@ -1150,7 +1150,7 @@ const CreatePO = () => {
 
                             {/* Form Fields */}
                             <div className="grid gap-5 px-4 py-2 text-foreground/80">
-                                <div className="grid grid-cols-2 gap-x-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4 sm:gap-y-0">
                                     <FormField control={form.control} name="poNumber" render={({ field }) => (
                                         <FormItem>
                                             {mode === 'create' ? (
@@ -1194,7 +1194,7 @@ const CreatePO = () => {
                                     )} />
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-x-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-4 sm:gap-y-0">
                                     <FormField control={form.control} name="supplierName" render={({ field }) => (
                                         <FormItem>
                                             {mode === 'create' ? (
@@ -1247,7 +1247,7 @@ const CreatePO = () => {
                                     )} />
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-x-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-4 sm:gap-y-0">
                                     {/* Supplier Address - Changed to always be editable */}
                                     <FormField control={form.control} name="supplierAddress" render={({ field }) => (
                                         <FormItem>
@@ -1298,7 +1298,7 @@ const CreatePO = () => {
                                     )} />
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-x-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-4 sm:gap-y-0">
                                     <FormField control={form.control} name="deliveryDate" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Delivery Date</FormLabel>
@@ -1314,7 +1314,7 @@ const CreatePO = () => {
                             <hr />
 
                             {/* Commercial Details Cards */}
-                            <div className="grid md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center truncate text-[12px]">Project Name</CardTitle>
@@ -1849,8 +1849,8 @@ const CreatePO = () => {
                             </div>
                         </div>
 
-                        {/* Submit Buttons */}
-                        <div className="grid grid-cols-3 gap-3 p-3 w-full max-w-6xl bg-background m-5 shadow-md rounded-md">
+                        {/* Submit Buttons — stacked + sticky to the viewport bottom on mobile */}
+                        <div className="hidden sm:grid grid-cols-3 gap-3 p-3 w-full max-w-6xl bg-background m-5 shadow-md rounded-md">
                             <Button type="reset" variant="outline" onClick={() => form.reset()}>
                                 Reset
                             </Button>
@@ -1868,6 +1868,29 @@ const CreatePO = () => {
                                 Save And Send PO
                             </Button>
                         </div>
+
+                        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex flex-col gap-2 p-3 bg-background border-t shadow-[0_-2px_8px_-2px_rgba(0,0,0,0.08)]">
+                            <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+                                {form.formState.isSubmitting && <Loader size={20} color="white" aria-label="Loading Spinner" />}
+                                Save And Send PO
+                            </Button>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button type="reset" variant="outline" onClick={() => form.reset()}>
+                                    Reset
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={handlePreview}
+                                    disabled={!vendor || indents.length === 0}
+                                >
+                                    <Eye size={16} className="mr-1.5" />
+                                    Preview
+                                </Button>
+                            </div>
+                        </div>
+                        {/* Spacer so the fixed mobile action bar doesn't cover the last form field */}
+                        <div className="sm:hidden h-24" />
 
                         {/* Edit Term Dialog */}
                         <Dialog open={!!editingTerm} onOpenChange={open => { if (!open) setEditingTerm(null); }}>

@@ -22,9 +22,9 @@ function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[]
  * records, not necessarily the exact document as originally issued.
  */
 export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[]): Promise<POPdfProps> {
-    const rows = allRows.filter((r) => r.poNumber === poNumber);
+    const rows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
     if (rows.length === 0) {
-        throw new Error(`No PO Master records found for PO number ${poNumber}`);
+        throw new Error(`No PO Master records found for PO number or Indent ${poNumber}`);
     }
 
     const first = rows[0];
@@ -143,6 +143,13 @@ export const openPoPdfPreview = async (poNumber: string, allRows: PoMasterRecord
                 </body>
             </html>
         `);
+    }
+
+    const hasPoRecord = allRows.some((r) => r.poNumber === poNumber || r.internalCode === poNumber);
+    if (!hasPoRecord) {
+        if (win && !win.closed) win.close();
+        toast.info(`No Purchase Order has been created yet for "${poNumber}".`);
+        return;
     }
 
     try {

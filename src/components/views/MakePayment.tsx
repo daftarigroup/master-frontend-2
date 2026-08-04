@@ -1,5 +1,6 @@
 import { FileText, Building, DollarSign, CheckCircle, AlertCircle, ExternalLink, CheckSquare, XSquare, History } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useSheets } from '@/context/SheetsContext';
 import { useEffect, useState } from 'react';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
@@ -138,6 +139,8 @@ interface UpdatePayload {
 
 export default function MakePayment() {
     const { user } = useAuth();
+    // Grab the context updater so the sidebar badge reflects payment status immediately
+    const { updatePaymentsSheet } = useSheets();
     const [paymentsLoading, setPaymentsLoading] = useState(false);
     const [paymentsSheet, setPaymentsSheet] = useState<PaymentsRecord[]>([]);
     const [paymentHistoryLoading, setPaymentHistoryLoading] = useState(false);
@@ -595,6 +598,8 @@ export default function MakePayment() {
 
             toast.success(`Successfully updated ${ids.length} payment(s)`);
             setTimeout(() => updateAll(), 800);
+            // Refresh context so sidebar badge decrements immediately
+            updatePaymentsSheet(true);
             setSelectedRows(new Set());
         } catch (error) {
             console.error('❌ Error submitting payments:', error);
@@ -651,7 +656,7 @@ export default function MakePayment() {
                 remarks: paymentModalRemark || `Payment completed for ${selectedPaymentItem.uniqueNo}`,
                 any_attachments: attachmentUrl,
                 timestamp1: isoNow,
-                planned: selectedPaymentItem.planned || '',
+                planned: selectedPaymentItem.planned ? selectedPaymentItem.planned : null,
                 payment_terms: selectedPaymentItem.paymentTerms || '',
                 indent_no: selectedPaymentItem.internalCode,
                 po_number: selectedPaymentItem.poNumber,
@@ -686,6 +691,8 @@ export default function MakePayment() {
             setIsPaymentModalOpen(false);
             setPaymentModalFile(null);
             setTimeout(() => updateAll(), 800);
+            // Refresh context so sidebar badge decrements immediately
+            updatePaymentsSheet(true);
             
         } catch (error) {
             console.error('❌ Error submitting payment:', error);

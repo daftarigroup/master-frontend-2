@@ -1,6 +1,8 @@
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+// Sidebar switches from push-layout to overlay Sheet/drawer below `lg` (1024px)
+// per the mobile/tablet responsiveness spec — not just below `md` (768px).
+const MOBILE_BREAKPOINT = 1024
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)

@@ -529,7 +529,10 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (!user?.username) return;
 
-        const INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+        // NOTE(badge-fix 2026-08-05): Reduced from 2 minutes to 60s to halve worst-case cross-user
+        // badge staleness. At 12 requests/cycle this is ~144 reqs/user/hr — safe for AWS RDS + Express
+        // pooling. Does NOT make badges truly realtime (that needs WebSocket/SSE) — it's a mitigation.
+        const INTERVAL_MS = 60 * 1000; // 60 seconds
         let intervalId: ReturnType<typeof setInterval> | null = null;
         let lastRefreshedAt = 0;
 

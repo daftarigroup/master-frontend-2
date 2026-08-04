@@ -1,3 +1,8 @@
+// TODO(migration): LEGACY SIDEBAR — superseded by GlobalSidebar.tsx as of 2026-08-05.
+// This file is imported only by src/app/App.tsx, which is itself a dead file
+// (main.tsx → src/App.tsx → GlobalLayout → GlobalSidebar.tsx is the active chain).
+// The badge logic here (switch-case item.notifications pattern) is the old pattern.
+// DO NOT use this component. It is kept only for diff history reference.
 import {
     Sidebar,
     SidebarContent,

@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 
+const LAST_ACTIVE_SYSTEM_KEY = 'platform:lastActiveSystemId';
+
 interface PlatformContextType {
   activeSystemId: string;
   setActiveSystemId: (id: string) => void;
@@ -7,17 +9,38 @@ interface PlatformContextType {
   setSearchQuery: (query: string) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
+  isLauncherOpen: boolean;
+  setIsLauncherOpen: (open: boolean) => void;
 }
 
 const PlatformContext = createContext<PlatformContextType | null>(null);
 
 export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeSystemId, setActiveSystemId] = useState<string>('store');
+  const [activeSystemId, setActiveSystemIdState] = useState<string>(
+    () => localStorage.getItem(LAST_ACTIVE_SYSTEM_KEY) || 'store'
+  );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isLauncherOpen, setIsLauncherOpen] = useState<boolean>(false);
+
+  const setActiveSystemId = (id: string) => {
+    setActiveSystemIdState(id);
+    localStorage.setItem(LAST_ACTIVE_SYSTEM_KEY, id);
+  };
 
   return (
-    <PlatformContext.Provider value={{ activeSystemId, setActiveSystemId, searchQuery, setSearchQuery, isSearchOpen, setIsSearchOpen }}>
+    <PlatformContext.Provider
+      value={{
+        activeSystemId,
+        setActiveSystemId,
+        searchQuery,
+        setSearchQuery,
+        isSearchOpen,
+        setIsSearchOpen,
+        isLauncherOpen,
+        setIsLauncherOpen,
+      }}
+    >
       {children}
     </PlatformContext.Provider>
   );

@@ -1381,9 +1381,9 @@ export default () => {
 
                                 {/* Product list - always show details table even for single products */}
                                 {(selectedIndent.originalItems?.length || 0) > 0 && (
-                                    <div className="border rounded-md overflow-y-auto max-h-[400px]">
+                                    <div className="border rounded-md overflow-y-auto overflow-x-auto max-h-[400px]">
                                         <div className="bg-muted px-3 py-2 text-sm font-semibold">Products in this shipment ({selectedIndent.originalItems?.length})</div>
-                                        <table className="w-full text-sm">
+                                        <table className="w-full min-w-[560px] text-sm">
                                             <thead className="bg-muted/40 border-b sticky top-0 z-10">
                                                 <tr>
                                                     <th className="px-3 py-2 text-left bg-muted">S.No.</th>

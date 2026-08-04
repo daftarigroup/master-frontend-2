@@ -132,7 +132,14 @@ export default () => {
                 );
             },
         },
-        { accessorKey: 'date', header: 'Timestamp' },
+        {
+            accessorKey: 'date',
+            header: 'Timestamp',
+            cell: ({ getValue }) => {
+                const val = getValue() as string;
+                return <div>{val ? formatDateTime(val) : '-'}</div>;
+            },
+        },
         { accessorKey: 'indentNo', header: 'Indent No.' },
         { accessorKey: 'firmNameMatch', header: 'Project Name' },
         { accessorKey: 'indenter', header: 'Indenter' },
@@ -140,14 +147,13 @@ export default () => {
         { accessorKey: 'product', header: 'Product' },
         {
             accessorKey: 'plannedDate',
-            header: 'Planned Date', // ✅ ADD THIS COLUMN
+            header: 'Planned Date',
             cell: ({ getValue }) => {
                 const plannedDate = getValue() as string;
-                return (
-                    <div className={`${plannedDate === 'Not Set' ? 'text-muted-foreground italic' : ''}`}>
-                        {plannedDate}
-                    </div>
-                );
+                if (!plannedDate || plannedDate === 'Not Set') {
+                    return <div className="text-muted-foreground italic">Not Set</div>;
+                }
+                return <div>{formatDateTime(plannedDate)}</div>;
             }
         },
         {
@@ -196,7 +202,14 @@ export default () => {
                 );
             },
         },
-        { accessorKey: 'date', header: 'Timestamp' },
+        {
+            accessorKey: 'date',
+            header: 'Timestamp',
+            cell: ({ getValue }) => {
+                const val = getValue() as string;
+                return <div>{val ? formatDateTime(val) : '-'}</div>;
+            },
+        },
         { accessorKey: 'indentNo', header: 'Indent No.' },
         { accessorKey: 'firmNameMatch', header: ' Project Name' },
         { accessorKey: 'indenter', header: 'Indenter' },

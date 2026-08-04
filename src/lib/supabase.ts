@@ -4,6 +4,7 @@
  * This module intentionally has NO dependency on @supabase/supabase-js.
  */
 import { storeApi, apiClient } from '@/lib/apiClient';
+import { compressImageIfNeeded } from '@/lib/utils';
 
 export const supabaseEnabled = true;
 
@@ -451,14 +452,25 @@ export const supabase: any = {
       return {
         async upload(path: string, file: any) {
           try {
+            let fileToUpload = file;
+            if (file instanceof File) {
+              fileToUpload = await compressImageIfNeeded(file);
+            }
+
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', fileToUpload);
             formData.append('bucket', bucket);
             formData.append('path', path);
 
-            const res: any = await apiClient.post('/store/upload', formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            // Do not set Content-Type manually: the browser must generate its
+            // own multipart boundary for FormData bodies. A hardcoded
+            // 'multipart/form-data' header (no boundary) makes the server
+            // fail to parse the body, which surfaces in the browser as a
+            // misleading CORS error since the failed response skips the
+            // server's CORS headers. `apiClient` defaults to
+            // 'application/json', so explicitly clear it here rather than
+            // relying on axios to detect the FormData body on its own.
+            const res: any = await apiClient.post('/store/upload', formData);
 
             const url = res?.data?.url;
             if (url) {

@@ -461,7 +461,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="grid md:grid-cols-4 gap-3 lg:grid-cols-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                     <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/20 border-blue-200">
                         <CardContent className="pt-6">
                             <div className="text-blue-600 flex justify-between items-center">

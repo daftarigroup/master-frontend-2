@@ -5,7 +5,7 @@ import { useSheets } from '@/context/SheetsContext';
 import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { Button } from '@/components/ui/button';
-import { LogOut, RotateCw, Search, Bell, Grid, Store, CheckSquare, FileText, Wallet, CheckCircle2 } from 'lucide-react';
+import { LogOut, RotateCw, Search, Bell, Grid, Store, CheckSquare, FileText, Wallet, CheckCircle2, Wrench, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
@@ -18,11 +18,12 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { GlobalSearchDialog } from './GlobalSearchDialog';
+import { AppLauncherOverlay } from './AppLauncherOverlay';
 
 export const TopBar: React.FC = () => {
   const { user, logout } = useAuth();
   const { updateAll, allLoading, indentSheet, storeInSheet, issueSheet, paymentsSheet } = useSheets();
-  const { activeSystemId, setActiveSystemId, isSearchOpen, setIsSearchOpen } = usePlatform();
+  const { activeSystemId, isSearchOpen, setIsSearchOpen, setIsLauncherOpen } = usePlatform();
   const navigate = useNavigate();
 
   // Cmd+K / Ctrl+K keyboard shortcut listener
@@ -37,18 +38,23 @@ export const TopBar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setIsSearchOpen]);
 
+  // Kept in sync with `NAV_CONFIG` (src/layouts/global/config/navConfig.ts) —
+  // both the sidebar and this switcher read from the same set of systems.
   const systems = [
     { id: 'store', name: 'Store & Inventory', icon: <Store className="size-4" />, path: '/store/dashboard' },
+    // { id: 'maintenance', name: 'Maintenance', icon: <Wrench className="size-4" />, path: '/maintenance/dashboard' },
     { id: 'checklist', name: 'Checklist & Delegation', icon: <CheckSquare className="size-4" />, path: '/checklist/dashboard', disabled: true },
     { id: 'document', name: 'Document & Subscription', icon: <FileText className="size-4" />, path: '/document/dashboard', disabled: true },
     { id: 'petty_cash', name: 'Petty Cash', icon: <Wallet className="size-4" />, path: '/petty-cash/dashboard', disabled: true },
   ];
 
-  const handleSystemChange = (sys: typeof systems[0]) => {
-    if (sys.disabled) return;
-    setActiveSystemId(sys.id);
-    navigate(sys.path);
-  };
+  // Superseded by AppLauncherOverlay (opened via setIsLauncherOpen above) —
+  // kept for diffing against the old dropdown-based switcher.
+  // const handleSystemChange = (sys: typeof systems[0]) => {
+  //   if (sys.disabled) return;
+  //   setActiveSystemId(sys.id);
+  //   navigate(sys.path);
+  // };
 
   // Calculate pending reminders across all workflow stages
   const pendingReminders = useMemo(() => {
@@ -223,12 +229,26 @@ export const TopBar: React.FC = () => {
 
         <div className="h-6 w-px bg-border hidden sm:block" />
 
-        {/* System Switcher Dropdown */}
+        {/* System Switcher — opens the Launchpad-style AppLauncherOverlay
+            instead of a plain dropdown (see APP_DESIGN OS-shell redesign,
+            Direction 1). Old dropdown kept below, commented, for diffing. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 h-8 font-medium px-2 sm:px-3"
+          onClick={() => setIsLauncherOpen(true)}
+          title="Switch system"
+        >
+          <Grid className="size-4 text-primary" />
+          <span className="capitalize hidden sm:inline">{systems.find(s => s.id === activeSystemId)?.name || 'Select System'}</span>
+          <ChevronDown className="size-3 text-muted-foreground hidden sm:inline" />
+        </Button>
+        {/*
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2 h-8 font-medium">
+            <Button variant="outline" size="sm" className="gap-2 h-8 font-medium px-2 sm:px-3">
               <Grid className="size-4 text-primary" />
-              <span className="capitalize">{systems.find(s => s.id === activeSystemId)?.name || 'Select System'}</span>
+              <span className="capitalize hidden sm:inline">{systems.find(s => s.id === activeSystemId)?.name || 'Select System'}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
@@ -250,9 +270,10 @@ export const TopBar: React.FC = () => {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        */}
       </div>
 
-      {/* Middle: Global Search */}
+      {/* Middle: Global Search — full bar on desktop, icon trigger on mobile/tablet */}
       <div className="flex-1 max-w-md hidden md:block">
         <button
           type="button"
@@ -266,6 +287,15 @@ export const TopBar: React.FC = () => {
           </kbd>
         </button>
       </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setIsSearchOpen(true)}
+        className="md:hidden size-8 text-muted-foreground hover:text-foreground ml-auto"
+        title="Search across all systems"
+      >
+        <Search className="size-4" />
+      </Button>
 
       {/* Right: Actions & User Menu */}
       <div className="flex items-center gap-2">
@@ -375,6 +405,7 @@ export const TopBar: React.FC = () => {
       </div>
 
       <GlobalSearchDialog />
+      <AppLauncherOverlay />
     </header>
   );
 };

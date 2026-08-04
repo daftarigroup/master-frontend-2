@@ -1,3 +1,8 @@
+// TODO(migration): LEGACY SIDEBAR — superseded by GlobalSidebar.tsx as of 2026-08-05.
+// This file is no longer rendered. The active layout is: App.tsx → GlobalLayout → GlobalSidebar.tsx
+// The badge logic here (item.notifications pattern) has known wrong sheet mappings:
+//   - make-payment uses storeInSheet instead of paymentsSheet (line ~100)
+// DO NOT use this component. It is kept only for diff history reference.
 import {
     Sidebar,
     SidebarContent,

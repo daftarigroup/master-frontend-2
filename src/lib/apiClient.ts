@@ -13,6 +13,17 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
+// Request interceptor to automatically remove default Content-Type header for FormData
+apiClient.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    if (config.headers) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+    }
+  }
+  return config;
+});
+
 // Response interceptor to unwrap data and format errors
 apiClient.interceptors.response.use(
   (response) => response.data,
