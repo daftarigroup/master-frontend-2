@@ -217,7 +217,7 @@ export const TopBar: React.FC = () => {
           <Logo />
           <div className="hidden sm:block">
             <h1 className="text-base font-bold leading-none">Pooja Constructions PMS</h1>
-            <span className="text-[10px] text-muted-foreground font-mono">v2.0</span>
+            <span className="text-[10px] text-muted-foreground font-mono">v2.0 </span>
           </div>
         </div>
 
