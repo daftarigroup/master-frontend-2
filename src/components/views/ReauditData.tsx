@@ -31,7 +31,7 @@ import {
     type TallyEntryRecord
 } from '@/services/tallyEntryService';
 
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, getPublicFileUrl } from '@/lib/utils';
 
 export default function ReauditData() {
     const { user } = useAuth();
@@ -111,7 +111,7 @@ export default function ReauditData() {
             cell: ({ row }) => {
                 const image = row.original.billImage;
                 return image ? (
-                    <a href={image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <a href={getPublicFileUrl(image)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         View
                     </a>
                 ) : null;
@@ -126,7 +126,7 @@ export default function ReauditData() {
             cell: ({ row }) => {
                 const image = row.original.productImage;
                 return image ? (
-                    <a href={image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <a href={getPublicFileUrl(image)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         View
                     </a>
                 ) : null;
@@ -163,7 +163,7 @@ export default function ReauditData() {
             cell: ({ row }) => {
                 const image = row.original.billImage;
                 return image ? (
-                    <a href={image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <a href={getPublicFileUrl(image)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         View
                     </a>
                 ) : null;
@@ -178,7 +178,7 @@ export default function ReauditData() {
             cell: ({ row }) => {
                 const image = row.original.productImage;
                 return image ? (
-                    <a href={image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <a href={getPublicFileUrl(image)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         View
                     </a>
                 ) : null;

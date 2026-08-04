@@ -216,8 +216,8 @@ export const TopBar: React.FC = () => {
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
           <Logo />
           <div className="hidden sm:block">
-            <h1 className="text-base font-bold leading-none">Master System</h1>
-            <span className="text-[10px] text-muted-foreground font-mono">Enterprise v2.0</span>
+            <h1 className="text-base font-bold leading-none">Pooja Constructions PMS</h1>
+            <span className="text-[10px] text-muted-foreground font-mono">v2.0</span>
           </div>
         </div>
 

@@ -183,16 +183,20 @@ export function getPublicFileUrl(pathOrUrl?: string | null): string {
     const cleanUrl = pathOrUrl.trim().replace(/^["']|["']$/g, '');
     if (!cleanUrl || cleanUrl === '-' || cleanUrl === 'null' || cleanUrl === 'undefined') return '';
 
-    // 1. Absolute web URLs, blob URLs, or data URIs
-    if (/^(https?:\/\/|blob:|data:)/i.test(cleanUrl)) {
+    // 1. Blob URLs or Data URIs
+    if (/^(blob:|data:)/i.test(cleanUrl)) {
         return cleanUrl;
     }
 
-    // 2. Relative paths (like /uploads/Payment Images/..., uploads/..., etc.)
-    const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:5001/api';
-    const backendOrigin = apiBase.replace(/\/api\/?$/, '');
-    const relativePath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+    // 2. Regular non-S3 external http(s) URLs
+    if (/^https?:\/\//i.test(cleanUrl) && !cleanUrl.includes('amazonaws.com') && !cleanUrl.includes('.s3.')) {
+        return cleanUrl;
+    }
 
-    return `${backendOrigin}${relativePath}`;
+    // 3. S3 bucket URLs or relative upload paths -> route through backend file-proxy
+    const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:5001/api';
+    const proxyEndpoint = `${apiBase.replace(/\/$/, '')}/store/file-proxy`;
+
+    return `${proxyEndpoint}?url=${encodeURIComponent(cleanUrl)}`;
 }
 

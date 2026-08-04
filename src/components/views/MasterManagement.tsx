@@ -700,7 +700,7 @@ export default function MasterManagement() {
         return { area_of_use: name, id: original?.id };
     });
     const ghUomData = allRecords.filter(r => (r.group_head || r.uom) && !r.item_name && !r.vendor_name && !r.company_name);
-    const companiesData = allRecords.filter(r => r.company_name);
+    const companiesData = allRecords.filter(r => r.__table === 'company');
 
     return (
         <div className="h-full space-y-4 md:space-y-6 flex flex-col px-4 sm:px-6 lg:px-8 py-4 sm:py-6">

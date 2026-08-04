@@ -25,7 +25,7 @@ import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { fetchStoreInRecords, updateStoreInExchange, type StoreInRecord } from '@/services/storeInService';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getPublicFileUrl } from '@/lib/utils';
 
 interface ExchangePendingData {
     liftNumber: string;
@@ -244,7 +244,7 @@ const ExchangeMaterials = () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Bill
                     </a>
                 ) : (
@@ -263,7 +263,7 @@ const ExchangeMaterials = () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfProduct;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Product
                     </a>
                 ) : (
@@ -302,7 +302,7 @@ const ExchangeMaterials = () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Bill
                     </a>
                 ) : (
@@ -321,7 +321,7 @@ const ExchangeMaterials = () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfProduct;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Product
                     </a>
                 ) : (

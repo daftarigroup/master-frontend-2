@@ -31,7 +31,7 @@ import { Truck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
-import { formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
 
 function formatDateDisplay(dateString: string): string {
@@ -342,7 +342,7 @@ export default () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Bill
                     </a>
                 ) : (
@@ -384,7 +384,7 @@ export default () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Bill
                     </a>
                 ) : (
@@ -419,7 +419,7 @@ export default () => {
             cell: ({ row }) => {
                 const file = row.original.debitNoteCopy;
                 return file ? (
-                    <a href={file} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(file)} target="_blank" rel="noopener noreferrer">
                         View
                     </a>
                 ) : (
@@ -433,7 +433,7 @@ export default () => {
             cell: ({ row }) => {
                 const file = row.original.billCopy;
                 return file ? (
-                    <a href={file} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(file)} target="_blank" rel="noopener noreferrer">
                         View
                     </a>
                 ) : (
@@ -447,7 +447,7 @@ export default () => {
             cell: ({ row }) => {
                 const file = row.original.returnCopy;
                 return file ? (
-                    <a href={file} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(file)} target="_blank" rel="noopener noreferrer">
                         View
                     </a>
                 ) : (

@@ -966,34 +966,40 @@ const CreatePO = () => {
                 logo: logoBase64 || '/logo.png',
             };
 
-            const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
-            const file = new File([blob], `PO-${poNumber}.pdf`, {
-                type: 'application/pdf',
-            });
+            // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
+            // The PO PDF used to be rendered once at creation time and uploaded to storage here,
+            // with the resulting URL saved into po_master.pdf. Viewing now regenerates the PDF
+            // fresh from po_master + master data on every "View PDF" click (see src/lib/poPdfUtils.ts),
+            // so this generation/upload step is no longer needed at creation time.
+            // const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
+            // const file = new File([blob], `PO-${poNumber}.pdf`, {
+            //     type: 'application/pdf',
+            // });
 
-            const email = (details as MasterDetails)?.vendors?.find((v) => v.vendorName === values.supplierName)?.email;
+            // const email = (details as MasterDetails)?.vendors?.find((v) => v.vendorName === values.supplierName)?.email;
 
-            const uploadParams: {
-                file: File;
-                folderId: string;
-                uploadType?: 'upload' | 'email';
-                email?: string;
-                emailSubject?: string;
-                emailBody?: string;
-            } = {
-                file,
-                folderId: 'po_image',
-                uploadType: 'upload',
-            };
+            // const uploadParams: {
+            //     file: File;
+            //     folderId: string;
+            //     uploadType?: 'upload' | 'email';
+            //     email?: string;
+            //     emailSubject?: string;
+            //     emailBody?: string;
+            // } = {
+            //     file,
+            //     folderId: 'po_image',
+            //     uploadType: 'upload',
+            // };
 
-            if (email && email.trim() && email.includes('@')) {
-                uploadParams.uploadType = 'email';
-                uploadParams.email = email;
-                uploadParams.emailSubject = `Purchase Order - ${poNumber}`;
-                uploadParams.emailBody = `Please find attached Purchase Order ${poNumber}`;
-            }
+            // if (email && email.trim() && email.includes('@')) {
+            //     uploadParams.uploadType = 'email';
+            //     uploadParams.email = email;
+            //     uploadParams.emailSubject = `Purchase Order - ${poNumber}`;
+            //     uploadParams.emailBody = `Please find attached Purchase Order ${poNumber}`;
+            // }
 
-            const url = await uploadFile(uploadParams);
+            // const url = await uploadFile(uploadParams);
+            const url = '';
 
             const missingFirmId = values.indents.some((v) => {
                 const indent = indentSheet.find((i: IndentSheetItem) => i.indentNumber === v.indentNumber);
@@ -1321,7 +1327,7 @@ const CreatePO = () => {
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
-                                            Destination Address
+                                            Delivery Address
                                             {vendor && (
                                                 <Button type="button" variant="ghost" size="sm"
                                                     onClick={isEditingDestination ? handleDestinationSave : handleDestinationEdit}
@@ -1476,11 +1482,11 @@ const CreatePO = () => {
                                     </CardContent>
                                 </Card>
 
-                                {/* Card 4: Site Engineer Details 2 */}
+                                {/* Card 4: Site Incharge Details */}
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
-                                            <span>Site Engineer Details 2 <span className="text-gray-400 font-normal"></span></span>
+                                            <span>Site Incharge Details <span className="text-gray-400 font-normal"></span></span>
                                             {mode === 'create' && (
                                                 <Button type="button" variant="ghost" size="sm" onClick={handleEngineerSave2} className="h-5 w-5 p-0 hover:bg-gray-200">
                                                     <Save size={12} className="text-blue-600" />

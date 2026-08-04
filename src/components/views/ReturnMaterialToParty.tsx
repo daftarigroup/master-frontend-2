@@ -24,7 +24,7 @@ import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
-import { formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { fetchStoreInRecords, updateStoreInReturnToParty } from '@/services/storeInService';
 
 interface StoreInPendingData {
@@ -194,7 +194,7 @@ export default () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Bill
                     </a>
                 ) : (
@@ -230,7 +230,7 @@ export default () => {
             cell: ({ row }) => {
                 const photo = row.original.photoOfBill;
                 return photo ? (
-                    <a href={photo} target="_blank" rel="noopener noreferrer">
+                    <a href={getPublicFileUrl(photo)} target="_blank" rel="noopener noreferrer">
                         Bill
                     </a>
                 ) : (

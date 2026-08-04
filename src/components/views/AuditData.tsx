@@ -5,7 +5,7 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
-import { formatDateTime, parseCustomDate, formatDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, formatDate, getPublicFileUrl } from '@/lib/utils';
 import { isAllowedFirm } from '@/lib/firmAccess';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Button } from '../ui/button';
@@ -604,7 +604,7 @@ export default function PcReportTable() {
       cell: ({ row }) => {
         const image = row.original.billImage;
         return image ? (
-          <a href={image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          <a href={getPublicFileUrl(image)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
             View
           </a>
         ) : null;
@@ -620,7 +620,7 @@ export default function PcReportTable() {
       cell: ({ row }) => {
         const image = row.original.productImage;
         return image ? (
-          <a href={image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          <a href={getPublicFileUrl(image)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
             View
           </a>
         ) : null;
@@ -1229,7 +1229,7 @@ export default function PcReportTable() {
                                   <div className="flex gap-3">
                                     {item.billImage && (
                                       <Button variant="outline" size="sm" asChild className="h-8 text-xs font-semibold bg-white">
-                                        <a href={item.billImage} target="_blank" rel="noopener noreferrer">
+                                        <a href={getPublicFileUrl(item.billImage)} target="_blank" rel="noopener noreferrer">
                                           <CheckSquare className="w-3.5 h-3.5 mr-2 text-primary" />
                                           Invoice Copy
                                         </a>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
-import { formatDateTime, parseCustomDate, formatDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, formatDate, getPublicFileUrl } from '@/lib/utils';
 import { Button } from '../ui/button';
 import {
   Dialog,
@@ -170,7 +170,7 @@ export default function AgainAuditingTable() {
         const image = row.original.billImage;
         return image ? (
           <a
-            href={image}
+            href={getPublicFileUrl(image)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline"
@@ -190,7 +190,7 @@ export default function AgainAuditingTable() {
         const image = row.original.productImage;
         return image ? (
           <a
-            href={image}
+            href={getPublicFileUrl(image)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline"

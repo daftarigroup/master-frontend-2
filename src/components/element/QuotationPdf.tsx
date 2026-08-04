@@ -1,7 +1,6 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import daftariImg from '@/assets/daftari2.png';
 import poojaImg from '@/assets/logo.png';
-import signatureImg from '@/assets/AutoRocket Post (1).png';
 import sealImg from '@/assets/seal (2).png';
 
 const styles = StyleSheet.create({
@@ -343,8 +342,7 @@ const QuotationPdf = (props: POPdfProps) => {
                     <View style={styles.signatureContainer}>
                         <View style={styles.signatureBox}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
-                                <Image src={signatureImg} style={{ width: 75, height: 45, objectFit: 'contain' }} />
-                                <Image src={sealImg} style={{ width: 45, height: 45, objectFit: 'contain', marginLeft: 6 }} />
+                                <Image src={sealImg} style={{ width: 140, height: 50, objectFit: 'contain' }} />
                             </View>
                             <View style={{ borderBottom: '1 solid #000000', width: '100%', marginBottom: 4 }} />
                             <Text style={[styles.infoValue, { marginBottom: 2 }]}>Pooja Constructions</Text>

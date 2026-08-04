@@ -1,9 +1,12 @@
-import { ListTodo } from 'lucide-react';
+import { ListTodo, Loader2 } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { formatDate } from '@/lib/utils';
 import DataTable from '../element/DataTable';
+import { useAuth } from '@/context/AuthContext';
+import { openPoPdfPreview } from '@/lib/poPdfUtils';
+import { toast } from 'sonner';
 
 interface PendingIndentsData {
     timestamp: string;
@@ -63,13 +66,19 @@ const parseGSTPercent = (value: any): number => {
 import { fetchPoMaster } from '@/services/poService';
 
 export default () => {
+    const { user } = useAuth();
     const [tableData, setTableData] = useState<any[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
+    const [generatingPoNumber, setGeneratingPoNumber] = useState<string | null>(null);
+
+    const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
+        ? undefined
+        : user.firm_access;
 
     const fetchData = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchPoMaster();
+            const data = await fetchPoMaster(permittedFirms);
             setTableData(
                 data.map((sheet: any) => ({
                     ...sheet,
@@ -88,6 +97,22 @@ export default () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
+    // Previously this pulled the stored po_master.pdf URL and opened it directly.
+    // Now it re-fetches fresh po_master/master data and regenerates the PDF on every click.
+    const handleViewPdf = async (poNumber: string) => {
+        try {
+            setGeneratingPoNumber(poNumber);
+            const freshRows = await fetchPoMaster(permittedFirms);
+            await openPoPdfPreview(poNumber, freshRows);
+        } catch (error) {
+            console.error('Error generating PO PDF:', error);
+            toast.error('Failed to generate Purchase Order PDF');
+        } finally {
+            setGeneratingPoNumber(null);
+        }
+    };
 
     // Creating table columns based on PO MASTER sheet structure (Columns A-T)
     const columns: ColumnDef<any>[] = [
@@ -144,17 +169,18 @@ export default () => {
             accessorKey: 'pdf',
             header: 'PDF',
             cell: ({ row }) => {
-                return row.original.pdf ? (
-                    <a
-                        href={row.original.pdf}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
+                const poNumber = row.original.poNumber;
+                const isGenerating = generatingPoNumber === poNumber;
+                return (
+                    <button
+                        type="button"
+                        onClick={() => handleViewPdf(poNumber)}
+                        disabled={isGenerating}
+                        className="text-blue-600 hover:text-blue-800 underline disabled:text-gray-400 disabled:no-underline inline-flex items-center gap-1"
                     >
-                        View PDF
-                    </a>
-                ) : (
-                    <span className="text-gray-400">No PDF</span>
+                        {isGenerating && <Loader2 size={14} className="animate-spin" />}
+                        {isGenerating ? 'Generating...' : 'View PDF'}
+                    </button>
                 );
             },
         },

@@ -3,14 +3,72 @@
  * All database operations route through master-backend at http://localhost:5001/api.
  * This module intentionally has NO dependency on @supabase/supabase-js.
  */
-import { storeApi } from '@/lib/apiClient';
+import { storeApi, apiClient } from '@/lib/apiClient';
 
 export const supabaseEnabled = true;
+
+// Caches the real S3 URL returned by the backend for a given bucket/path so
+// a later getPublicUrl() call (which has no access to the upload response)
+// can return the exact URL that was actually uploaded to.
+const uploadedUrlCache = new Map<string, string>();
+
+// Splits a PostgREST-style or() expression ("col.op.val,col2.op2.val2") into
+// clauses, respecting commas nested inside in.(...) lists.
+function parseOrExpr(expr: string): Array<{ column: string; op: string; value: string }> {
+  const clauses: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const c = expr[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ',' && depth === 0) {
+      clauses.push(expr.slice(start, i));
+      start = i + 1;
+    }
+  }
+  clauses.push(expr.slice(start));
+
+  return clauses.map((clause) => {
+    const [column, op, ...rest] = clause.split('.');
+    return { column, op, value: rest.join('.') };
+  });
+}
+
+function matchesOrClause(row: any, clause: { column: string; op: string; value: string }): boolean {
+  const { column, op, value } = clause;
+  const rowVal = row?.[column];
+
+  switch (op) {
+    case 'is':
+      return value === 'null' ? rowVal === null || rowVal === undefined : String(rowVal) === value;
+    case 'eq':
+      if (value === '') return rowVal === '' || rowVal === null || rowVal === undefined;
+      return String(rowVal) === value;
+    case 'neq':
+      return String(rowVal) !== value;
+    case 'in': {
+      const list = value.replace(/^\(|\)$/g, '').split(',').map((v) => v.replace(/^"|"$/g, ''));
+      return list.some((v) => String(rowVal) === v);
+    }
+    case 'gt':
+      return Number(rowVal) > Number(value);
+    case 'gte':
+      return Number(rowVal) >= Number(value);
+    case 'lt':
+      return Number(rowVal) < Number(value);
+    case 'lte':
+      return Number(rowVal) <= Number(value);
+    default:
+      return false;
+  }
+}
 
 /** Fluent query builder returned by supabase.from(tableName) */
 function makeBuilder(tableName: string): any {
   const filters: Record<string, any> = {};
   let orderConfig: string | null = null;
+  let orExpr: string | null = null;
 
   const builder: any = {
     // ---- SELECT / FILTER ---------------------------------------------------
@@ -34,15 +92,25 @@ function makeBuilder(tableName: string): any {
       return builder;
     },
 
-    not(_column: string, _op: string, _value: any) {
+    not(column: string, op: string, value: any) {
+      // Only the "not(col, 'is', null)" -> "col IS NOT NULL" form is used in this app.
+      if (op === 'is' && value === null) {
+        filters[`not_null__${column}`] = true;
+      }
       return builder;
     },
 
-    is(_column: string, _value: any) {
+    is(column: string, value: any) {
+      if (value === null) {
+        filters[`is_null__${column}`] = true;
+      } else {
+        filters[column] = value;
+      }
       return builder;
     },
 
-    or(_expr: string) {
+    or(expr: string) {
+      orExpr = expr;
       return builder;
     },
 
@@ -349,7 +417,12 @@ function makeBuilder(tableName: string): any {
       return storeApi
         .fetch(tableName, params)
         .then((data: any) => {
-          const res: { data: any; error: null } = { data, error: null };
+          let rows = data;
+          if (orExpr && Array.isArray(rows)) {
+            const clauses = parseOrExpr(orExpr);
+            rows = rows.filter((row: any) => clauses.some((clause) => matchesOrClause(row, clause)));
+          }
+          const res: { data: any; error: null } = { data: rows, error: null };
           return resolve ? resolve(res) : res;
         })
         .catch((error: any) => {
@@ -374,13 +447,32 @@ export const supabase: any = {
   },
 
   storage: {
-    from(_bucket: string) {
+    from(bucket: string) {
       return {
-        async upload(path: string, _file: any) {
-          return { data: { path }, error: null };
+        async upload(path: string, file: any) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('bucket', bucket);
+            formData.append('path', path);
+
+            const res: any = await apiClient.post('/store/upload', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+
+            const url = res?.data?.url;
+            if (url) {
+              uploadedUrlCache.set(`${bucket}/${path}`, url);
+            }
+
+            return { data: { path }, error: null };
+          } catch (error: any) {
+            return { data: null, error };
+          }
         },
         getPublicUrl(path: string) {
-          return { data: { publicUrl: `/uploads/${path}` } };
+          const cached = uploadedUrlCache.get(`${bucket}/${path}`);
+          return { data: { publicUrl: cached || `/uploads/${bucket}/${path}` } };
         },
       };
     },

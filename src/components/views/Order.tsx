@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import POPdf, { type POPdfProps } from '../element/POPdf';
 import { calculateSubtotal, calculateTotalGst, formatDate } from '@/lib/utils';
+import { fetchPoMaster } from '@/services/poService';
+import { openPoPdfPreview } from '@/lib/poPdfUtils';
 
 interface HistoryData {
     poNumber: string;
@@ -72,135 +74,19 @@ export default function POHistory() {
     const [statusFilter, setStatusFilter] = useState<string>('All');
     const [openingPo, setOpeningPo] = useState<string | null>(null);
 
-    const handleOpenPdf = async (poNumber: string, rawPdfUrl?: string) => {
+    // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
+    // This used to try opening the stored po_master.pdf URL first (with a dynamic-generation
+    // fallback if that failed). The PO PDF is now always regenerated fresh via the shared
+    // buildPoPdfProps/openPoPdfPreview helper (src/lib/poPdfUtils.ts), used consistently
+    // everywhere po_master.pdf used to be read (POMaster.tsx, MakePayment.tsx, here).
+    const handleOpenPdf = async (poNumber: string, _rawPdfUrl?: string) => {
         try {
             setOpeningPo(poNumber);
-            let url = getAttachmentUrl(rawPdfUrl);
-
-            if (url) {
-                try {
-                    const res = await fetch(url);
-                    if (res.ok) {
-                        const contentType = res.headers.get('content-type') || '';
-                        if (contentType.toLowerCase().includes('application/pdf') || contentType.toLowerCase().includes('octet-stream')) {
-                            const blob = await res.blob();
-                            const blobUrl = URL.createObjectURL(blob);
-                            window.open(blobUrl, '_blank');
-                            return;
-                        }
-                    }
-                } catch (fetchErr) {
-                    console.warn('Direct PDF fetch failed, falling back to dynamic generation:', fetchErr);
-                }
-
-                if (url.startsWith('http://') || url.startsWith('https://')) {
-                    if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                        return;
-                    }
-                }
-            }
-
-            // Fallback: Dynamically generate PDF from Database
-            const { data: poRecords, error } = await supabase
-                .from('po_master')
-                .select('*')
-                .eq('po_number', poNumber);
-
-            if (error || !poRecords || poRecords.length === 0) {
-                toast.error('PO details not found');
-                return;
-            }
-
-            const firstRecord = poRecords[0];
-
-            // Fetch company details for Contact Details section
-            const { data: companyData } = await supabase.from('company').select('*').limit(1);
-            const companyObj = companyData && companyData.length > 0 ? companyData[0] : null;
-
-            // Parse terms from terms jsonb array or term1..term10 columns
-            let terms: { num: string; text: string }[] = [];
-            if (Array.isArray(firstRecord.terms)) {
-                terms = firstRecord.terms;
-            } else {
-                const termKeys = ['term1', 'term2', 'term3', 'term4', 'term5', 'term6', 'term7', 'term8', 'term9', 'term10'];
-                terms = termKeys
-                    .map((key, i) => ({ num: `${i + 1}.`, text: firstRecord[key] }))
-                    .filter(t => Boolean(t.text && t.text.trim()));
-            }
-
-            let logoBase64 = '/logo.png';
-            try {
-                const logoRes = await fetch(window.location.origin + '/logo.png');
-                if (logoRes.ok) {
-                    const logoBlob = await logoRes.blob();
-                    logoBase64 = await new Promise<string>((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve((reader.result as string) || '/logo.png');
-                        reader.readAsDataURL(logoBlob);
-                    });
-                }
-            } catch (e) {
-                console.warn('Could not load logo as base64:', e);
-            }
-
-            const mappedItems = poRecords.map((r: any) => ({
-                quantity: Number(r.quantity) || 0,
-                rate: Number(r.rate) || 0,
-                discountPercent: Number(r.discount) || 0,
-                gstPercent: Number(r.gst) || 0,
-            }));
-
-            const pdfProps: POPdfProps = {
-                companyName: firstRecord.company_name || companyObj?.company_name || firstRecord.firm_name || 'Company Name',
-                companyAddress: firstRecord.billing_address || companyObj?.billing_address || companyObj?.address || '',
-                companyPhone: companyObj?.phone || '',
-                companyEmail: firstRecord.company_email || companyObj?.email || '',
-                companyGstin: firstRecord.firm_gstin || companyObj?.gstin || '',
-                companyPan: companyObj?.pan || '',
-                companyContactPerson: companyObj?.contact_person || '',
-                supplierName: firstRecord.party_name || '',
-                supplierAddress: firstRecord.supplier_address || '',
-                supplierGstin: firstRecord.supplier_gstin || '',
-                supplierContactPerson: '',
-                supplierPhone: '',
-                supplierEmail: '',
-                poNumber: firstRecord.po_number || poNumber,
-                poDate: formatDate(firstRecord.timestamp || new Date()),
-                deliveryDate: formatDate(firstRecord.delivery_date || firstRecord.expected_req_date || ''),
-                projectName: firstRecord.firm_name || '',
-                deliveryAddress: firstRecord.destination_address || '',
-                deliveryContactPerson: '',
-                deliveryPhone: '',
-                deliveryEmail: '',
-                siteEngineerName: firstRecord.site_engineer_name || '',
-                siteEngineerEmail: firstRecord.site_engineer_email || '',
-                siteEngineerPhoneNo: firstRecord.site_engineer_phoneNo || firstRecord.site_engineer_phone_no || '',
-                siteEngineerName2: firstRecord.site_engineer_name_2 || '',
-                siteEngineerEmail2: firstRecord.site_engineer_email_2 || '',
-                siteEngineerPhoneNo2: firstRecord.site_engineer_phoneNo_2 || firstRecord.site_engineer_phone_no_2 || '',
-                subtotal: calculateSubtotal(mappedItems),
-                totalGst: calculateTotalGst(mappedItems),
-                items: poRecords.map((r: any) => ({
-                    internalCode: r.internal_code || '',
-                    quotationNo: r.quotation_number || '',
-                    product: r.product || '',
-                    paymentTerm: r.payment_terms || '',
-                    qty: Number(r.quantity) || 0,
-                    unit: r.unit || '',
-                    rate: Number(r.rate) || 0,
-                    gst: Number(r.gst) || 0,
-                    discount: Number(r.discount) || 0,
-                    amount: Number(r.amount) || 0,
-                })),
-                totalAmount: Number(firstRecord.total_po_amount) || 0,
-                terms: terms,
-                logo: logoBase64,
-            };
-
-            const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
-            const blobUrl = URL.createObjectURL(blob);
-            window.open(blobUrl, '_blank');
+            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
+                ? undefined
+                : user.firm_access;
+            const freshPoMaster = await fetchPoMaster(permittedFirms);
+            await openPoPdfPreview(poNumber, freshPoMaster);
         } catch (err) {
             console.error('Error opening PO PDF:', err);
             toast.error('Failed to open PO PDF');
@@ -208,6 +94,133 @@ export default function POHistory() {
             setOpeningPo(null);
         }
     };
+
+    // let url = getAttachmentUrl(rawPdfUrl);
+    //
+    // if (url) {
+    //     try {
+    //         const res = await fetch(url);
+    //         if (res.ok) {
+    //             const contentType = res.headers.get('content-type') || '';
+    //             if (contentType.toLowerCase().includes('application/pdf') || contentType.toLowerCase().includes('octet-stream')) {
+    //                 const blob = await res.blob();
+    //                 const blobUrl = URL.createObjectURL(blob);
+    //                 window.open(blobUrl, '_blank');
+    //                 return;
+    //             }
+    //         }
+    //     } catch (fetchErr) {
+    //         console.warn('Direct PDF fetch failed, falling back to dynamic generation:', fetchErr);
+    //     }
+    //
+    //     if (url.startsWith('http://') || url.startsWith('https://')) {
+    //         if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+    //             window.open(url, '_blank', 'noopener,noreferrer');
+    //             return;
+    //         }
+    //     }
+    // }
+    //
+    // // Fallback: Dynamically generate PDF from Database
+    // const { data: poRecords, error } = await supabase
+    //     .from('po_master')
+    //     .select('*')
+    //     .eq('po_number', poNumber);
+    //
+    // if (error || !poRecords || poRecords.length === 0) {
+    //     toast.error('PO details not found');
+    //     return;
+    // }
+    //
+    // const firstRecord = poRecords[0];
+    //
+    // // Fetch company details for Contact Details section
+    // const { data: companyData } = await supabase.from('company').select('*').limit(1);
+    // const companyObj = companyData && companyData.length > 0 ? companyData[0] : null;
+    //
+    // // Parse terms from terms jsonb array or term1..term10 columns
+    // let terms: { num: string; text: string }[] = [];
+    // if (Array.isArray(firstRecord.terms)) {
+    //     terms = firstRecord.terms;
+    // } else {
+    //     const termKeys = ['term1', 'term2', 'term3', 'term4', 'term5', 'term6', 'term7', 'term8', 'term9', 'term10'];
+    //     terms = termKeys
+    //         .map((key, i) => ({ num: `${i + 1}.`, text: firstRecord[key] }))
+    //         .filter(t => Boolean(t.text && t.text.trim()));
+    // }
+    //
+    // let logoBase64 = '/logo.png';
+    // try {
+    //     const logoRes = await fetch(window.location.origin + '/logo.png');
+    //     if (logoRes.ok) {
+    //         const logoBlob = await logoRes.blob();
+    //         logoBase64 = await new Promise<string>((resolve) => {
+    //             const reader = new FileReader();
+    //             reader.onloadend = () => resolve((reader.result as string) || '/logo.png');
+    //             reader.readAsDataURL(logoBlob);
+    //         });
+    //     }
+    // } catch (e) {
+    //     console.warn('Could not load logo as base64:', e);
+    // }
+    //
+    // const mappedItems = poRecords.map((r: any) => ({
+    //     quantity: Number(r.quantity) || 0,
+    //     rate: Number(r.rate) || 0,
+    //     discountPercent: Number(r.discount) || 0,
+    //     gstPercent: Number(r.gst) || 0,
+    // }));
+    //
+    // const pdfProps: POPdfProps = {
+    //     companyName: firstRecord.company_name || companyObj?.company_name || firstRecord.firm_name || 'Company Name',
+    //     companyAddress: firstRecord.billing_address || companyObj?.billing_address || companyObj?.address || '',
+    //     companyPhone: companyObj?.phone || '',
+    //     companyEmail: firstRecord.company_email || companyObj?.email || '',
+    //     companyGstin: firstRecord.firm_gstin || companyObj?.gstin || '',
+    //     companyPan: companyObj?.pan || '',
+    //     companyContactPerson: companyObj?.contact_person || '',
+    //     supplierName: firstRecord.party_name || '',
+    //     supplierAddress: firstRecord.supplier_address || '',
+    //     supplierGstin: firstRecord.supplier_gstin || '',
+    //     supplierContactPerson: '',
+    //     supplierPhone: '',
+    //     supplierEmail: '',
+    //     poNumber: firstRecord.po_number || poNumber,
+    //     poDate: formatDate(firstRecord.timestamp || new Date()),
+    //     deliveryDate: formatDate(firstRecord.delivery_date || firstRecord.expected_req_date || ''),
+    //     projectName: firstRecord.firm_name || '',
+    //     deliveryAddress: firstRecord.destination_address || '',
+    //     deliveryContactPerson: '',
+    //     deliveryPhone: '',
+    //     deliveryEmail: '',
+    //     siteEngineerName: firstRecord.site_engineer_name || '',
+    //     siteEngineerEmail: firstRecord.site_engineer_email || '',
+    //     siteEngineerPhoneNo: firstRecord.site_engineer_phoneNo || firstRecord.site_engineer_phone_no || '',
+    //     siteEngineerName2: firstRecord.site_engineer_name_2 || '',
+    //     siteEngineerEmail2: firstRecord.site_engineer_email_2 || '',
+    //     siteEngineerPhoneNo2: firstRecord.site_engineer_phoneNo_2 || firstRecord.site_engineer_phone_no_2 || '',
+    //     subtotal: calculateSubtotal(mappedItems),
+    //     totalGst: calculateTotalGst(mappedItems),
+    //     items: poRecords.map((r: any) => ({
+    //         internalCode: r.internal_code || '',
+    //         quotationNo: r.quotation_number || '',
+    //         product: r.product || '',
+    //         paymentTerm: r.payment_terms || '',
+    //         qty: Number(r.quantity) || 0,
+    //         unit: r.unit || '',
+    //         rate: Number(r.rate) || 0,
+    //         gst: Number(r.gst) || 0,
+    //         discount: Number(r.discount) || 0,
+    //         amount: Number(r.amount) || 0,
+    //     })),
+    //     totalAmount: Number(firstRecord.total_po_amount) || 0,
+    //     terms: terms,
+    //     logo: logoBase64,
+    // };
+    //
+    // const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
+    // const blobUrl = URL.createObjectURL(blob);
+    // window.open(blobUrl, '_blank');
 
     useEffect(() => {
         async function fetchPOHistory() {

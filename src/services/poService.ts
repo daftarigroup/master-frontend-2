@@ -63,6 +63,12 @@ export interface PoMasterRecord {
     status?: string;
     totalPaidAmount?: number;
     outstandingAmount?: number;
+    siteEngineerName?: string;
+    siteEngineerEmail?: string;
+    siteEngineerPhoneNo?: string;
+    siteEngineerName2?: string;
+    siteEngineerEmail2?: string;
+    siteEngineerPhoneNo2?: string;
 }
 
 export async function fetchIndents(permittedFirms?: string[]) {

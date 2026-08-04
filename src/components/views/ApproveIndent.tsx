@@ -489,26 +489,6 @@ export default function ApproveIndent() {
             header: 'Planned Date',
             cell: ({ row }) => row.original.planned1 ? formatDate(new Date(row.original.planned1)) : '-',
         },
-        {
-            id: 'export_pdf',
-            header: 'PDF',
-            cell: ({ row, table }: { row: Row<IndentRecord>, table: any }) => {
-                const indentNo = row.original.indent_number;
-                const isLoading = table.options.meta?.exportingIndentNo === indentNo;
-                return (
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={isLoading}
-                        onClick={() => table.options.meta?.onExportPdf(indentNo)}
-                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 h-7 px-2 text-xs"
-                    >
-                        {isLoading ? <ClipLoader size={11} color="currentColor" /> : <Download size={11} />}
-                        View PDF
-                    </Button>
-                );
-            },
-        },
     ], [user?.indentApprovalAction]);
 
     const historyColumns = useMemo<ColumnDef<IndentRecord>[]>(() => [

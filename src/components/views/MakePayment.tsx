@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { uploadFile } from '@/lib/fetchers';
 import { toast } from 'sonner';
 import { Checkbox } from '../ui/checkbox';
-import { formatDate, formatDateTime as formatTimestamp } from '@/lib/utils';
+import { formatDate, formatDateTime as formatTimestamp, getPublicFileUrl } from '@/lib/utils';
 import {
     Dialog,
     DialogContent,
@@ -25,6 +25,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Input } from "../ui/input";
 import { uploadPaymentImage } from '@/services/storeInService';
 import { applyFirmAccessFilter, isAllowedFirm } from '@/lib/firmAccess';
+import { fetchPoMaster } from '@/services/poService';
+import { openPoPdfPreview } from '@/lib/poPdfUtils';
+import { Loader2 } from 'lucide-react';
 
 interface PaymentsRecord {
     rowIndex?: number;
@@ -145,6 +148,27 @@ export default function MakePayment() {
     const [historyData, setHistoryData] = useState<DisplayPaymentHistory[]>([]);
     const [storeInRecords, setStoreInRecords] = useState<any[]>([]); // To store full metadata
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+    const [viewingPoNumber, setViewingPoNumber] = useState<string | null>(null);
+
+    // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
+    // payments.pdf/po_master.pdf used to hold a stored PO PDF URL; the PO PDF is now
+    // regenerated fresh from po_master + master data on every "View PO" click instead.
+    const handleViewPo = async (poNumber: string) => {
+        if (!poNumber) return;
+        try {
+            setViewingPoNumber(poNumber);
+            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
+                ? undefined
+                : user.firm_access;
+            const freshPoMaster = await fetchPoMaster(permittedFirms);
+            await openPoPdfPreview(poNumber, freshPoMaster);
+        } catch (error) {
+            console.error('Error generating PO PDF:', error);
+            toast.error('Failed to generate Purchase Order PDF');
+        } finally {
+            setViewingPoNumber(null);
+        }
+    };
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [originalData, setOriginalData] = useState<PaymentsRecord[]>([]);
     const [activeTab, setActiveTab] = useState('pending');
@@ -285,12 +309,14 @@ export default function MakePayment() {
                         const terms = String(sheet?.paymentTerms || '').toLowerCase();
                         const isAdvanceTerm = terms.includes('advance') || terms.includes('pi');
 
-                        // Check linked Store In for HOD status: Only show if Approved
-                        const linkedStoreIn = (storeInData || []).find((s: any) =>
-                            (s.indent_no || s.indent_number) === (sheet.internalCode)
+                        // Check linked Store In for HOD status: Only show if at least one matching store_in entry is Approved
+                        const matchingStoreIns = (storeInData || []).filter((s: any) =>
+                            (s.indent_no || s.indent_number) === sheet.internalCode &&
+                            (!sheet.product || (s.product_name || s.productName || s.product) === sheet.product)
                         );
-                        if (linkedStoreIn && (linkedStoreIn.hod_status || linkedStoreIn.hodStatus) !== 'Approved') {
-                             return false;
+                        if (matchingStoreIns.length > 0) {
+                            const hasApproved = matchingStoreIns.some((s: any) => (s.hod_status || s.hodStatus) === 'Approved');
+                            if (!hasApproved) return false;
                         }
 
                         return !isCompleted;
@@ -929,20 +955,39 @@ export default function MakePayment() {
             cell: ({ row }) => {
                 const attachments = row.original.anyAttachments;
                 const bill = row.original.billImage;
+                const poNumber = row.original.poNumber;
+                const isGeneratingPo = viewingPoNumber === poNumber;
                 return (
                     <div className="flex gap-2">
                         {attachments && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" asChild>
-                                <a href={attachments} target="_blank" rel="noopener noreferrer">
+                                <a href={getPublicFileUrl(attachments)} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="h-3.5 w-3.5" />
                                 </a>
                             </Button>
                         )}
                         {bill && bill !== attachments && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600" asChild title="View Bill">
-                                <a href={bill} target="_blank" rel="noopener noreferrer">
+                                <a href={getPublicFileUrl(bill)} target="_blank" rel="noopener noreferrer">
                                     <FileText className="h-3.5 w-3.5" />
                                 </a>
+                            </Button>
+                        )}
+                        {/* TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification */}
+                        {poNumber && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-amber-600"
+                                title="View PO"
+                                disabled={isGeneratingPo}
+                                onClick={() => handleViewPo(poNumber)}
+                            >
+                                {isGeneratingPo ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <FileText className="h-3.5 w-3.5" />
+                                )}
                             </Button>
                         )}
                     </div>

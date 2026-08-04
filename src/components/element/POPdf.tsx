@@ -1,6 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import sealImg from '@/assets/IMG-20260606-WA0002.jpg';
-import signatureImg from '@/assets/AutoRocket Post (1).png';
+import sealImg from '@/assets/seal (2).png';
 import daftariImg from '@/assets/daftari2.png';
 
 const styles = StyleSheet.create({
@@ -57,22 +56,35 @@ const styles = StyleSheet.create({
         borderBottom: '1 solid #000000',
     },
     poNumber: {
-        width: '33.33%',
+        width: '50%',
         fontSize: 10,
         fontFamily: 'Helvetica-Bold',
         textAlign: 'left',
     },
     poDate: {
-        width: '33.33%',
-        fontSize: 10,
-        fontFamily: 'Helvetica-Bold',
-        textAlign: 'center',
-    },
-    deliveryDate: {
-        width: '33.33%',
+        width: '50%',
         fontSize: 10,
         fontFamily: 'Helvetica-Bold',
         textAlign: 'right',
+    },
+    poDetailsHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        marginHorizontal: 8,
+        marginTop: 8,
+        marginBottom: 6,
+        borderBottom: '1 solid #000000',
+        paddingBottom: 2,
+    },
+    poDetailsHeading: {
+        fontSize: 9,
+        fontFamily: 'Helvetica-Bold',
+        textTransform: 'uppercase',
+    },
+    poDeliveryDateHeading: {
+        fontSize: 9,
+        fontFamily: 'Helvetica-Bold',
     },
     splitSection: {
         flexDirection: 'row',
@@ -272,16 +284,11 @@ const styles = StyleSheet.create({
         marginBottom: 2,
         marginLeft: -4,
     },
-    authSignatureImg: {
-        width: 140,
-        height: 65,
+    authSealImg: {
+        width: 180,
+        height: 70,
         objectFit: 'contain',
         alignSelf: 'flex-start',
-    },
-    authSealImg: {
-        width: 65,
-        height: 65,
-        objectFit: 'contain',
     },
 });
 
@@ -396,7 +403,6 @@ export default function PoojaPOFormat(props: POPdfProps) {
                     <View style={styles.poHeader}>
                         <Text style={styles.poNumber}>P.O. No.: {poNumber}</Text>
                         <Text style={styles.poDate}>P.O. Date : {poDate}</Text>
-                        <Text style={styles.deliveryDate}>Delivery Date: {deliveryDate}</Text>
                     </View>
 
                     {/* Supplier and Contact Details */}
@@ -464,7 +470,7 @@ export default function PoojaPOFormat(props: POPdfProps) {
                             <Text style={[styles.commercialValue, { fontFamily: 'Helvetica-Bold', fontSize: 8.5 }]}>{projectName}</Text>
                         </View>
                         <View style={styles.commercialBox4}>
-                            <Text style={styles.commercialLabel}>Destination Address:</Text>
+                            <Text style={styles.commercialLabel}>Delivery Address:</Text>
                             <Text style={styles.commercialValue}>{deliveryAddress}</Text>
                         </View>
                         <View style={styles.commercialBox4}>
@@ -474,7 +480,7 @@ export default function PoojaPOFormat(props: POPdfProps) {
                             <Text style={styles.commercialValue}>Email: {siteEngineerEmail || '--'}</Text>
                         </View>
                         <View style={styles.commercialBox4Last}>
-                            <Text style={styles.commercialLabel}>Site Engineer Details 2:</Text>
+                            <Text style={styles.commercialLabel}>Site Incharge Details:</Text>
                             <Text style={styles.commercialValue}>Name: {siteEngineerName2 || '--'}</Text>
                             <Text style={styles.commercialValue}>Phone: {siteEngineerPhoneNo2 || '--'}</Text>
                             <Text style={styles.commercialValue}>Email: {siteEngineerEmail2 || '--'}</Text>
@@ -483,7 +489,10 @@ export default function PoojaPOFormat(props: POPdfProps) {
 
                     {/* Purchase Order Details Table */}
                     <View style={styles.tableContainer}>
-                        <Text style={[styles.sectionHeading, { marginHorizontal: 8, marginTop: 8 }]}>Purchase Order Details:</Text>
+                        <View style={styles.poDetailsHeaderRow}>
+                            <Text style={styles.poDetailsHeading}>Purchase Order Details:</Text>
+                            <Text style={styles.poDeliveryDateHeading}>Delivery Date: {deliveryDate}</Text>
+                        </View>
 
                         <View style={styles.tableHeaderRow}>
                             <Text style={[styles.tableHeaderCell, styles.colSr]}>S/N</Text>
@@ -545,7 +554,6 @@ export default function PoojaPOFormat(props: POPdfProps) {
                         <View style={styles.signatureLeft}>
                             <Text style={styles.forText}>For, Pooja Constructions</Text>
                             <View style={styles.authImagesRow}>
-                                <Image src={signatureImg} style={[styles.authSignatureImg, { marginRight: 6 }]} />
                                 <Image src={sealImg} style={styles.authSealImg} />
                             </View>
                             <View style={styles.lineContainer}>

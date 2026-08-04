@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/apiClient';
 import { allPermissionKeys, type UserPermissions } from '@/types/sheets';
 
 /**
  * User Service
- * Handles all Supabase operations for user management and administration.
+ * Handles user management and administration via the dedicated /store/users backend routes.
  */
 
 export interface UserRecord extends UserPermissions {
@@ -26,43 +26,39 @@ function applyDerivedUserAccess(user: any) {
     return user;
 }
 
+function mapUserRow(r: any): UserRecord {
+    const user: any = {
+        id: r.id,
+        timestamp: r.timestamp || '',
+        username: r.user_name || '',
+        password: r.password || '',
+        name: r.name || '',
+        modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
+        firmNameMatch: '',
+        firm_access: normalizeFirmAccess(r.firm_access),
+        rowIndex: r.id, // Using ID as a fallback for rowIndex since it's used in and out of tables
+    };
+
+    // Map each permission key from snake_case in DB to camelCase in UserPermissions
+    allPermissionKeys.forEach((key) => {
+        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        const value = r[dbKey];
+
+        // Handle "true"/"TRUE"/true results
+        user[key] = value === true ||
+            (typeof value === 'string' && value.toLowerCase() === 'true');
+    });
+
+    return applyDerivedUserAccess(user) as UserRecord;
+}
+
 /**
- * Fetch all users from Supabase
+ * Fetch all users
  */
 export async function fetchUsers(): Promise<UserRecord[]> {
     try {
-        const { data, error } = await supabase
-            .from('user')
-            .select('*')
-            .order('timestamp', { ascending: false });
-
-        if (error) throw error;
-
-        return (data || []).map((r: any) => {
-            const user: any = {
-                id: r.id,
-                timestamp: r.timestamp || '',
-                username: r.user_name || '',
-                password: r.password || '',
-                name: r.name || '',
-                modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
-                firmNameMatch: '',
-                firm_access: normalizeFirmAccess(r.firm_access),
-                rowIndex: r.id, // Using ID as a fallback for rowIndex since it's used in and out of tables
-            };
-
-            // Map each permission key from snake_case in DB to camelCase in UserPermissions
-            allPermissionKeys.forEach((key) => {
-                const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-                const value = r[dbKey];
-
-                // Handle "true"/"TRUE"/true results
-                user[key] = value === true ||
-                    (typeof value === 'string' && value.toLowerCase() === 'true');
-            });
-
-            return applyDerivedUserAccess(user) as UserRecord;
-        });
+        const res: any = await apiClient.get('/store/users');
+        return (res.data || []).map(mapUserRow);
     } catch (error) {
         console.error('Error fetching users:', error);
         throw error;
@@ -70,7 +66,7 @@ export async function fetchUsers(): Promise<UserRecord[]> {
 }
 
 /**
- * Create a new user in Supabase
+ * Create a new user
  */
 export async function createUser(userData: Partial<UserPermissions>) {
     try {
@@ -90,14 +86,8 @@ export async function createUser(userData: Partial<UserPermissions>) {
             dbRow[dbKey] = value === true || value === 'true' || (value as any) === 'TRUE';
         });
 
-        const { data, error } = await supabase
-            .from('user')
-            .insert([dbRow])
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+        const res: any = await apiClient.post('/store/users', dbRow);
+        return res.data;
     } catch (error) {
         console.error('Error creating user:', error);
         throw error;
@@ -105,7 +95,7 @@ export async function createUser(userData: Partial<UserPermissions>) {
 }
 
 /**
- * Update an existing user in Supabase
+ * Update an existing user
  */
 export async function updateUser(id: number, userData: Partial<UserPermissions>) {
     try {
@@ -124,12 +114,7 @@ export async function updateUser(id: number, userData: Partial<UserPermissions>)
             dbRow[dbKey] = value === true || value === 'true' || (value as any) === 'TRUE';
         });
 
-        const { error } = await supabase
-            .from('user')
-            .update(dbRow)
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.patch(`/store/users/${id}`, dbRow);
         return true;
     } catch (error) {
         console.error('Error updating user:', error);
@@ -138,108 +123,40 @@ export async function updateUser(id: number, userData: Partial<UserPermissions>)
 }
 
 /**
- * Delete a user from Supabase
+ * Delete a user
  */
 export async function deleteUser(id: number) {
     try {
-        const { error } = await supabase
-            .from('user')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        await apiClient.delete(`/store/users/${id}`);
         return true;
     } catch (error) {
         console.error('Error deleting user:', error);
         throw error;
     }
 }
+
 /**
  * Authenticate a user with username and password
  */
 export async function authenticateUser(username: string, password: string): Promise<UserRecord | null> {
     try {
-        const { data, error } = await supabase
-            .from('user')
-            .select('*')
-            .eq('user_name', username)
-            .eq('password', password)
-            .single();
-
-        if (error) {
-            if (error.code === 'PGRST116') return null; // No rows found
-            throw error;
-        }
-
-        if (!data) return null;
-
-        const r = data;
-        const user: any = {
-            id: r.id,
-            timestamp: r.timestamp || '',
-            username: r.user_name || '',
-            password: r.password || '',
-            name: r.name || '',
-            modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
-            firmNameMatch: '',
-            firm_access: normalizeFirmAccess(r.firm_access),
-            rowIndex: r.id,
-        };
-
-        // Map permission keys
-        allPermissionKeys.forEach((key) => {
-            const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-            const value = r[dbKey];
-            user[key] = value === true ||
-                (typeof value === 'string' && value.toLowerCase() === 'true');
-        });
-
-        return applyDerivedUserAccess(user) as UserRecord;
+        const res: any = await apiClient.post('/store/users/authenticate', { username, password });
+        if (!res.data) return null;
+        return mapUserRow(res.data);
     } catch (error) {
         console.error('Error authenticating user:', error);
         return null;
     }
 }
+
 /**
  * Fetch a user by username (for session restoration)
  */
 export async function getUserByUsername(username: string): Promise<UserRecord | null> {
     try {
-        const { data, error } = await supabase
-            .from('user')
-            .select('*')
-            .eq('user_name', username)
-            .single();
-
-        if (error) {
-            if (error.code === 'PGRST116') return null;
-            throw error;
-        }
-
-        if (!data) return null;
-
-        const r = data;
-        const user: any = {
-            id: r.id,
-            timestamp: r.timestamp || '',
-            username: r.user_name || '',
-            password: r.password || '',
-            name: r.name || '',
-            modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
-            firmNameMatch: '',
-            firm_access: normalizeFirmAccess(r.firm_access),
-            rowIndex: r.id,
-        };
-
-        // Map permission keys
-        allPermissionKeys.forEach((key) => {
-            const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-            const value = r[dbKey];
-            user[key] = value === true ||
-                (typeof value === 'string' && value.toLowerCase() === 'true');
-        });
-
-        return applyDerivedUserAccess(user) as UserRecord;
+        const res: any = await apiClient.get(`/store/users/by-username/${encodeURIComponent(username)}`);
+        if (!res.data) return null;
+        return mapUserRow(res.data);
     } catch (error) {
         console.error('Error fetching user by username:', error);
         return null;

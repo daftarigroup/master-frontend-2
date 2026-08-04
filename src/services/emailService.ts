@@ -25,7 +25,7 @@ export async function sendEmail({ to, subject, html }: EmailParams) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                from: 'noreply@send.daftarigroup.com',
+                from: 'poojaconstruction@send.daftarigroup.com',
                 to,
                 subject,
                 html,

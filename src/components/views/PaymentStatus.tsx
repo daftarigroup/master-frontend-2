@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { Input } from '../ui/input';
 import { createPaymentEntry, uploadProductPhoto, updateStoreInReceiving } from '@/services/storeInService';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { getPublicFileUrl } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { useMemo } from 'react';
 import {
@@ -272,18 +273,19 @@ export default function PIApprovals() {
 
                     // ✅ Link with StoreIn to check Bill Type and HOD Status
                     // If Bill Type is "common", or HOD Status is "Rejected", DO NOT show in HOD Approval (Process for Payment)
-                    const linkedStoreIn = safeStoreInSheet.find((s: any) =>
-                        (s.indentNo || s.indentNumber) === (payment?.internalCode || payment?.internal_code)
+                    const matchingStoreIns = safeStoreInSheet.filter((s: any) =>
+                        (s.indentNo || s.indentNumber || s.indent_no) === (payment?.internalCode || payment?.internal_code) &&
+                        (!payment?.product || (s.productName || s.product_name || s.product) === payment.product)
                     );
 
-                    if (linkedStoreIn) {
-                        if (linkedStoreIn.typeOfBill && linkedStoreIn.typeOfBill.toLowerCase() !== 'independent') {
+                    if (matchingStoreIns.length > 0) {
+                        const firstWithBill = matchingStoreIns.find((s: any) => s.typeOfBill);
+                        if (firstWithBill && firstWithBill.typeOfBill.toLowerCase() !== 'independent') {
                             return false;
                         }
                         // ✅ HOD Status Check: Only show if Approved
-                        if ((linkedStoreIn.hodStatus || linkedStoreIn.hod_status) !== 'Approved') {
-                            return false;
-                        }
+                        const hasApproved = matchingStoreIns.some((s: any) => (s.hodStatus || s.hod_status) === 'Approved');
+                        if (!hasApproved) return false;
                     }
 
                     // ✅ Relaxed Payment Terms for paymentBasedItems
@@ -1070,7 +1072,7 @@ export default function PIApprovals() {
                                                                         File uploaded successfully
                                                                     </p>
                                                                     <a
-                                                                        href={field.value}
+                                                                        href={getPublicFileUrl(field.value)}
                                                                         target="_blank"
                                                                         rel="noopener noreferrer"
                                                                         className="text-sm text-blue-600 hover:underline flex items-center gap-1"
