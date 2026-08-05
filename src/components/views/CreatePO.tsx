@@ -35,6 +35,20 @@ import { PDFViewer } from '@react-pdf/renderer';
 import { supabase, supabaseEnabled } from '@/lib/supabase';
 import { fetchIndents, fetchPoMaster, fetchMasterData, insertPoRecords, updateIndentsAfterPoCreation } from '@/services/poService';
 import { upsertSiteEngineer, fetchTermsAndConditions } from '@/services/masterService';
+import { emailApi } from '@/lib/apiClient';
+
+function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
 
 function getFinancialYear(): string {
     const now = new Date();
@@ -1088,7 +1102,51 @@ const CreatePO = () => {
                 await updateIndentsAfterPoCreation(indentIds, databaseDeliveryDate, poNumber);
             }
 
-            toast.success(`Successfully ${mode}d purchase order`);
+            // Send generated PO PDF via email to selected vendor
+            const vendorEmail = values.companyEmail || selectedVendor?.vendorEmail || selectedVendor?.email || '';
+            if (vendorEmail && vendorEmail.trim() && vendorEmail.includes('@')) {
+                try {
+                    const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
+                    const base64Content = await blobToBase64(blob);
+
+                    const emailSubject = `Purchase Order - ${poNumber}`;
+                    const emailHtml = `
+                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            <h2 style="color: #1e293b;">Purchase Order ${poNumber}</h2>
+                            <p>Dear ${values.supplierName},</p>
+                            <p>Please find attached the Purchase Order <strong>${poNumber}</strong> from <strong>${firmCompanyName || 'our company'}</strong>.</p>
+                            <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                                <p style="margin: 4px 0;"><strong>PO Number:</strong> ${poNumber}</p>
+                                <p style="margin: 4px 0;"><strong>PO Date:</strong> ${formatDate(values.poDate)}</p>
+                                <p style="margin: 4px 0;"><strong>Delivery Date:</strong> ${formatDate(values.deliveryDate)}</p>
+                                <p style="margin: 4px 0;"><strong>Total Amount:</strong> ₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                            <p>If you have any questions, please contact our Site Engineer: <strong>${values.siteEngineerName}</strong> (${values.siteEngineerPhoneNo}, ${values.siteEngineerEmail}).</p>
+                            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                            <p style="font-size: 12px; color: #94a3b8;">This is an automated Purchase Order email.</p>
+                        </div>
+                    `;
+
+                    await emailApi.sendEmail({
+                        to: vendorEmail.trim(),
+                        subject: emailSubject,
+                        html: emailHtml,
+                        attachments: [
+                            {
+                                filename: `PO-${poNumber.replace(/\//g, '_')}.pdf`,
+                                content: base64Content,
+                            },
+                        ],
+                    });
+                    toast.success(`Purchase Order saved and emailed to ${vendorEmail.trim()}`);
+                } catch (emailErr: any) {
+                    console.error('Failed to send PO email to vendor:', emailErr);
+                    toast.warning(`PO saved successfully, but email sending failed: ${emailErr?.message || 'Check email service'}`);
+                }
+            } else {
+                toast.success(`Successfully ${mode}d purchase order (Vendor email missing)`);
+            }
+
             form.reset();
 
             // Refresh data from Supabase using loadData()
