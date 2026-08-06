@@ -419,6 +419,7 @@ export default () => {
                                             <FormControl>
                                                 <Input
                                                     type="number"
+                                                    step="any"
                                                     placeholder="Enter quantity to be issued"
                                                     {...field}
                                                     onChange={(e) => field.onChange(Number(e.target.value))}

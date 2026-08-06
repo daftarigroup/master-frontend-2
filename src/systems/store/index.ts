@@ -82,8 +82,14 @@ export const StoreSystemManifest: SystemManifest = {
       title: 'Store Administration',
       items: [
         { id: 'master-registry', name: 'Master Registry', path: '/store/admin/master-registry', gateKey: 'administrate' },
-        { id: 'manage-users', name: 'Manage Users', path: '/store/admin/manage-users', gateKey: 'administrate' },
         { id: 'license', name: 'License', path: '/store/admin/license' },
+      ],
+    },
+    {
+      id: 'master-settings',
+      title: 'Master Settings',
+      items: [
+        { id: 'manage-users', name: 'Manage Users', path: '/store/admin/manage-users', gateKey: 'administrate' },
       ],
     },
   ],

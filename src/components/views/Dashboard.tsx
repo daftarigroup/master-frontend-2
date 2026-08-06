@@ -27,11 +27,14 @@ import { fetchPoMaster, type PoMasterRecord } from '@/services/poService';
 import { fetchInventoryRecords, type InventoryRecord } from '@/services/inventoryService';
 import { Line, LineChart, Pie, PieChart, Cell, ResponsiveContainer, Tooltip, Area, AreaChart } from 'recharts';
 import { useSheets } from '@/context/SheetsContext';
-import { Database, Plus, Save } from 'lucide-react';
+import { Database, Plus, Save, Building2, Search, X, ChevronRight, Eye, Package, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { toast } from 'sonner';
 import { isAllowedFirm } from '@/lib/firmAccess';
+import { openPoPdfPreview } from '@/lib/poPdfUtils';
+import { formatDate } from '@/lib/utils';
 
 interface ChartDataItem {
     name: string;
@@ -53,6 +56,13 @@ export default function Dashboard() {
 
     const [chartData, setChartData] = useState<ChartDataItem[]>([]);
     const [topVendorsData, setTopVendors] = useState<VendorDataItem[]>([]);
+    const [allVendorsValuationData, setAllVendorsValuationData] = useState<VendorDataItem[]>([]);
+    const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+    const [vendorSearchQuery, setVendorSearchQuery] = useState('');
+    const [vendorSortBy, setVendorSortBy] = useState<'value-desc' | 'value-asc' | 'orders-desc' | 'name-asc'>('value-desc');
+    const [selectedVendorForDetails, setSelectedVendorForDetails] = useState<string | null>(null);
+    const [isVendorDetailsModalOpen, setIsVendorDetailsModalOpen] = useState(false);
+    const [orderSearchQuery, setOrderSearchQuery] = useState('');
     const [indent, setIndent] = useState<StatsData>({ count: 0, quantity: 0 });
     const [purchase, setPurchase] = useState<StatsData>({ count: 0, quantity: 0 });
     const [out, setOut] = useState<StatsData>({ count: 0, quantity: 0 });
@@ -100,6 +110,100 @@ export default function Dashboard() {
         return val.toLocaleString();
     };
 
+    const processedModalVendors = useMemo(() => {
+        let list = [...allVendorsValuationData];
+        if (vendorSearchQuery.trim()) {
+            const q = vendorSearchQuery.toLowerCase().trim();
+            list = list.filter((v) => v.name.toLowerCase().includes(q));
+        }
+
+        switch (vendorSortBy) {
+            case 'value-asc':
+                list.sort((a, b) => a.quantity - b.quantity);
+                break;
+            case 'orders-desc':
+                list.sort((a, b) => b.orders - a.orders);
+                break;
+            case 'name-asc':
+                list.sort((a, b) => a.name.localeCompare(b.name));
+                break;
+            case 'value-desc':
+            default:
+                list.sort((a, b) => b.quantity - a.quantity);
+                break;
+        }
+
+        return list;
+    }, [allVendorsValuationData, vendorSearchQuery, vendorSortBy]);
+
+    const modalTotalValuation = useMemo(() => {
+        return allVendorsValuationData.reduce((sum, v) => sum + v.quantity, 0);
+    }, [allVendorsValuationData]);
+
+    const modalTotalOrders = useMemo(() => {
+        return allVendorsValuationData.reduce((sum, v) => sum + v.orders, 0);
+    }, [allVendorsValuationData]);
+
+    const selectedVendorItems = useMemo(() => {
+        if (!selectedVendorForDetails) return [];
+        const normName = selectedVendorForDetails.trim().toLowerCase();
+        return poMasterData.filter(
+            (item) => String(item.partyName || '').trim().toLowerCase() === normName
+        );
+    }, [poMasterData, selectedVendorForDetails]);
+
+    const selectedVendorGroupedOrders = useMemo(() => {
+        const map = new Map<string, {
+            poNumber: string;
+            timestamp: string;
+            firmName: string;
+            deliveryDate: string;
+            paymentTerms: string;
+            totalPoAmount: number;
+            items: any[];
+        }>();
+
+        selectedVendorItems.forEach((item) => {
+            const poNo = item.poNumber || item.internalCode || 'N/A';
+            if (!map.has(poNo)) {
+                map.set(poNo, {
+                    poNumber: poNo,
+                    timestamp: item.timestamp,
+                    firmName: item.firmNameMatch || '',
+                    deliveryDate: item.deliveryDate || '',
+                    paymentTerms: item.paymentTerms || '',
+                    totalPoAmount: Number(item.totalPoAmount) || 0,
+                    items: [],
+                });
+            }
+            map.get(poNo)!.items.push(item);
+        });
+
+        return Array.from(map.values());
+    }, [selectedVendorItems]);
+
+    const selectedVendorTotalValuation = useMemo(() => {
+        return selectedVendorGroupedOrders.reduce((sum, order) => {
+            const val = order.totalPoAmount || order.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+            return sum + val;
+        }, 0);
+    }, [selectedVendorGroupedOrders]);
+
+    const filteredVendorOrders = useMemo(() => {
+        if (!orderSearchQuery.trim()) return selectedVendorGroupedOrders;
+        const q = orderSearchQuery.toLowerCase().trim();
+        return selectedVendorGroupedOrders.filter((order) => {
+            const matchPo = order.poNumber.toLowerCase().includes(q);
+            const matchFirm = order.firmName.toLowerCase().includes(q);
+            const matchItems = order.items.some(
+                (item) =>
+                    String(item.product || '').toLowerCase().includes(q) ||
+                    String(item.internalCode || '').toLowerCase().includes(q)
+            );
+            return matchPo || matchFirm || matchItems;
+        });
+    }, [selectedVendorGroupedOrders, orderSearchQuery]);
+
     useEffect(() => {
         const loadData = async () => {
             try {
@@ -130,8 +234,17 @@ export default function Dashboard() {
                 setAllProjects(filteredAllProjects);
                 setPoMasterData(filteredPoData);
 
-                // Initial total PO calculations
-                const totalVal = filteredPoData.reduce((sum: number, p: PoMasterRecord) => sum + (Number(p.totalPoAmount) || 0), 0);
+                // Initial total PO calculations (grouped by unique PO to avoid duplicating line item totals)
+                const poMapInit = new Map<string, number>();
+                filteredPoData.forEach((item: any) => {
+                    const poNo = item.poNumber || item.internalCode || 'N/A';
+                    const vendorName = String(item.partyName || '').trim();
+                    const key = `${vendorName}||${poNo}`;
+                    if (!poMapInit.has(key)) {
+                        poMapInit.set(key, Number(item.totalPoAmount) || Number(item.amount) || 0);
+                    }
+                });
+                const totalVal = Array.from(poMapInit.values()).reduce((sum, val) => sum + val, 0);
                 setPoTotal(totalVal);
 
                 // Calculate stock alerts from inventory (Note: Inventory is usually global, but we filter alerts by project if needed)
@@ -293,11 +406,7 @@ export default function Dashboard() {
             }
         });
 
-        // Calculate Top Vendors (based on PO Master for better volume representation)
-        const vendorMap: Record<string, { orders: number; quantity: number }> = {};
-
-        // Use PO Master for volume if available, or stay with Store In if preferred. 
-        // Let's use PO totals for "Volume".
+        // Calculate Top Vendors (grouped by unique PO for accurate order counts and valuation)
         const filteredPoData = poMasterData.filter(item => {
             if (filteredProjects.length > 0 && item.firmNameMatch) {
                 return filteredProjects.includes(item.firmNameMatch);
@@ -305,31 +414,62 @@ export default function Dashboard() {
             return true;
         });
 
+        // Group line items into unique Purchase Orders first to prevent multiplying totalPoAmount by line item count
+        const poMap = new Map<string, {
+            poNumber: string;
+            partyName: string;
+            totalPoAmount: number;
+            items: any[];
+        }>();
+
         filteredPoData.forEach((item) => {
-            const vendorName = String(item.partyName || '');
+            const poNo = item.poNumber || item.internalCode || 'N/A';
+            const vendorName = String(item.partyName || '').trim();
+            const key = `${vendorName}||${poNo}`;
+
+            if (!poMap.has(key)) {
+                poMap.set(key, {
+                    poNumber: poNo,
+                    partyName: vendorName,
+                    totalPoAmount: Number(item.totalPoAmount) || 0,
+                    items: [],
+                });
+            }
+            poMap.get(key)!.items.push(item);
+        });
+
+        const uniquePoOrders = Array.from(poMap.values());
+        const vendorMap: Record<string, { orders: number; quantity: number }> = {};
+
+        uniquePoOrders.forEach((order) => {
+            const vendorName = order.partyName;
             if (vendorName) {
                 if (!vendorMap[vendorName]) {
                     vendorMap[vendorName] = { orders: 0, quantity: 0 };
                 }
+                const poValuation = order.totalPoAmount || order.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
                 vendorMap[vendorName].orders += 1;
-                vendorMap[vendorName].quantity += Number(item.totalPoAmount || 0);
+                vendorMap[vendorName].quantity += poValuation;
             }
         });
 
         // Update Total PO Value based on filter
-        const currentPoTotal = filteredPoData.reduce((sum, p) => sum + (Number(p.totalPoAmount) || 0), 0);
+        const currentPoTotal = uniquePoOrders.reduce((sum, order) => {
+            const poValuation = order.totalPoAmount || order.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+            return sum + poValuation;
+        }, 0);
         setPoTotal(currentPoTotal);
 
-        const topVendors = Object.entries(vendorMap)
+        const allVendorsSorted = Object.entries(vendorMap)
             .map(([name, data]) => ({
                 name,
                 orders: data.orders,
-                quantity: data.quantity, // This is now total amount
+                quantity: data.quantity, // Total PO amount
             }))
-            .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 5);
+            .sort((a, b) => b.quantity - a.quantity);
 
-        setTopVendors(topVendors);
+        setAllVendorsValuationData(allVendorsSorted);
+        setTopVendors(allVendorsSorted.slice(0, 5));
 
         storeIns.forEach(s => {
             if (s.timestamp) {
@@ -622,7 +762,15 @@ export default function Dashboard() {
                     <Card className="lg:col-span-2">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-xl">Top Vendors by Volume</CardTitle>
-                            <Button variant="ghost" size="sm" className="text-xs text-blue-600">View All Vendors</Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs text-blue-600 border-blue-200 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-700 font-semibold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                                onClick={() => setIsVendorModalOpen(true)}
+                            >
+                                <Building2 size={13} />
+                                View All Vendors ({allVendorsValuationData.length})
+                            </Button>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
@@ -773,6 +921,395 @@ export default function Dashboard() {
                     </Card>
                 </div>
             </div>
+
+            {/* All Vendors Valuation & Volume Modal */}
+            <Dialog open={isVendorModalOpen} onOpenChange={setIsVendorModalOpen}>
+                <DialogContent className="w-[95vw] md:max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background">
+                    <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 border-b bg-muted/20">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5 sm:gap-3">
+                                <div className="p-2 sm:p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shrink-0">
+                                    <Building2 size={20} className="sm:w-6 sm:h-6" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight">
+                                        Vendor Valuation & Volume Breakdown
+                                    </DialogTitle>
+                                    <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+                                        Total valuation and purchase order activity across all vendors
+                                    </DialogDescription>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top KPI Cards inside Modal */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3 sm:mt-5">
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Total Vendors</p>
+                                <p className="text-base sm:text-xl font-bold text-foreground mt-0.5 sm:mt-1">{allVendorsValuationData.length}</p>
+                            </div>
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Total Valuation</p>
+                                <p className="text-base sm:text-xl font-bold text-blue-600 mt-0.5 sm:mt-1">{formatCurrency(modalTotalValuation)}</p>
+                            </div>
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Total Orders</p>
+                                <p className="text-base sm:text-xl font-bold text-emerald-600 mt-0.5 sm:mt-1">{modalTotalOrders.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Avg Order Value</p>
+                                <p className="text-base sm:text-xl font-bold text-purple-600 mt-0.5 sm:mt-1">
+                                    {modalTotalOrders > 0 ? formatCurrency(modalTotalValuation / modalTotalOrders) : '₹0'}
+                                </p>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {/* Filter & Search Bar */}
+                    <div className="p-3 sm:p-4 bg-card border-b flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-between items-center">
+                        <div className="relative w-full sm:w-72">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search vendor by name..."
+                                value={vendorSearchQuery}
+                                onChange={(e) => setVendorSearchQuery(e.target.value)}
+                                className="pl-9 h-9 text-xs sm:text-sm"
+                            />
+                            {vendorSearchQuery && (
+                                <button
+                                    onClick={() => setVendorSearchQuery('')}
+                                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
+                            <Select value={vendorSortBy} onValueChange={(v: any) => setVendorSortBy(v)}>
+                                <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs">
+                                    <SelectValue placeholder="Sort order" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="value-desc">Highest Valuation</SelectItem>
+                                    <SelectItem value="value-asc">Lowest Valuation</SelectItem>
+                                    <SelectItem value="orders-desc">Most Orders Processed</SelectItem>
+                                    <SelectItem value="name-asc">Vendor Name (A-Z)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* Vendors Table / List */}
+                    <div className="flex-1 overflow-y-auto p-3 sm:p-4 max-h-[50vh]">
+                        {processedModalVendors.length > 0 ? (
+                            <div className="space-y-2">
+                                <div className="hidden sm:grid grid-cols-12 text-xs font-semibold text-muted-foreground px-3 py-1 border-b">
+                                    <div className="col-span-1">Rank</div>
+                                    <div className="col-span-4">Vendor Name</div>
+                                    <div className="col-span-2 text-center">Orders</div>
+                                    <div className="col-span-2 text-right">Valuation</div>
+                                    <div className="col-span-3 text-right">Volume Share</div>
+                                </div>
+
+                                {processedModalVendors.map((vendor) => {
+                                    const maxVal = allVendorsValuationData[0]?.quantity || 1;
+                                    const percentOfMax = (vendor.quantity / maxVal) * 100;
+                                    const percentOfTotal = modalTotalValuation > 0 ? ((vendor.quantity / modalTotalValuation) * 100).toFixed(1) : '0';
+                                    
+                                    const origRank = allVendorsValuationData.findIndex((v) => v.name === vendor.name) + 1;
+
+                                    return (
+                                        <div
+                                            key={vendor.name}
+                                            onClick={() => {
+                                                setSelectedVendorForDetails(vendor.name);
+                                                setOrderSearchQuery('');
+                                                setIsVendorDetailsModalOpen(true);
+                                            }}
+                                            className="flex flex-col sm:grid sm:grid-cols-12 items-start sm:items-center gap-2 p-3 rounded-lg border bg-card hover:bg-blue-50/60 dark:hover:bg-blue-950/20 hover:border-blue-300 transition-all cursor-pointer group"
+                                            title="Click to view detailed order summary for this vendor"
+                                        >
+                                            <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto sm:col-span-1">
+                                                <span
+                                                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                                                        origRank === 1
+                                                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                                            : origRank === 2
+                                                            ? 'bg-slate-200 text-slate-800 border border-slate-300'
+                                                            : origRank === 3
+                                                            ? 'bg-amber-700/10 text-amber-900 border border-amber-700/20'
+                                                            : 'bg-muted text-muted-foreground'
+                                                    }`}
+                                                >
+                                                    {origRank}
+                                                </span>
+                                                <ChevronRight size={16} className="text-muted-foreground sm:hidden group-hover:text-blue-600 transition-all" />
+                                            </div>
+
+                                            <div className="sm:col-span-4 w-full">
+                                                <p className="text-sm font-semibold text-foreground truncate group-hover:text-blue-600 transition-colors" title={vendor.name}>
+                                                    {vendor.name}
+                                                </p>
+                                                <div className="flex items-center justify-between mt-1 sm:hidden text-[11px] text-muted-foreground">
+                                                    <span className="font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5 rounded">
+                                                        {vendor.orders} Orders
+                                                    </span>
+                                                    <span className="font-bold text-foreground">
+                                                        {formatCurrency(vendor.quantity)} ({percentOfTotal}%)
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="hidden sm:block sm:col-span-2 text-center">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                                    {vendor.orders} Orders
+                                                </span>
+                                            </div>
+
+                                            <div className="hidden sm:block sm:col-span-2 text-right">
+                                                <p className="text-sm font-bold text-foreground" title={`₹${vendor.quantity.toLocaleString('en-IN')}`}>
+                                                    {formatCurrency(vendor.quantity)}
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground">₹{vendor.quantity.toLocaleString('en-IN')}</p>
+                                            </div>
+
+                                            <div className="hidden sm:flex sm:col-span-3 items-center justify-end gap-2">
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="text-xs font-semibold text-blue-600">{percentOfTotal}%</span>
+                                                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-blue-500 rounded-full"
+                                                            style={{ width: `${Math.max(percentOfMax, 2)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <ChevronRight size={16} className="text-muted-foreground group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="py-12 text-center text-muted-foreground space-y-2">
+                                <Building2 className="mx-auto h-10 w-10 text-muted-foreground/40" />
+                                <p className="text-sm font-medium">No vendors found matching your criteria</p>
+                                {vendorSearchQuery && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setVendorSearchQuery('')}
+                                        className="mt-2 text-xs"
+                                    >
+                                        Clear Search
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Vendor Orders Detailed Summary Modal */}
+            <Dialog open={isVendorDetailsModalOpen} onOpenChange={setIsVendorDetailsModalOpen}>
+                <DialogContent className="w-[95vw] md:max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-background">
+                    <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 border-b bg-muted/20">
+                        <div className="flex items-center justify-between pr-6 sm:pr-0">
+                            <div className="flex items-center gap-2.5 sm:gap-3">
+                                <div className="p-2 sm:p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shrink-0">
+                                    <Building2 size={20} className="sm:w-6 sm:h-6" />
+                                </div>
+                                <div className="min-w-0">
+                                    <DialogTitle className="text-base sm:text-xl font-bold text-foreground leading-tight truncate" title={selectedVendorForDetails || ''}>
+                                        {selectedVendorForDetails || 'Vendor Orders Summary'}
+                                    </DialogTitle>
+                                    <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+                                        Detailed purchase order summary, line items, and fulfillment history
+                                    </DialogDescription>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top KPI Cards inside Detail Modal */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3 sm:mt-5">
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Total PO Orders</p>
+                                <p className="text-base sm:text-xl font-bold text-foreground mt-0.5 sm:mt-1">{selectedVendorGroupedOrders.length}</p>
+                            </div>
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Total Line Items</p>
+                                <p className="text-base sm:text-xl font-bold text-blue-600 mt-0.5 sm:mt-1">{selectedVendorItems.length}</p>
+                            </div>
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Total Valuation</p>
+                                <p className="text-base sm:text-xl font-bold text-emerald-600 mt-0.5 sm:mt-1">
+                                    {formatCurrency(selectedVendorTotalValuation)}
+                                </p>
+                            </div>
+                            <div className="bg-card border rounded-lg p-2.5 sm:p-3 shadow-2xs">
+                                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">Avg Order Value</p>
+                                <p className="text-base sm:text-xl font-bold text-purple-600 mt-0.5 sm:mt-1">
+                                    {selectedVendorGroupedOrders.length > 0
+                                        ? formatCurrency(selectedVendorTotalValuation / selectedVendorGroupedOrders.length)
+                                        : '₹0'}
+                                </p>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {/* Filter & Search Bar */}
+                    <div className="p-3 sm:p-4 bg-card border-b flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-between items-center">
+                        <div className="relative w-full sm:w-80">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by PO number, item, or project..."
+                                value={orderSearchQuery}
+                                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                                className="pl-9 h-9 text-xs sm:text-sm"
+                            />
+                            {orderSearchQuery && (
+                                <button
+                                    onClick={() => setOrderSearchQuery('')}
+                                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="text-xs text-muted-foreground w-full sm:w-auto text-right">
+                            Showing <span className="font-semibold text-foreground">{filteredVendorOrders.length}</span> of {selectedVendorGroupedOrders.length} orders
+                        </div>
+                    </div>
+
+                    {/* Orders List */}
+                    <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 max-h-[55vh]">
+                        {filteredVendorOrders.length > 0 ? (
+                            filteredVendorOrders.map((order) => {
+                                const poValuation = order.totalPoAmount || order.items.reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
+                                return (
+                                    <div key={order.poNumber} className="border rounded-xl p-3 sm:p-4 bg-card shadow-2xs hover:shadow-xs transition-all space-y-3">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2.5 sm:pb-3 border-b">
+                                            <div className="flex items-center gap-2">
+                                                <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-bold text-xs shrink-0">
+                                                    PO
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm sm:text-base font-bold text-foreground flex flex-wrap items-center gap-1.5">
+                                                        <span>{order.poNumber}</span>
+                                                        {order.firmName && (
+                                                            <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-muted text-muted-foreground truncate max-w-[150px]">
+                                                                {order.firmName}
+                                                            </span>
+                                                        )}
+                                                    </h4>
+                                                    <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+                                                        Date: {order.timestamp ? formatDate(order.timestamp) : 'N/A'}
+                                                        {order.deliveryDate ? ` • Delivery: ${formatDate(order.deliveryDate)}` : ''}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0">
+                                                <div className="text-left sm:text-right">
+                                                    <p className="text-sm sm:text-base font-bold text-foreground">
+                                                        {formatCurrency(poValuation)}
+                                                    </p>
+                                                    <p className="text-[10px] text-muted-foreground">₹{poValuation.toLocaleString('en-IN')}</p>
+                                                </div>
+
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 text-xs gap-1.5 border-blue-200 text-blue-600 hover:bg-blue-50 shrink-0"
+                                                    onClick={() => openPoPdfPreview(order.poNumber, poMasterData)}
+                                                >
+                                                    <Eye size={13} />
+                                                    Preview PDF
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Mobile Item Cards (< sm) */}
+                                        <div className="sm:hidden space-y-2 pt-1">
+                                            {order.items.map((item: any, idx: number) => (
+                                                <div key={idx} className="p-2.5 rounded-lg bg-muted/30 border text-xs space-y-1.5">
+                                                    <div className="flex justify-between items-start gap-2">
+                                                        <span className="font-semibold text-foreground leading-snug">{item.product}</span>
+                                                        <span className="font-bold text-foreground text-right shrink-0">
+                                                            ₹{Number(item.amount || (item.quantity * item.rate) || 0).toLocaleString('en-IN')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground pt-0.5">
+                                                        {item.internalCode && <span>Indent: <strong className="text-foreground">{item.internalCode}</strong></span>}
+                                                        <span>Qty: <strong className="text-foreground">{item.quantity} {item.unit || ''}</strong></span>
+                                                        <span>Rate: <strong className="text-foreground">₹{Number(item.rate || 0).toLocaleString('en-IN')}</strong></span>
+                                                        <span>GST: <strong className="text-foreground">{item.gst || item.gstPercent || 0}%</strong></span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Desktop / Tablet Items Table (>= sm) */}
+                                        <div className="hidden sm:block overflow-x-auto">
+                                            <table className="w-full text-xs min-w-[550px]">
+                                                <thead>
+                                                    <tr className="text-muted-foreground border-b text-left">
+                                                        <th className="pb-1.5 font-medium">Product / Item</th>
+                                                        <th className="pb-1.5 font-medium">Indent No.</th>
+                                                        <th className="pb-1.5 font-medium text-right">Qty & Unit</th>
+                                                        <th className="pb-1.5 font-medium text-right">Rate</th>
+                                                        <th className="pb-1.5 font-medium text-right">GST %</th>
+                                                        <th className="pb-1.5 font-medium text-right">Line Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y">
+                                                    {order.items.map((item: any, idx: number) => (
+                                                        <tr key={idx} className="hover:bg-muted/30">
+                                                            <td className="py-2 font-medium text-foreground max-w-[220px] truncate" title={item.product}>
+                                                                {item.product}
+                                                            </td>
+                                                            <td className="py-2 text-muted-foreground">{item.internalCode || '--'}</td>
+                                                            <td className="py-2 text-right font-medium">
+                                                                {item.quantity} {item.unit || ''}
+                                                            </td>
+                                                            <td className="py-2 text-right text-muted-foreground">
+                                                                ₹{Number(item.rate || 0).toLocaleString('en-IN')}
+                                                            </td>
+                                                            <td className="py-2 text-right text-muted-foreground">
+                                                                {item.gst || item.gstPercent || 0}%
+                                                            </td>
+                                                            <td className="py-2 text-right font-semibold text-foreground">
+                                                                ₹{Number(item.amount || (item.quantity * item.rate) || 0).toLocaleString('en-IN')}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="py-12 text-center text-muted-foreground space-y-2">
+                                <Package className="mx-auto h-10 w-10 text-muted-foreground/40" />
+                                <p className="text-sm font-medium">No purchase orders found for this vendor</p>
+                                {orderSearchQuery && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setOrderSearchQuery('')}
+                                        className="mt-2 text-xs"
+                                    >
+                                        Clear Search
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -2,6 +2,7 @@ import { Toaster } from '@/components/ui/sonner';
 import type { UserPermissions } from '@/types/sheets';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authenticateUser, getUserByUsername } from '@/services/userService';
+import { CHECKLIST_TOKEN_KEY } from '@/lib/checklistApiClient';
 
 interface AuthState {
     loggedIn: boolean;
@@ -32,16 +33,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     } else {
                         // User not found or error
                         localStorage.removeItem('auth');
+                        localStorage.removeItem(CHECKLIST_TOKEN_KEY);
                     }
                     setLoading(false);
                 }).catch((error) => {
                     console.error('Error fetching user data:', error);
                     localStorage.removeItem('auth');
+                    localStorage.removeItem(CHECKLIST_TOKEN_KEY);
                     setLoading(false);
                 });
             } catch (error) {
                 console.error('Error parsing stored auth data:', error);
                 localStorage.removeItem('auth');
+                localStorage.removeItem(CHECKLIST_TOKEN_KEY);
                 setLoading(false);
             }
         } else {
@@ -86,6 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     function logout() {
         localStorage.removeItem('auth');
+        localStorage.removeItem(CHECKLIST_TOKEN_KEY);
         setLoggedIn(false);
         setUserPermissions(null);
     }

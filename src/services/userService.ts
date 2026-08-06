@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
+import { CHECKLIST_TOKEN_KEY } from '@/lib/checklistApiClient';
 import { allPermissionKeys, type UserPermissions } from '@/types/sheets';
 
 /**
@@ -9,6 +10,7 @@ import { allPermissionKeys, type UserPermissions } from '@/types/sheets';
 export interface UserRecord extends UserPermissions {
     id: number;
     timestamp: string;
+    day_off?: string;
 }
 
 function normalizeFirmName(value: unknown) {
@@ -33,10 +35,12 @@ function mapUserRow(r: any): UserRecord {
         username: r.user_name || '',
         password: r.password || '',
         name: r.name || '',
+        day_off: r.day_off || '',
         modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
         firmNameMatch: '',
         firm_access: normalizeFirmAccess(r.firm_access),
         rowIndex: r.id, // Using ID as a fallback for rowIndex since it's used in and out of tables
+        role: (r.role === 'SUPER_ADMIN' || r.role === 'ADMIN' || r.role === 'USER') ? r.role : undefined,
     };
 
     // Map each permission key from snake_case in DB to camelCase in UserPermissions
@@ -135,17 +139,26 @@ export async function deleteUser(id: number) {
     }
 }
 
-/**
- * Authenticate a user with username and password
- */
 export async function authenticateUser(username: string, password: string): Promise<UserRecord | null> {
     try {
-        const res: any = await apiClient.post('/store/users/authenticate', { username, password });
-        if (!res.data) return null;
+        const res: any = await apiClient.post('/store/users/authenticate', {
+            username: (username || '').trim(),
+            password: (password || '').trim(),
+        });
+        if (!res || !res.data) return null;
+
+        // Backend also issues a short-lived JWT scoped to the new /checklist/*
+        // routes alongside the legacy (unauthenticated) Store-module payload.
+        if (res.checklistToken) {
+            localStorage.setItem(CHECKLIST_TOKEN_KEY, res.checklistToken);
+        } else {
+            localStorage.removeItem(CHECKLIST_TOKEN_KEY);
+        }
+
         return mapUserRow(res.data);
     } catch (error) {
         console.error('Error authenticating user:', error);
-        return null;
+        throw error;
     }
 }
 

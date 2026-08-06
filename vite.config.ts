@@ -9,6 +9,10 @@ export default defineConfig({
 	server: {
 		host: true,
 		proxy: {
+			'/uploads': {
+				target: 'http://localhost:5001',
+				changeOrigin: true,
+			},
 			'/api/resend': {
 				target: 'https://api.resend.com',
 				changeOrigin: true,

@@ -12,6 +12,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import App from './App';
 import { SheetsProvider } from './context/SheetsContext';
+import { ChecklistProvider } from './context/ChecklistContext';
 const Login = React.lazy(() => import('./components/views/Login'));
 const CreateAccount = React.lazy(() => import('./components/views/CreateAccount'));
 const CreateIndent = React.lazy(() => import('./components/views/CreateIndent'));
@@ -95,6 +96,16 @@ import GlobalDashboard from '@/shared/components/layout/GlobalDashboard';
 import StoreSystemLayout from '@/systems/store/layout/StoreSystemLayout';
 import MaintenanceSystemLayout from '@/systems/maintenance/layout/MaintenanceSystemLayout';
 import MaintenanceDashboard from '@/systems/maintenance/views/MaintenanceDashboard';
+import ChecklistSystemLayout from '@/systems/checklist/layout/ChecklistSystemLayout';
+
+const ChecklistDashboard = React.lazy(() => import('./components/views/checklist/ChecklistDashboard'));
+const QuickTask = React.lazy(() => import('./components/views/checklist/QuickTask'));
+const AssignTask = React.lazy(() => import('./components/views/checklist/AssignTask'));
+const ChecklistSubmission = React.lazy(() => import('./components/views/checklist/ChecklistSubmission'));
+const DelegationSubmission = React.lazy(() => import('./components/views/checklist/DelegationSubmission'));
+const AdminApproval = React.lazy(() => import('./components/views/checklist/AdminApproval'));
+const WorkingCalendar = React.lazy(() => import('./components/views/WorkingCalendar'));
+const Holidays = React.lazy(() => import('./components/views/Holidays'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
@@ -988,6 +999,8 @@ if (rootElement) {
                                     {/* Admin Sub-Routes */}
                                     <Route path="admin/master-registry" element={<GatedRoute identifier="administrate"><MasterManagement /></GatedRoute>} />
                                     <Route path="admin/manage-users" element={<GatedRoute identifier="administrate"><ManageUsers /></GatedRoute>} />
+                                    <Route path="admin/working-calendar" element={<GatedRoute identifier="administrate"><WorkingCalendar /></GatedRoute>} />
+                                    <Route path="admin/holidays" element={<GatedRoute identifier="administrate"><Holidays /></GatedRoute>} />
                                     <Route path="admin/license" element={<Liecense />} />
                                 </Route>
 
@@ -997,6 +1010,24 @@ if (rootElement) {
                                     <Route path="dashboard" element={<MaintenanceDashboard />} />
                                     <Route path="machines" element={<MaintenanceDashboard />} />
                                     <Route path="breakdowns" element={<MaintenanceDashboard />} />
+                                </Route>
+
+                                {/* Layer 2 CHECKLIST & DELEGATION SYSTEM MODULE */}
+                                <Route
+                                    path="checklist"
+                                    element={
+                                        <ChecklistProvider>
+                                            <ChecklistSystemLayout />
+                                        </ChecklistProvider>
+                                    }
+                                >
+                                    <Route index element={<Navigate to="/checklist/dashboard" replace />} />
+                                    <Route path="dashboard" element={<ChecklistDashboard />} />
+                                    <Route path="quick-task" element={<QuickTask />} />
+                                    <Route path="assign" element={<AssignTask />} />
+                                    <Route path="submit/checklist" element={<ChecklistSubmission />} />
+                                    <Route path="submit/delegation" element={<DelegationSubmission />} />
+                                    <Route path="approval" element={<AdminApproval />} />
                                 </Route>
 
                                 {/* LEGACY FLAT ROUTE BACKWARD COMPATIBILITY REDIRECTS */}

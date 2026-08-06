@@ -352,6 +352,7 @@ export default function ApproveIndent() {
                     <div className="flex items-center gap-1">
                         <Input
                             type="number"
+                            step="any"
                             className="w-20 h-8 text-xs"
                             value={qty}
                             onChange={(e) => {
@@ -515,6 +516,7 @@ export default function ApproveIndent() {
                 return isEditing ? (
                     <Input
                         type="number"
+                        step="any"
                         value={val}
                         onChange={(e) => table.options.meta?.onInputChange('approved_quantity', Number(e.target.value))}
                         className="w-20"
@@ -969,7 +971,7 @@ export default function ApproveIndent() {
                                                 <FormLabel>Approved Quantity</FormLabel>
                                                 <FormControl>
                                                     <div className="relative">
-                                                        <Input {...field} type="number" className="pr-12" />
+                                                        <Input {...field} type="number" step="any" className="pr-12" />
                                                         <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-medium">
                                                             {indent.uom}
                                                         </span>

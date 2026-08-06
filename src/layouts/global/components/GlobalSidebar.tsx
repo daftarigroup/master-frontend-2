@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
-import { NAV_CONFIG } from '../config/navConfig';
+import { NAV_CONFIG, getOrderedNavConfig } from '../config/navConfig';
 import { getAccentStyle } from '../config/accentStyles';
 import { AppIcon } from './AppIcon';
 import gsap from 'gsap';
@@ -140,6 +140,7 @@ export const GlobalSidebar: React.FC = () => {
     store_fin: true,
     store_audit: true,
     store_admin: true,
+    global_user_management: true,
     maint_ops: true,
   });
 
@@ -267,6 +268,7 @@ export const GlobalSidebar: React.FC = () => {
       <SidebarHeader className="p-3 border-b border-sidebar-border/60">
         <NavLink
           to="/dashboard"
+          onClick={() => setActiveSystemId('global')}
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg font-bold text-xs tracking-wider transition-all duration-200 shadow-2xs no-underline hover:no-underline [text-decoration:none] ${
               isActive
@@ -286,7 +288,7 @@ export const GlobalSidebar: React.FC = () => {
           // detail — click switches system, navigates to its dashboard, and
           // re-expands the sidebar into the full labeled accordion.
           <div className="flex flex-col items-center gap-3 pt-2">
-            {NAV_CONFIG.map((system) => {
+            {getOrderedNavConfig().filter(system => system.id !== 'global').map((system) => {
               const isPrimary = system.id === activeSystemId;
               return (
                 <Tooltip key={system.id}>
@@ -318,7 +320,7 @@ export const GlobalSidebar: React.FC = () => {
           </div>
         ) : (
         <div ref={contentRef} className="space-y-3">
-        {NAV_CONFIG.map((system) => {
+        {getOrderedNavConfig().filter(system => system.id !== 'global').map((system) => {
           const accent = getAccentStyle(system.accentClassName);
           const isOpen = !!openSystems[system.id];
           const isPrimary = system.id === activeSystemId;

@@ -8,21 +8,50 @@ import { Button } from '../ui/button';
 import { ClipLoader as Loader } from 'react-spinners';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye, EyeClosed } from 'lucide-react';
 import Logo from '../element/Logo';
 import { toast } from 'sonner';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 
 export default () => {
     const { login, loggedIn } = useAuth();
     const [visible, setVisible] = useState(false);
     const navigate = useNavigate();
 
+    const containerRef = useRef<HTMLDivElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+    const logoRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         if (loggedIn) {
             navigate('/');
         }
     }, [loggedIn]);
+
+    useGSAP(() => {
+        const blobs = gsap.utils.toArray<HTMLElement>('.login-blob', containerRef.current);
+
+        const tl = gsap.timeline();
+        tl.from(blobs, { opacity: 0, scale: 0.4, duration: 1.4, stagger: 0.15, ease: 'power3.out' })
+            .from(cardRef.current, { y: 50, opacity: 0, scale: 0.92, duration: 0.9, ease: 'power3.out' }, '-=0.9')
+            .from(logoRef.current, { scale: 0, rotate: -200, opacity: 0, duration: 0.7, ease: 'back.out(1.8)' }, '-=0.55')
+            .from('.form-stagger', { y: 18, opacity: 0, duration: 0.5, stagger: 0.1, ease: 'power2.out' }, '-=0.35');
+
+        gsap.to(logoRef.current, { y: -6, duration: 2, repeat: -1, yoyo: true, ease: 'sine.inOut', delay: 1.6 });
+
+        blobs.forEach((blob, i) => {
+            gsap.to(blob, {
+                x: i % 2 === 0 ? 40 : -40,
+                y: i % 2 === 0 ? -30 : 30,
+                duration: 7 + i,
+                repeat: -1,
+                yoyo: true,
+                ease: 'sine.inOut',
+            });
+        });
+    }, { scope: containerRef });
 
     const schema = z.object({
         username: z.string().nonempty(),
@@ -41,10 +70,11 @@ export default () => {
         try {
             const res = await login(values.username, values.password);
             if (!res) {
-                toast.error("Invalid Username or Password")
+                toast.error("Invalid Username or Password");
             }
-        } catch {
-            toast.error("Something went wrong! Try again")
+        } catch (err: any) {
+            console.error('Login submit error:', err);
+            toast.error(err?.message || "Failed to connect to backend server. Please check backend status.");
         }
     }
 
@@ -53,21 +83,33 @@ export default () => {
     }
 
     return (
-        <div className="grid place-items-center h-screen bg-gradient-to-br from-blue-100 via-purple-50 to-blue-50">
-            <Card className="w-full max-w-sm">
+        <div
+            ref={containerRef}
+            className="relative grid place-items-center h-screen overflow-hidden bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
+        >
+            <div className="login-blob absolute -top-24 -left-24 h-72 w-72 rounded-full bg-gradient-to-br from-blue-300 to-purple-300 blur-3xl opacity-60" />
+            <div className="login-blob absolute top-1/3 -right-20 h-80 w-80 rounded-full bg-gradient-to-br from-purple-300 to-fuchsia-300 blur-3xl opacity-50" />
+            <div className="login-blob absolute -bottom-24 left-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-pink-300 to-blue-200 blur-3xl opacity-50" />
+
+            <Card
+                className="relative w-full max-w-sm bg-white/80 backdrop-blur-sm border-white/60 shadow-xl"
+                ref={cardRef}
+            >
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit, onError)} className="grid gap-6">
                         <CardHeader className="text-center flex justify-center flex-col items-center">
-                            <Logo size={40} />
-                            <CardTitle className="font-bold text-3xl">Store App</CardTitle>
-                            <CardDescription>Please login to your account</CardDescription>
+                            <Logo ref={logoRef} size={72} />
+                            <CardTitle className="form-stagger font-bold text-xl bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                Pooja Constructions PMS
+                            </CardTitle>
+                            <CardDescription className="form-stagger">Please login to your account</CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-4">
                             <FormField
                                 control={form.control}
                                 name="username"
                                 render={({ field }) => (
-                                    <FormItem>
+                                    <FormItem className="form-stagger">
                                         <FormLabel>Username</FormLabel>
                                         <FormControl>
                                             <Input {...field} placeholder="Enter username" />
@@ -79,7 +121,7 @@ export default () => {
                                 control={form.control}
                                 name="password"
                                 render={({ field }) => (
-                                    <FormItem>
+                                    <FormItem className="form-stagger">
                                         <FormLabel>Password</FormLabel>
                                         <FormControl>
                                             <div className="relative">
@@ -110,10 +152,10 @@ export default () => {
                             />
                         </CardContent>
 
-                        <CardFooter>
+                        <CardFooter className="form-stagger">
                             <Button
                                 type="submit"
-                                className="bg-gradient-to-br from-blue-600 to-purple-600 font-medium w-full"
+                                className="bg-gradient-to-br from-blue-600 to-purple-600 font-medium w-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
                                 disabled={form.formState.isSubmitting}
                             >
                                 {form.formState.isSubmitting && (

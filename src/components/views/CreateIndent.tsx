@@ -1163,6 +1163,7 @@ export default () => {
                                                                 <FormControl>
                                                                     <Input
                                                                         type="number"
+                                                                        step="any"
                                                                         {...field}
                                                                         placeholder="Enter quantity"
                                                                         disabled={!currentGroupHead}
@@ -1182,6 +1183,7 @@ export default () => {
                                                                 <FormControl>
                                                                     <Input
                                                                         type="number"
+                                                                        step="any"
                                                                         {...field}
                                                                         placeholder="Current stock quantity"
                                                                         disabled={!currentGroupHead}

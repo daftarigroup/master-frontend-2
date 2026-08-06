@@ -673,6 +673,7 @@ export default () => {
                                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Quantity</Label>
                                         <Input
                                             type="number"
+                                            step="any"
                                             value={transferDialog.quantity || ''}
                                             onChange={(e) => setTransferDialog(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                                             placeholder="0.00"

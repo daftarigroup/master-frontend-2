@@ -286,13 +286,17 @@ export type MasterSheet = {
 
 
 export type UserPermissions = {
+    id?: number;
     rowIndex: number
     username: string;
     password: string;
     name: string;
+    day_off?: string;
     modify_access: 'EDIT' | 'VIEW';
     firmNameMatch: string; // Keep for legacy if needed
     firm_access: string[]; // New field for project-based access
+
+    role?: 'SUPER_ADMIN' | 'ADMIN' | 'USER'; // New independent role field (Checklist & Delegation module)
 
     administrate: boolean;
     createIndent: boolean;

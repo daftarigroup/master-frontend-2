@@ -196,14 +196,19 @@ export default function QuotationPage() {
     // Derive suppliers directly from context data — no extra Supabase calls needed
     const masterSuppliers = useMemo<MasterSheetSupplier[]>(() => {
         const vendorsArray: any[] = (details as any)?.vendors || [];
-        return vendorsArray
-            .map((vendor: any) => ({
-                supplierName: vendor.vendorName || vendor.supplierName || '',
-                vendorGstin: vendor.gstin || vendor.vendorGstin || '',
-                vendorAddress: vendor.address || vendor.vendorAddress || '',
-                email: vendor.email || '',
-            }))
-            .filter((s: MasterSheetSupplier) => s.supplierName.trim() !== '');
+        const map = new Map<string, MasterSheetSupplier>();
+        vendorsArray.forEach((vendor: any) => {
+            const name = String(vendor.vendorName || vendor.supplierName || '').trim();
+            if (name && !map.has(name)) {
+                map.set(name, {
+                    supplierName: name,
+                    vendorGstin: vendor.gstin || vendor.vendorGstin || '',
+                    vendorAddress: vendor.address || vendor.vendorAddress || '',
+                    email: vendor.email || '',
+                });
+            }
+        });
+        return Array.from(map.values());
     }, [details]);
 
     // Filter eligible items - planned2 NOT NULL and actual2 effectively empty

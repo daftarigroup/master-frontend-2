@@ -1,13 +1,19 @@
 import { cn } from '@/lib/utils';
-import { Package } from 'lucide-react';
+import { forwardRef } from 'react';
+import daftariLogo from '@/assets/daftari2.png';
 
-export default ({ className, size }: { className?: string; size?: number }) => (
-    <div
-        className={cn(
-            'flex p-2 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-md',
-            className
-        )}
-    >
-        <Package className="text-background" size={size} />
-    </div>
+export default forwardRef<HTMLDivElement, { className?: string; size?: number }>(
+    ({ className, size = 32 }, ref) => (
+        <div
+            ref={ref}
+            className={cn('flex items-center justify-center', className)}
+        >
+            <img
+                src={daftariLogo}
+                alt="Logo"
+                style={{ width: size, height: size }}
+                className="object-contain"
+            />
+        </div>
+    )
 );

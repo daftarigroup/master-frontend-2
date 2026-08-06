@@ -421,6 +421,7 @@ export default () => {
                                                                 <FormControl>
                                                                     <Input
                                                                         type="number"
+                                                                        step="any"
                                                                         className="h-11 bg-white border-primary/20 focus:ring-primary/20 font-bold text-primary"
                                                                         {...field}
                                                                     />
@@ -440,6 +441,7 @@ export default () => {
                                                                 <FormControl>
                                                                     <Input
                                                                         type="number"
+                                                                        step="any"
                                                                         placeholder="0"
                                                                         className="h-11 bg-white border-red-200 focus:ring-red-100 text-red-600 font-bold"
                                                                         {...field}

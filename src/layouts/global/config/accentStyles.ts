@@ -48,6 +48,20 @@ export const ACCENT_STYLES: Record<string, AccentStyle> = {
     iconBg: 'bg-amber-600',
     ring: 'ring-amber-600/40',
   },
+  indigo: {
+    gradient: 'from-indigo-600/15 via-indigo-600/10 to-transparent',
+    border: 'border-indigo-600',
+    text: 'text-indigo-700 dark:text-indigo-400',
+    iconBg: 'bg-indigo-600',
+    ring: 'ring-indigo-600/40',
+  },
+  slate: {
+    gradient: 'from-slate-600/15 via-slate-600/10 to-transparent',
+    border: 'border-slate-600',
+    text: 'text-slate-700 dark:text-slate-400',
+    iconBg: 'bg-slate-600',
+    ring: 'ring-slate-600/40',
+  },
 };
 
 export const getAccentStyle = (accentClassName: string): AccentStyle =>

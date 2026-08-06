@@ -33,6 +33,10 @@ import {
   Building2,
   FileText,
   ClipboardList,
+  LayoutDashboard,
+  PlusCircle,
+  CheckSquare,
+  ClipboardCheck,
   X,
 } from 'lucide-react';
 
@@ -174,6 +178,12 @@ export const GlobalSearchDialog: React.FC = () => {
       { title: 'Inventory Stock', category: 'Inventory', path: '/store/inventory', icon: <Package className="mr-2 h-4 w-4 text-purple-500" /> },
       { title: 'Manage Users & Roles', category: 'Settings', path: '/store/settings/users', icon: <Users className="mr-2 h-4 w-4 text-blue-600" /> },
       { title: 'Master Management (Vendors & Items)', category: 'Settings', path: '/store/settings/masters', icon: <Database className="mr-2 h-4 w-4 text-indigo-600" /> },
+      { title: 'Checklist Dashboard', category: 'Checklist', path: '/checklist/dashboard', icon: <LayoutDashboard className="mr-2 h-4 w-4 text-purple-500" /> },
+      { title: 'Quick Task', category: 'Checklist', path: '/checklist/quick-task', icon: <PlusCircle className="mr-2 h-4 w-4 text-blue-500" /> },
+      { title: 'Assign Task', category: 'Checklist', path: '/checklist/assign', icon: <ClipboardList className="mr-2 h-4 w-4 text-emerald-500" /> },
+      { title: 'Checklist Submission', category: 'Checklist', path: '/checklist/submit/checklist', icon: <CheckSquare className="mr-2 h-4 w-4 text-indigo-500" /> },
+      { title: 'Delegation Submission', category: 'Checklist', path: '/checklist/submit/delegation', icon: <ClipboardCheck className="mr-2 h-4 w-4 text-teal-500" /> },
+      { title: 'Admin Approval', category: 'Checklist', path: '/checklist/approval', icon: <ShieldCheck className="mr-2 h-4 w-4 text-rose-500" /> },
     ],
     []
   );

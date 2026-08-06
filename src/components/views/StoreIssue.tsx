@@ -513,6 +513,7 @@ export default () => {
                                                                 <FormControl>
                                                                     <Input
                                                                         type="number"
+                                                                        step="any"
                                                                         className="h-10 bg-slate-50/50 border-slate-200"
                                                                         {...field}
                                                                         disabled={!groupHead}

@@ -30,6 +30,8 @@ import {
   Building2,
   FileText,
   Wallet,
+  Settings,
+  CalendarOff,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -61,6 +63,14 @@ export interface SystemNavConfig {
  * (Hybrid architecture: primary system expanded, others collapsed).
  */
 export const NAV_CONFIG: SystemNavConfig[] = [
+  {
+    id: 'global',
+    name: 'Global Dashboard',
+    icon: LayoutDashboard,
+    accentClassName: 'indigo',
+    dashboardPath: '/dashboard',
+    groups: [],
+  },
   {
     id: 'store',
     name: 'Store & Inventory',
@@ -146,8 +156,52 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         title: 'Store Administration',
         items: [
           { name: 'Master Registry', path: '/store/admin/master-registry', icon: FileSpreadsheet, gateKey: 'administrate' },
-          { name: 'Manage Users', path: '/store/admin/manage-users', icon: Users, gateKey: 'administrate' },
           { name: 'License', path: '/store/admin/license', icon: KeyRound },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'checklist',
+    name: 'Checklist & Delegation',
+    icon: CheckSquare,
+    accentClassName: 'purple',
+    dashboardPath: '/checklist/dashboard',
+    groups: [
+      {
+        key: 'checklist_ops',
+        title: 'Task Operations',
+        items: [
+          { name: 'Dashboard', path: '/checklist/dashboard', icon: LayoutDashboard },
+          { name: 'Quick Task', path: '/checklist/quick-task', icon: PlusCircle },
+          { name: 'Assign Task', path: '/checklist/assign', icon: ClipboardList },
+          { name: 'Checklist Submission', path: '/checklist/submit/checklist', icon: CheckSquare },
+          { name: 'Delegation Submission', path: '/checklist/submit/delegation', icon: ClipboardCheck },
+          { name: 'Admin Approval', path: '/checklist/approval', icon: ShieldCheck },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'master_settings',
+    name: 'Master Settings',
+    icon: Settings,
+    accentClassName: 'indigo',
+    dashboardPath: '/store/admin/manage-users',
+    groups: [
+      {
+        key: 'global_user_management',
+        title: 'User Management',
+        items: [
+          { name: 'Manage Users', path: '/store/admin/manage-users', icon: Users, gateKey: 'administrate' },
+        ],
+      },
+      {
+        key: 'global_calendar',
+        title: 'Calendar & Holidays',
+        items: [
+          { name: 'Working Calendar', path: '/store/admin/working-calendar', icon: Clock, gateKey: 'administrate' },
+          { name: 'Holidays', path: '/store/admin/holidays', icon: CalendarOff, gateKey: 'administrate' },
         ],
       },
     ],
@@ -173,15 +227,6 @@ export const NAV_CONFIG: SystemNavConfig[] = [
   },
 */
   {
-    id: 'checklist',
-    name: 'Checklist & Delegation',
-    icon: CheckSquare,
-    accentClassName: 'purple',
-    dashboardPath: '/checklist/dashboard',
-    disabled: true,
-    groups: [],
-  },
-  {
     id: 'document',
     name: 'Document & Subscription',
     icon: FileText,
@@ -200,6 +245,19 @@ export const NAV_CONFIG: SystemNavConfig[] = [
     groups: [],
   },
 ];
+
+/**
+ * Returns NAV_CONFIG dynamically ordered so all active operational systems come first,
+ * followed by Master Settings placed below all active systems, followed by Coming Soon systems.
+ */
+export const getOrderedNavConfig = (config: SystemNavConfig[] = NAV_CONFIG): SystemNavConfig[] => {
+  const globalSystem = config.filter((s) => s.id === 'global');
+  const activeSystems = config.filter((s) => !s.disabled && s.id !== 'master_settings' && s.id !== 'global');
+  const masterSettings = config.filter((s) => s.id === 'master_settings');
+  const disabledSystems = config.filter((s) => s.disabled);
+
+  return [...globalSystem, ...activeSystems, ...masterSettings, ...disabledSystems];
+};
 
 export const getSystemConfig = (systemId: string): SystemNavConfig | undefined =>
   NAV_CONFIG.find((sys) => sys.id === systemId);

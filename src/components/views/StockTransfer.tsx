@@ -322,6 +322,7 @@ export default () => {
                                                         <div className="relative">
                                                             <Input
                                                                 type="number"
+                                                                step="any"
                                                                 placeholder="0.00"
                                                                 className="bg-background/50 pr-12"
                                                                 {...field}

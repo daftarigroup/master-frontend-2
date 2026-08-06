@@ -5,8 +5,8 @@ import { useSheets } from '@/context/SheetsContext';
 import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { Button } from '@/components/ui/button';
-import { LogOut, RotateCw, Search, Bell, Grid, Store, CheckSquare, FileText, Wallet, CheckCircle2, Wrench, ChevronDown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { LogOut, RotateCw, Search, Bell, Grid, Store, CheckSquare, FileText, Wallet, CheckCircle2, Wrench, ChevronDown, LayoutDashboard, Settings } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,8 +23,34 @@ import { AppLauncherOverlay } from './AppLauncherOverlay';
 export const TopBar: React.FC = () => {
   const { user, logout } = useAuth();
   const { updateAll, allLoading, indentSheet, storeInSheet, issueSheet, paymentsSheet } = useSheets();
-  const { activeSystemId, isSearchOpen, setIsSearchOpen, setIsLauncherOpen } = usePlatform();
+  const { activeSystemId, setActiveSystemId, isSearchOpen, setIsSearchOpen, setIsLauncherOpen } = usePlatform();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Sync activeSystemId with current URL path
+  useEffect(() => {
+    if (location.pathname === '/dashboard' || location.pathname === '/') {
+      if (activeSystemId !== 'global') {
+        setActiveSystemId('global');
+      }
+    } else if (location.pathname.startsWith('/checklist')) {
+      if (activeSystemId !== 'checklist') {
+        setActiveSystemId('checklist');
+      }
+    } else if (
+      location.pathname.startsWith('/store/admin/manage-users') ||
+      location.pathname.startsWith('/store/admin/working-calendar') ||
+      location.pathname.startsWith('/store/admin/holidays')
+    ) {
+      if (activeSystemId !== 'master_settings') {
+        setActiveSystemId('master_settings');
+      }
+    } else if (location.pathname.startsWith('/store')) {
+      if (activeSystemId !== 'store') {
+        setActiveSystemId('store');
+      }
+    }
+  }, [location.pathname, activeSystemId, setActiveSystemId]);
 
   // Cmd+K / Ctrl+K keyboard shortcut listener
   useEffect(() => {
@@ -41,9 +67,11 @@ export const TopBar: React.FC = () => {
   // Kept in sync with `NAV_CONFIG` (src/layouts/global/config/navConfig.ts) —
   // both the sidebar and this switcher read from the same set of systems.
   const systems = [
+    { id: 'global', name: 'Global Dashboard', icon: <LayoutDashboard className="size-4" />, path: '/dashboard' },
     { id: 'store', name: 'Store & Inventory', icon: <Store className="size-4" />, path: '/store/dashboard' },
     // { id: 'maintenance', name: 'Maintenance', icon: <Wrench className="size-4" />, path: '/maintenance/dashboard' },
-    { id: 'checklist', name: 'Checklist & Delegation', icon: <CheckSquare className="size-4" />, path: '/checklist/dashboard', disabled: true },
+    { id: 'checklist', name: 'Checklist & Delegation', icon: <CheckSquare className="size-4" />, path: '/checklist/dashboard' },
+    { id: 'master_settings', name: 'Master Settings', icon: <Settings className="size-4" />, path: '/store/admin/manage-users' },
     { id: 'document', name: 'Document & Subscription', icon: <FileText className="size-4" />, path: '/document/dashboard', disabled: true },
     { id: 'petty_cash', name: 'Petty Cash', icon: <Wallet className="size-4" />, path: '/petty-cash/dashboard', disabled: true },
   ];

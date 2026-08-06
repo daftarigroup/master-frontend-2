@@ -1113,7 +1113,7 @@ export default () => {
                                                                 <FormItem>
                                                                     <FormLabel>Receiving Qty</FormLabel>
                                                                     <FormControl>
-                                                                        <Input type="number" {...field} placeholder="Enter quantity" />
+                                                                        <Input type="number" step="any" {...field} placeholder="Enter quantity" />
                                                                     </FormControl>
                                                                 </FormItem>
                                                             )}
@@ -1411,6 +1411,7 @@ export default () => {
                                                                         <FormControl>
                                                                             <Input
                                                                                 type="number"
+                                                                                step="any"
                                                                                 {...inputField}
                                                                                 max={field.qty}
                                                                                 className="h-8 text-right"

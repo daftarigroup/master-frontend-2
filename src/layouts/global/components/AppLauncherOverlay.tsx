@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { usePlatform } from '../context/PlatformContext';
-import { NAV_CONFIG } from '../config/navConfig';
+import { NAV_CONFIG, getOrderedNavConfig } from '../config/navConfig';
 import { AppIcon } from './AppIcon';
 import { X } from 'lucide-react';
 
@@ -107,7 +107,7 @@ export const AppLauncherOverlay: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 lg:gap-2">
-            {NAV_CONFIG.map((system) => {
+            {getOrderedNavConfig().map((system) => {
               const isActive = system.id === activeSystemId;
               return (
                 <button
