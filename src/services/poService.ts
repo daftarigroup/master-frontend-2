@@ -31,26 +31,26 @@ export interface PoMasterRecord {
     quotationDate: string;
     enquiryNumber: string;
     enquiryDate: string;
-    term1: string;
-    term2: string;
-    term3: string;
-    term4: string;
-    term5: string;
-    term6: string;
-    term7: string;
-    term8: string;
-    term9: string;
-    term10: string;
-    term11: string;
-    term12: string;
-    term13: string;
-    term14: string;
-    term15: string;
-    term16: string;
-    term17: string;
-    term18: string;
-    term19: string;
-    term20: string;
+    term1?: string;
+    term2?: string;
+    term3?: string;
+    term4?: string;
+    term5?: string;
+    term6?: string;
+    term7?: string;
+    term8?: string;
+    term9?: string;
+    term10?: string;
+    term11?: string;
+    term12?: string;
+    term13?: string;
+    term14?: string;
+    term15?: string;
+    term16?: string;
+    term17?: string;
+    term18?: string;
+    term19?: string;
+    term20?: string;
     deliveryDate: string;
     paymentTerms: string;
     numberOfDays: number;
@@ -71,6 +71,7 @@ export interface PoMasterRecord {
     siteEngineerPhoneNo2?: string;
     po_created_date?: string;
     poDate?: string;
+    terms?: string;
 }
 
 export async function fetchIndents(permittedFirms?: string[]) {
@@ -214,6 +215,7 @@ export async function fetchPoMaster(permittedFirms?: string[]) {
             term18: r.term18 || '',
             term19: r.term19 || '',
             term20: r.term20 || '',
+            terms: r.terms || '',
             deliveryDate: r.delivery_date || '',
             paymentTerms: r.payment_terms || '',
             numberOfDays: Number(r.number_of_days) || 0,
@@ -304,6 +306,7 @@ export async function fetchPoMasterByPoNumber(poNumber: string): Promise<PoMaste
             term18: r.term18 || '',
             term19: r.term19 || '',
             term20: r.term20 || '',
+            terms: r.terms || '',
             deliveryDate: r.delivery_date || '',
             paymentTerms: r.payment_terms || '',
             numberOfDays: Number(r.number_of_days) || 0,
@@ -453,8 +456,6 @@ export async function insertPoRecords(poRecords: any[]) {
             timestamp: record.timestamp,
             po_created_date: record.po_created_date || record.timestamp || new Date().toISOString(),
             party_name: record.partyName || '',
-            supplier_address: record.supplierAddress || '',
-            supplier_gstin: record.supplierGstin || '',
             po_number: record.poNumber || '',
             internal_code: record.internalCode || '',
             product: record.product || '',
@@ -471,16 +472,6 @@ export async function insertPoRecords(poRecords: any[]) {
             quotation_date: record.quotationDate || '',
             enquiry_number: record.enquiryNumber || '',
             enquiry_date: record.enquiryDate || '',
-            term1: record.term1 || '',
-            term2: record.term2 || '',
-            term3: record.term3 || '',
-            term4: record.term4 || '',
-            term5: record.term5 || '',
-            term6: record.term6 || '',
-            term7: record.term7 || '',
-            term8: record.term8 || '',
-            term9: record.term9 || '',
-            term10: record.term10 || '',
             delivery_date: record.deliveryDate || '',
             payment_terms: record.paymentTerms || '',
             number_of_days: String(record.numberOfDays || 0),
@@ -493,7 +484,7 @@ export async function insertPoRecords(poRecords: any[]) {
             advance_amount: record.advanceAmount || 0,
             terms: typeof record.terms === 'string'
                 ? record.terms
-                : (record.terms ? JSON.stringify(record.terms) : (record.termsObject ? JSON.stringify(record.termsObject) : '')),
+                : (record.terms ? JSON.stringify(record.terms) : ''),
             site_engineer_name: record.siteEngineerName || '',
             site_engineer_email: record.siteEngineerEmail || '',
             site_engineer_phoneNo: record.siteEngineerPhoneNo || '',

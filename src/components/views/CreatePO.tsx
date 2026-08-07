@@ -1077,16 +1077,6 @@ const CreatePO = () => {
                     quotationDate: '',
                     enquiryNumber: values.ourEnqNo || '',
                     enquiryDate: values.enquiryDate ? formatDateTime(values.enquiryDate) : '',
-                    term1: combinedTerms[0] || '',
-                    term2: combinedTerms[1] || '',
-                    term3: combinedTerms[2] || '',
-                    term4: combinedTerms[3] || '',
-                    term5: combinedTerms[4] || '',
-                    term6: combinedTerms[5] || '',
-                    term7: combinedTerms[6] || '',
-                    term8: combinedTerms[7] || '',
-                    term9: combinedTerms[8] || '',
-                    term10: combinedTerms[9] || '',
                     terms: JSON.stringify(combinedTerms),
                     deliveryDate: formatDateTime(values.deliveryDate),
                     paymentTerms: v.paymentTerm || '',
@@ -1097,13 +1087,6 @@ const CreatePO = () => {
                     firm_id: indent?.firm_id,
                     advancePercent: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (v.numberOfDays || 0) : 0,
                     advanceAmount: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (calculateTotal(v.rate || 0, v.gst || 0, v.discount || 0, v.quantity || 0) * (v.numberOfDays || 0)) / 100 : 0,
-                    termsObject: {
-                        ...userTerms.reduce((acc, term, idx) => {
-                            acc[`term${idx + 1}`] = term;
-                            return acc;
-                        }, {} as Record<string, string>),
-                        localTerms: localTerms.map(t => ({ title: t.title, name: t.name }))
-                    },
                     destinationAddress: destinationAddress,
                     supplierAddress: values.supplierAddress || selectedVendor?.address || '',
                     supplierGstin: values.gstin || selectedVendor?.gstin || '',
