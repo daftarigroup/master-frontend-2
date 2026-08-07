@@ -86,7 +86,8 @@ const siteLocationSchema = z.object({
     location: z.string().min(1, 'Required'),
 });
 const itemSchema = z.object({
-    firm_name: z.string().min(1, 'Project selection is required'),
+    firm_name: optionalText(),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_id: optionalText(),
     item_name: z.string().min(1, 'Required'),
     group_head: z.string().min(1, 'Required'),
@@ -103,11 +104,11 @@ const itemSchema = z.object({
             message: 'Quantity must be greater than 0',
         });
     }
-    if (data.include_in_inventory && !data.firm_name) {
+    if (data.include_in_inventory && (!data.selected_firms || data.selected_firms.length === 0)) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['firm_name'],
-            message: 'Project is required for inventory',
+            path: ['selected_firms'],
+            message: 'At least one project is required for inventory',
         });
     }
 });
@@ -315,7 +316,11 @@ export default function MasterManagement() {
                 destination_address: editingRecord.destination_address ?? '',
             };
             if (openDialog === 'vendor') vForm.reset(normalized);
-            if (openDialog === 'item') iForm.reset({ ...normalized, include_in_inventory: false, inventory_quantity: 0 });
+            if (openDialog === 'item') {
+                const existingFirm = editingRecord?.firm_name;
+                const initialFirms = existingFirm ? [existingFirm] : (masterSheet?.firms ? [...masterSheet.firms] : []);
+                iForm.reset({ ...normalized, selected_firms: initialFirms, include_in_inventory: false, inventory_quantity: 0 });
+            }
             if (openDialog === 'dept') dForm.reset(normalized);
             if (openDialog === 'project') pForm.reset(normalized);
             if (openDialog === 'gh') ghForm.reset(normalized);
@@ -329,7 +334,7 @@ export default function MasterManagement() {
             if (openDialog === 'terms_condition') tcForm.reset({ title: editingRecord.title ?? '', name: editingRecord.name ?? '' });
         } else if (openDialog) {
             if (openDialog === 'vendor') vForm.reset({ vendor_name: '', vendor_gstin: '', vendor_address: '', vendor_email: '', payment_term: '', responsible_person: '', location: '', phone: '' });
-            if (openDialog === 'item') iForm.reset({ item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] });
+            if (openDialog === 'item') iForm.reset({ item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', selected_firms: masterSheet?.firms ? [...masterSheet.firms] : [], regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] });
             if (openDialog === 'dept') dForm.reset({ department: '' });
             if (openDialog === 'project') pForm.reset({ firm_name: '', destination_address: '' });
             if (openDialog === 'gh') ghForm.reset({ group_head: '' });
@@ -383,7 +388,11 @@ export default function MasterManagement() {
     const handleDelete = async (record: any, type?: string) => {
         if (confirm('Permanently delete this record?')) {
             let res;
-            if (type === 'site_engineer') res = await deleteSiteEngineer(record.number);
+            if ((type === 'item' || record.__table === 'item') && Array.isArray(record.all_ids) && record.all_ids.length > 0) {
+                const ops = record.all_ids.map((id: number) => deleteMasterData(id, 'item'));
+                const results = await Promise.all(ops);
+                res = { success: results.every(r => r.success) };
+            } else if (type === 'site_engineer') res = await deleteSiteEngineer(record.number);
             else if (type === 'contractor') res = await deleteContractor(record.id);
             else if (type === 'site_location') res = await deleteSiteLocation(record.id);
             else if (type === 'terms_condition') res = await deleteTermsAndCondition(record.id);
@@ -581,7 +590,64 @@ export default function MasterManagement() {
                     ? { group_head: values.group_head || null, uom: values.uom || null }
                     : itemPayload;
 
-            if (editingRecord) {
+            if (type === 'item') {
+                const selectedFirms: string[] = (values.selected_firms && values.selected_firms.length > 0)
+                    ? values.selected_firms
+                    : (values.firm_name ? [values.firm_name] : []);
+
+                if (editingRecord) {
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    const selectedFirmObj = masterSheet?.firmObjects?.find((f) => f.name === firstFirm);
+                    const firmIdVal = selectedFirmObj?.id ? Number(selectedFirmObj.id) : null;
+
+                    const payload = {
+                        firm_name: firstFirm,
+                        firm_id: firmIdVal,
+                        item_name: values.item_name,
+                        group_head: values.group_head,
+                        uom: values.uom,
+                        regular_conditions: values.regular_conditions?.map((c: any) => c.value).filter(Boolean) || [],
+                        third_party_conditions: values.third_party_conditions?.map((c: any) => c.value).filter(Boolean) || [],
+                    };
+                    res = await updateMasterData(editingRecord.id, payload);
+
+                    if (selectedFirms.length > 1) {
+                        const extraFirms = selectedFirms.slice(1);
+                        const extraPromises = extraFirms.map((firmName: string) => {
+                            const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
+                            return insertMasterData({
+                                firm_name: firmName,
+                                firm_id: sObj?.id ? Number(sObj.id) : null,
+                                item_name: values.item_name,
+                                group_head: values.group_head,
+                                uom: values.uom,
+                                regular_conditions: values.regular_conditions?.map((c: any) => c.value).filter(Boolean) || [],
+                                third_party_conditions: values.third_party_conditions?.map((c: any) => c.value).filter(Boolean) || [],
+                            });
+                        });
+                        await Promise.all(extraPromises);
+                    }
+                } else {
+                    const insertPromises = selectedFirms.map((firmName: string) => {
+                        const selectedFirmObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
+                        const firmIdVal = selectedFirmObj?.id ? Number(selectedFirmObj.id) : null;
+
+                        const payload = {
+                            firm_name: firmName,
+                            firm_id: firmIdVal,
+                            item_name: values.item_name,
+                            group_head: values.group_head,
+                            uom: values.uom,
+                            regular_conditions: values.regular_conditions?.map((c: any) => c.value).filter(Boolean) || [],
+                            third_party_conditions: values.third_party_conditions?.map((c: any) => c.value).filter(Boolean) || [],
+                        };
+                        return insertMasterData(payload);
+                    });
+
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
+                }
+            } else if (editingRecord) {
                 if (type === 'dept') {
                     const targets = allRecords.filter(r => r.department === editingRecord.department);
                     const updates = targets.map(t => updateMasterData(t.id, { department: values.department }));
@@ -646,19 +712,26 @@ export default function MasterManagement() {
             }
 
             if (res.success && type === 'item' && values.include_in_inventory) {
-                const firmId = masterSheet?.firmObjects?.find((firm) => firm.name === values.firm_name)?.id;
-                const inventoryRes = await addItemToInventory({
-                    itemName: values.item_name,
-                    groupHead: values.group_head,
-                    uom: values.uom,
-                    quantity: values.inventory_quantity,
-                    firmName: values.firm_name,
-                    firmId,
-                    inventoryRecordId: existingInventoryId ?? undefined,
+                const selectedFirms: string[] = (values.selected_firms && values.selected_firms.length > 0)
+                    ? values.selected_firms
+                    : [values.firm_name];
+
+                const invPromises = selectedFirms.map((firmName: string) => {
+                    const firmId = masterSheet?.firmObjects?.find((firm) => firm.name === firmName)?.id;
+                    return addItemToInventory({
+                        itemName: values.item_name,
+                        groupHead: values.group_head,
+                        uom: values.uom,
+                        quantity: values.inventory_quantity,
+                        firmName: firmName,
+                        firmId,
+                        inventoryRecordId: existingInventoryId ?? undefined,
+                    });
                 });
 
-                if (!inventoryRes.success) {
-                    toast.error('Item saved, but inventory could not be updated');
+                const invResults = await Promise.all(invPromises);
+                if (!invResults.every((r) => r.success)) {
+                    toast.error('Item saved, but inventory could not be updated for all projects');
                     return;
                 }
 
@@ -673,7 +746,44 @@ export default function MasterManagement() {
     };
 
     const vendorsData = allRecords.filter(r => r.vendor_name);
-    const itemsData = allRecords.filter(r => r.item_name);
+    const rawItems = allRecords.filter(r => r.item_name);
+    const itemsDataMap: Record<string, any> = {};
+
+    rawItems.forEach((item: any) => {
+        const key = (item.item_name || '').trim().toLowerCase();
+
+        const firmNameFromObj = item.firm_id
+            ? masterSheet?.firmObjects?.find((f: any) => String(f.id) === String(item.firm_id))?.name
+            : null;
+        const firmName = firmNameFromObj || item.firm_name || '';
+
+        if (!itemsDataMap[key]) {
+            itemsDataMap[key] = {
+                ...item,
+                all_ids: [item.id],
+                all_firm_ids: item.firm_id ? [item.firm_id] : [],
+                all_firm_names: firmName ? [firmName] : [],
+            };
+        } else {
+            const existing = itemsDataMap[key];
+            existing.all_ids.push(item.id);
+            if (item.firm_id && !existing.all_firm_ids.includes(item.firm_id)) {
+                existing.all_firm_ids.push(item.firm_id);
+            }
+            if (firmName && !existing.all_firm_names.includes(firmName)) {
+                existing.all_firm_names.push(firmName);
+            }
+        }
+    });
+
+    const itemsData = Object.values(itemsDataMap).map((item: any) => {
+        const firm_name = item.all_firm_names.join(', ') || '--';
+        return {
+            ...item,
+            firm_name,
+            selected_firms: item.all_firm_names,
+        };
+    });
     const departmentsData = Array.from(new Set(allRecords.map(r => r.department).filter(Boolean))).map(name => {
         const original = allRecords.find(r => r.department === name);
         return { department: name, id: original?.id };
@@ -969,28 +1079,90 @@ export default function MasterManagement() {
                                 {openDialog === 'item' && (
                                     <Form {...iForm}>
                                         <form className="grid gap-4" onSubmit={iForm.handleSubmit(v => onSubmit(v, 'item'), onInvalid)}>
-                                            <FormField control={iForm.control} name="firm_name" render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Select Project / Firm *</FormLabel>
-                                                    <Select onValueChange={(val) => {
-                                                        field.onChange(val);
-                                                        const firmObj = masterSheet?.firmObjects?.find(f => f.name === val);
-                                                        if (firmObj) iForm.setValue('firm_id', String(firmObj.id));
-                                                    }} value={field.value || ''}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="w-full">
-                                                                <SelectValue placeholder="Select Project / Firm" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            {masterSheet?.firms?.map((firm) => (
-                                                                <SelectItem key={firm} value={firm}>{firm}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )} />
+                                            <FormField control={iForm.control} name="selected_firms" render={({ field }) => {
+                                                const allFirms = masterSheet?.firms || [];
+                                                const selectedList = field.value || [];
+                                                const isAllSelected = allFirms.length > 0 && selectedList.length === allFirms.length;
+
+                                                const toggleSelectAll = () => {
+                                                    if (isAllSelected) {
+                                                        field.onChange([]);
+                                                    } else {
+                                                        field.onChange([...allFirms]);
+                                                     }
+                                                };
+
+                                                const toggleFirm = (firm: string) => {
+                                                    if (selectedList.includes(firm)) {
+                                                        field.onChange(selectedList.filter(f => f !== firm));
+                                                    } else {
+                                                        field.onChange([...selectedList, firm]);
+                                                    }
+                                                };
+
+                                                return (
+                                                    <FormItem className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <FormLabel className="text-sm font-semibold">Select Project / Firm *</FormLabel>
+                                                            <span className="text-xs text-muted-foreground font-medium">
+                                                                {selectedList.length} of {allFirms.length} selected
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="border rounded-lg p-3 bg-muted/10 space-y-2.5">
+                                                            {allFirms.length > 0 && (
+                                                                <div className="flex items-center space-x-2 border-b pb-2 mb-1">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id="select-all-firms"
+                                                                        checked={isAllSelected}
+                                                                        onChange={toggleSelectAll}
+                                                                        className="h-4 w-4 rounded border-input accent-primary cursor-pointer shrink-0"
+                                                                    />
+                                                                    <label htmlFor="select-all-firms" className="text-xs font-bold text-primary cursor-pointer select-none">
+                                                                        Select All Projects / Firms
+                                                                    </label>
+                                                                </div>
+                                                            )}
+
+                                                            <ScrollArea className="max-h-40 pr-2">
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                    {allFirms.map((firm) => {
+                                                                        const isChecked = selectedList.includes(firm);
+                                                                        return (
+                                                                            <div
+                                                                                key={firm}
+                                                                                onClick={() => toggleFirm(firm)}
+                                                                                className={cn(
+                                                                                    "flex items-center space-x-2 p-2 rounded-md border text-xs cursor-pointer transition-colors select-none",
+                                                                                    isChecked
+                                                                                        ? "bg-primary/10 border-primary/40 font-semibold text-primary"
+                                                                                        : "bg-background hover:bg-muted/50 border-border/60"
+                                                                                )}
+                                                                            >
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    id={`firm-chk-${firm}`}
+                                                                                    checked={isChecked}
+                                                                                    onChange={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        toggleFirm(firm);
+                                                                                    }}
+                                                                                    className="h-4 w-4 rounded border-input accent-primary cursor-pointer shrink-0"
+                                                                                />
+                                                                                <span className="cursor-pointer truncate flex-1">
+                                                                                    {firm}
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </ScrollArea>
+                                                        </div>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                );
+                                            }} />
                                             <FormField control={iForm.control} name="item_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Item Name</FormLabel>
