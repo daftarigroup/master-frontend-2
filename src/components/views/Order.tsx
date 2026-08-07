@@ -82,11 +82,7 @@ export default function POHistory() {
     const handleOpenPdf = async (poNumber: string, _rawPdfUrl?: string) => {
         try {
             setOpeningPo(poNumber);
-            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
-                ? undefined
-                : user.firm_access;
-            const freshPoMaster = await fetchPoMaster(permittedFirms);
-            await openPoPdfPreview(poNumber, freshPoMaster);
+            await openPoPdfPreview(poNumber);
         } catch (err) {
             console.error('Error opening PO PDF:', err);
             toast.error('Failed to open PO PDF');
@@ -232,7 +228,7 @@ export default function POHistory() {
                 // Fetch PO Master data
                 let poQuery = supabase
                     .from('po_master')
-                    .select('po_number, approved_by, pdf, prepared_by, total_po_amount, party_name, timestamp, firm_id')
+                    .select('po_number, approved_by, pdf, prepared_by, total_po_amount, party_name, timestamp, po_created_date, firm_id')
                     .order('timestamp', { ascending: false });
 
                 const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
@@ -307,7 +303,7 @@ export default function POHistory() {
                         totalAmount: Number(sheet.total_po_amount) || 0,
                         vendorName: sheet.party_name || '',
                         status: status,
-                        timestamp: sheet.timestamp || '',
+                        timestamp: sheet.po_created_date || sheet.timestamp || '',
                     };
                 });
 

@@ -82,9 +82,10 @@ export default () => {
             setTableData(
                 data.map((sheet: any) => ({
                     ...sheet,
-                    timestamp: sheet.timestamp ? formatDate(new Date(sheet.timestamp)) : '',
-                    quotationDate: sheet.quotationDate ? formatDate(new Date(sheet.quotationDate)) : '',
-                    enquiryDate: sheet.enquiryDate ? formatDate(new Date(sheet.enquiryDate)) : '',
+                    po_created_date: sheet.po_created_date ? formatDate(sheet.po_created_date) : (sheet.timestamp ? formatDate(sheet.timestamp) : ''),
+                    timestamp: sheet.timestamp ? formatDate(sheet.timestamp) : '',
+                    quotationDate: sheet.quotationDate ? formatDate(sheet.quotationDate) : '',
+                    enquiryDate: sheet.enquiryDate ? formatDate(sheet.enquiryDate) : '',
                 }))
             );
         } catch (error) {
@@ -116,7 +117,7 @@ export default () => {
 
     // Creating table columns based on PO MASTER sheet structure (Columns A-T)
     const columns: ColumnDef<any>[] = [
-        { accessorKey: 'timestamp', header: 'Timestamp' },
+        { accessorKey: 'po_created_date', header: 'PO Date' },
         { accessorKey: 'partyName', header: 'Party Name' },
         { accessorKey: 'poNumber', header: 'PO Number' },
         { accessorKey: 'quotationNumber', header: 'Quotation Number' },

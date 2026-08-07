@@ -920,7 +920,8 @@ const CreatePO = () => {
             const totalGst = calculateTotalGst(mappedItems);
 
             const logoBase64 = await getLogoBase64();
-            const selectedVendor = details?.vendors?.find(v => v.vendorName === values.supplierName);
+            const normalizeVendorStr = (s: any) => String(s || '').trim().toLowerCase();
+            const selectedVendor = details?.vendors?.find(v => normalizeVendorStr(v.vendorName) === normalizeVendorStr(values.supplierName));
             const projectName = currentProjectName;
 
             const userTerms = values.terms || [];
@@ -944,8 +945,8 @@ const CreatePO = () => {
                 companyPan: firmCompanyPan,
                 companyContactPerson: details?.companyContactPerson || '',
                 supplierName: values.supplierName,
-                supplierAddress: values.supplierAddress,
-                supplierGstin: values.gstin || '',
+                supplierAddress: values.supplierAddress || selectedVendor?.address || '',
+                supplierGstin: values.gstin || selectedVendor?.gstin || '',
                 supplierContactPerson: selectedVendor?.personName || '',
                 supplierPhone: selectedVendor?.phone || '',
                 supplierEmail: values.companyEmail || '',
@@ -1034,6 +1035,11 @@ const CreatePO = () => {
                 return;
             }
 
+            const combinedTerms = [
+                ...userTerms,
+                ...localTerms.map((t) => `${t.title}: ${t.name}`)
+            ].filter(Boolean);
+
             const rows: PoMasterSheet[] = values.indents.map((v) => {
                 const indent = indentSheet.find((i: IndentSheetItem) => i.indentNumber === v.indentNumber);
 
@@ -1041,10 +1047,13 @@ const CreatePO = () => {
                     ? values.poDate.toISOString()
                     : (values.poDate ? parseCustomDate(values.poDate).toISOString() : new Date().toISOString());
 
+                const formattedPoCreatedDate = values.poDate ? formatDate(values.poDate) : formatDate(new Date());
+
                 return {
                     discountPercent: v.discount || 0,
                     gstPercent: v.gst || 0,
                     timestamp: safePoDateStr,
+                    po_created_date: formattedPoCreatedDate,
                     partyName: values.supplierName,
                     poNumber,
                     internalCode: v.indentNumber || '',
@@ -1068,16 +1077,17 @@ const CreatePO = () => {
                     quotationDate: '',
                     enquiryNumber: values.ourEnqNo || '',
                     enquiryDate: values.enquiryDate ? formatDateTime(values.enquiryDate) : '',
-                    term1: userTerms[0] || '',
-                    term2: userTerms[1] || '',
-                    term3: userTerms[2] || '',
-                    term4: userTerms[3] || '',
-                    term5: userTerms[4] || '',
-                    term6: userTerms[5] || '',
-                    term7: userTerms[6] || '',
-                    term8: userTerms[7] || '',
-                    term9: userTerms[8] || '',
-                    term10: userTerms[9] || '',
+                    term1: combinedTerms[0] || '',
+                    term2: combinedTerms[1] || '',
+                    term3: combinedTerms[2] || '',
+                    term4: combinedTerms[3] || '',
+                    term5: combinedTerms[4] || '',
+                    term6: combinedTerms[5] || '',
+                    term7: combinedTerms[6] || '',
+                    term8: combinedTerms[7] || '',
+                    term9: combinedTerms[8] || '',
+                    term10: combinedTerms[9] || '',
+                    terms: JSON.stringify(combinedTerms),
                     deliveryDate: formatDateTime(values.deliveryDate),
                     paymentTerms: v.paymentTerm || '',
                     numberOfDays: v.numberOfDays || 0,
@@ -1095,8 +1105,8 @@ const CreatePO = () => {
                         localTerms: localTerms.map(t => ({ title: t.title, name: t.name }))
                     },
                     destinationAddress: destinationAddress,
-                    supplierAddress: values.supplierAddress,
-                    supplierGstin: values.gstin || '',
+                    supplierAddress: values.supplierAddress || selectedVendor?.address || '',
+                    supplierGstin: values.gstin || selectedVendor?.gstin || '',
                     siteEngineerName: values.siteEngineerName || '',
                     siteEngineerEmail: values.siteEngineerEmail || '',
                     siteEngineerPhoneNo: values.siteEngineerPhoneNo || '',

@@ -4,10 +4,48 @@ import { toast } from 'sonner';
 import POPdf, { type POPdfProps } from '@/components/element/POPdf';
 import { getLogoBase64 } from '@/lib/issuePdfUtils';
 import { calculateGrandTotal, calculateSubtotal, calculateTotal, calculateTotalGst, formatDate } from '@/lib/utils';
-import { fetchMasterData, type PoMasterRecord } from '@/services/poService';
+import { fetchMasterData, fetchPoMasterByPoNumber, type PoMasterRecord } from '@/services/poService';
 
 function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[] {
     const terms: { num: string; text: string }[] = [];
+
+    const rawTerms = (row as any).terms;
+    if (rawTerms) {
+        try {
+            const parsed = typeof rawTerms === 'string' ? JSON.parse(rawTerms) : rawTerms;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                parsed.forEach((t: any, idx: number) => {
+                    const text = typeof t === 'string' ? t : (t.text || (t.title ? `${t.title}: ${t.name}` : ''));
+                    if (text) terms.push({ num: String(idx + 1), text });
+                });
+                if (terms.length > 0) return terms;
+            } else if (typeof parsed === 'object' && parsed !== null) {
+                let idx = 1;
+                for (let i = 1; i <= 20; i++) {
+                    if (parsed[`term${i}`]) {
+                        terms.push({ num: String(idx++), text: parsed[`term${i}`] });
+                    }
+                }
+                if (Array.isArray(parsed.localTerms)) {
+                    parsed.localTerms.forEach((lt: any) => {
+                        if (lt.title || lt.name) {
+                            terms.push({ num: String(idx++), text: `${lt.title}: ${lt.name}` });
+                        }
+                    });
+                }
+                if (terms.length > 0) return terms;
+            }
+        } catch {
+            if (typeof rawTerms === 'string' && rawTerms.trim() && !rawTerms.trim().startsWith('{')) {
+                const lines = rawTerms.split('\n').filter(Boolean);
+                lines.forEach((line: string, idx: number) => {
+                    terms.push({ num: String(idx + 1), text: line });
+                });
+                if (terms.length > 0) return terms;
+            }
+        }
+    }
+
     for (let i = 1; i <= 20; i++) {
         const text = (row as any)[`term${i}`];
         if (text) terms.push({ num: String(terms.length + 1), text });
@@ -23,17 +61,19 @@ function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[]
  */
 export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[]): Promise<POPdfProps> {
     const rows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
-    if (rows.length === 0) {
+    const targetRows = rows.length > 0 ? rows : allRows;
+    if (targetRows.length === 0) {
         throw new Error(`No PO Master records found for PO number or Indent ${poNumber}`);
     }
 
-    const first = rows[0];
+    const first = targetRows[0];
     const [masterData, logoBase64] = await Promise.all([fetchMasterData(), getLogoBase64()]);
 
+    const normalizeStr = (s: any) => String(s || '').trim().toLowerCase();
     const firmCompany = first.firmNameMatch ? (masterData as any).firmCompanyMap?.[first.firmNameMatch] : undefined;
-    const vendor = (masterData as any).vendors?.find((v: any) => v.vendorName === first.partyName);
+    const vendor = (masterData as any).vendors?.find((v: any) => normalizeStr(v.vendorName) === normalizeStr(first.partyName));
 
-    const mappedItems = rows.map((r) => ({
+    const mappedItems = targetRows.map((r) => ({
         rate: r.rate || 0,
         quantity: r.quantity || 0,
         discountPercent: r.discount || 0,
@@ -42,11 +82,11 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
 
     return {
         poNumber: first.poNumber,
-        poDate: first.timestamp ? formatDate(first.timestamp) : ((first as any).created_at ? formatDate((first as any).created_at) : ''),
+        poDate: first.po_created_date ? formatDate(first.po_created_date) : (first.timestamp ? formatDate(first.timestamp) : ((first as any).created_at ? formatDate((first as any).created_at) : '')),
         deliveryDate: first.deliveryDate ? formatDate(first.deliveryDate) : '',
         supplierName: first.partyName,
-        supplierAddress: first.supplierAddress,
-        supplierGstin: first.supplierGstin,
+        supplierAddress: first.supplierAddress || vendor?.address || '',
+        supplierGstin: first.supplierGstin || vendor?.gstin || '',
         supplierContactPerson: vendor?.personName || '',
         supplierPhone: vendor?.phone || '',
         supplierEmail: first.companyEmail || vendor?.vendorEmail || '',
@@ -61,7 +101,7 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
         siteEngineerName2: first.siteEngineerName2 || '',
         siteEngineerEmail2: first.siteEngineerEmail2 || '',
         siteEngineerPhoneNo2: first.siteEngineerPhoneNo2 || '',
-        items: rows.map((r) => ({
+        items: targetRows.map((r) => ({
             internalCode: r.internalCode || '',
             quotationNo: r.quotationNumber || '',
             product: r.product || '',
@@ -93,7 +133,7 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
  * and opens it in a new browser tab. Mirrors openIssuePdfPreview's UX (pre-opened
  * tab with a loading state to dodge popup blockers).
  */
-export const openPoPdfPreview = async (poNumber: string, allRows: PoMasterRecord[]) => {
+export const openPoPdfPreview = async (poNumber: string, allRows?: PoMasterRecord[]) => {
     const win = window.open('', '_blank');
     if (win) {
         win.document.write(`
@@ -145,15 +185,22 @@ export const openPoPdfPreview = async (poNumber: string, allRows: PoMasterRecord
         `);
     }
 
-    const hasPoRecord = allRows.some((r) => r.poNumber === poNumber || r.internalCode === poNumber);
-    if (!hasPoRecord) {
-        if (win && !win.closed) win.close();
-        toast.info(`No Purchase Order has been created yet for "${poNumber}".`);
-        return;
-    }
-
     try {
-        const props = await buildPoPdfProps(poNumber, allRows);
+        let rows = (allRows && allRows.length > 0)
+            ? allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber)
+            : [];
+
+        if (rows.length === 0) {
+            rows = await fetchPoMasterByPoNumber(poNumber);
+        }
+
+        if (!rows || rows.length === 0) {
+            if (win && !win.closed) win.close();
+            toast.info(`No Purchase Order has been created yet for "${poNumber}".`);
+            return;
+        }
+
+        const props = await buildPoPdfProps(poNumber, rows);
         const blob = await pdf(React.createElement(POPdf, props) as React.ReactElement<DocumentProps>).toBlob();
         const blobUrl = URL.createObjectURL(blob);
 
