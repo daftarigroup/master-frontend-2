@@ -564,6 +564,16 @@ const CreatePO = () => {
             })
         );
 
+        if (mode === 'create' && matchingIndents.length > 0) {
+            const rawDelivery = (matchingIndents[0] as any)?.deliveryDate || (matchingIndents[0] as any)?.delivery_date || (matchingIndents[0] as any)?.expected_req_date || (matchingIndents[0] as any)?.expectedReqDate;
+            if (rawDelivery) {
+                const parsedDel = parseCustomDate(rawDelivery);
+                if (!isNaN(parsedDel.getTime())) {
+                    form.setValue('deliveryDate', parsedDel);
+                }
+            }
+        }
+
         setTimeout(() => form.trigger(['supplierAddress', 'gstin']), 100);
 
     }, [vendor, details, indentSheet, poMasterSheet, mode, form]);
@@ -1027,10 +1037,14 @@ const CreatePO = () => {
             const rows: PoMasterSheet[] = values.indents.map((v) => {
                 const indent = indentSheet.find((i: IndentSheetItem) => i.indentNumber === v.indentNumber);
 
+                const safePoDateStr = (values.poDate instanceof Date && !isNaN(values.poDate.getTime()))
+                    ? values.poDate.toISOString()
+                    : (values.poDate ? parseCustomDate(values.poDate).toISOString() : new Date().toISOString());
+
                 return {
                     discountPercent: v.discount || 0,
                     gstPercent: v.gst || 0,
-                    timestamp: values.poDate.toISOString(),
+                    timestamp: safePoDateStr,
                     partyName: values.supplierName,
                     poNumber,
                     internalCode: v.indentNumber || '',

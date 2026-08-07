@@ -42,7 +42,7 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
 
     return {
         poNumber: first.poNumber,
-        poDate: first.timestamp ? formatDate(first.timestamp) : '',
+        poDate: first.timestamp ? formatDate(first.timestamp) : ((first as any).created_at ? formatDate((first as any).created_at) : ''),
         deliveryDate: first.deliveryDate ? formatDate(first.deliveryDate) : '',
         supplierName: first.partyName,
         supplierAddress: first.supplierAddress,
