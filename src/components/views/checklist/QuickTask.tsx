@@ -1,9 +1,9 @@
-﻿import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
     Zap, Mic, Square, Image as ImageIcon, Plus, Search,
-    SquarePen, Lock, Copy, Check, CheckSquare, ClipboardList, Layers, RefreshCw,
+    SquarePen, Lock, Copy, Check, CheckSquare, ClipboardList, Layers, RefreshCw, Trash2,
 } from 'lucide-react';
 import Heading from '@/components/element/Heading';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,10 +19,10 @@ import { isChecklistAdmin } from '@/lib/roleAccess';
 import { fetchUsers, type UserRecord } from '@/services/userService';
 import { fetchMasterOptions } from '@/services/masterService';
 import {
-    assignTask, updateChecklistTaskGroup,
+    assignTask, updateChecklistTaskGroup, deleteChecklistTaskGroup, deleteChecklistTaskGroupsBatch,
     type ChecklistTaskRow, type ChecklistFrequency,
 } from '@/services/checklistTaskService';
-import { updateDelegationTask, type DelegationTaskRow } from '@/services/delegationTaskService';
+import { updateDelegationTask, deleteDelegationTask, deleteDelegationTasksBatch, type DelegationTaskRow } from '@/services/delegationTaskService';
 import { useChecklistData } from '@/context/ChecklistContext';
 import { uploadFile } from '@/lib/fetchers';
 
@@ -58,6 +58,14 @@ export default function QuickTask() {
     const [firmFilter, setFirmFilter] = useState<string>('all');
     const [frequencyFilter, setFrequencyFilter] = useState<string>('all');
     const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    // Selection & Delete State
+    const [selectedChecklistAnchorIds, setSelectedChecklistAnchorIds] = useState<Set<number>>(new Set());
+    const [selectedDelegationIds, setSelectedDelegationIds] = useState<Set<number>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<'selected' | { type: 'checklist' | 'delegation'; id: number; name?: string } | null>(null);
+
     // Create modal
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createFirmId, setCreateFirmId] = useState('');
@@ -76,6 +84,7 @@ export default function QuickTask() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const timerRef = useRef<any>(null);
     const [isCreating, setIsCreating] = useState(false);
+
     // Edit modal
     const [editingGroup, setEditingGroup] = useState<ChecklistTaskGroup | null>(null);
     const [editingDelegation, setEditingDelegation] = useState<DelegationTaskRow | null>(null);
@@ -107,6 +116,12 @@ export default function QuickTask() {
             .finally(() => setLoadingOptions(false));
     }, [user?.role, user?.firm_access]);
 
+    // Clear selection on tab or filter changes
+    useEffect(() => {
+        setSelectedChecklistAnchorIds(new Set());
+        setSelectedDelegationIds(new Set());
+    }, [activeTab, searchQuery, firmFilter, frequencyFilter]);
+
     if (!isChecklistAdmin(user)) return <Navigate to="/checklist/dashboard" replace />;
 
     const allUniqueGroups = useMemo(() => deriveUniqueGroups(checklistTasks), [checklistTasks]);
@@ -131,6 +146,50 @@ export default function QuickTask() {
         }
         return list;
     }, [delegationTasks, firmFilter, searchQuery]);
+
+    // Selection Logic for Checklist Tab
+    const allFilteredChecklistAnchorIds = useMemo(() => filteredUniqueGroups.map((g) => g.anchorId), [filteredUniqueGroups]);
+    const isAllChecklistSelected = allFilteredChecklistAnchorIds.length > 0 && allFilteredChecklistAnchorIds.every((id) => selectedChecklistAnchorIds.has(id));
+
+    const toggleSelectAllChecklist = () => {
+        if (isAllChecklistSelected) {
+            setSelectedChecklistAnchorIds(new Set());
+        } else {
+            setSelectedChecklistAnchorIds(new Set(allFilteredChecklistAnchorIds));
+        }
+    };
+
+    const toggleSelectChecklist = (anchorId: number) => {
+        setSelectedChecklistAnchorIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(anchorId)) next.delete(anchorId);
+            else next.add(anchorId);
+            return next;
+        });
+    };
+
+    // Selection Logic for Delegation Tab
+    const allFilteredDelegationIds = useMemo(() => filteredDelegationTasks.map((t) => t.task_id), [filteredDelegationTasks]);
+    const isAllDelegationSelected = allFilteredDelegationIds.length > 0 && allFilteredDelegationIds.every((id) => selectedDelegationIds.has(id));
+
+    const toggleSelectAllDelegation = () => {
+        if (isAllDelegationSelected) {
+            setSelectedDelegationIds(new Set());
+        } else {
+            setSelectedDelegationIds(new Set(allFilteredDelegationIds));
+        }
+    };
+
+    const toggleSelectDelegation = (id: number) => {
+        setSelectedDelegationIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const selectedCount = activeTab === 'checklist' ? selectedChecklistAnchorIds.size : selectedDelegationIds.size;
 
     const copyToClipboard = (text: string) => { navigator.clipboard.writeText(text); setCopiedId(text); toast.success(`Copied ${text} to clipboard`); setTimeout(() => setCopiedId(null), 2000); };
 
@@ -208,6 +267,46 @@ export default function QuickTask() {
         finally { setIsCreating(false); }
     }
 
+    const handleConfirmDelete = async () => {
+        try {
+            setIsDeleting(true);
+            if (deleteTarget === 'selected') {
+                if (activeTab === 'checklist') {
+                    const ids = Array.from(selectedChecklistAnchorIds);
+                    const res = await deleteChecklistTaskGroupsBatch(ids);
+                    const count = (res as any)?.deletedCount ?? ids.length;
+                    toast.success(`Deleted ${ids.length} recurring task group(s) (${count} occurrences total)`);
+                    setSelectedChecklistAnchorIds(new Set());
+                } else {
+                    const ids = Array.from(selectedDelegationIds);
+                    const res = await deleteDelegationTasksBatch(ids);
+                    const count = (res as any)?.deletedCount ?? ids.length;
+                    toast.success(`Deleted ${count} one-time task(s)`);
+                    setSelectedDelegationIds(new Set());
+                }
+            } else if (deleteTarget && typeof deleteTarget === 'object') {
+                if (deleteTarget.type === 'checklist') {
+                    const res = await deleteChecklistTaskGroup(deleteTarget.id);
+                    const count = (res as any)?.deletedCount ?? 1;
+                    toast.success(`Deleted recurring task group CL-${deleteTarget.id} (${count} occurrences total)`);
+                    setSelectedChecklistAnchorIds((prev) => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
+                } else {
+                    await deleteDelegationTask(deleteTarget.id);
+                    toast.success(`Deleted task DL-${deleteTarget.id}`);
+                    setSelectedDelegationIds((prev) => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
+                }
+            }
+            await refresh();
+            setIsDeleteConfirmOpen(false);
+            setDeleteTarget(null);
+        } catch (err: any) {
+            console.error('Delete error:', err);
+            toast.error(err?.message || 'Failed to delete task(s)');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const editSourceTask = editingGroup?.rep ?? editingDelegation ?? null;
     const isChecklistEdit = Boolean(editingGroup);
 
@@ -236,7 +335,20 @@ export default function QuickTask() {
                             <span className="ml-1 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">{delegationTasks.length}</span>
                         </TabsTrigger>
                     </TabsList>
-                    <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                    
+                    {/* Filters Div alongside Delete Button */}
+                    <div className="flex flex-wrap items-center justify-end gap-2.5 w-full sm:w-auto">
+                        {/* Conditionally rendered Delete Button when at least 1 checkbox is selected */}
+                        {selectedCount > 0 && (
+                            <Button
+                                variant="destructive"
+                                onClick={() => { setDeleteTarget('selected'); setIsDeleteConfirmOpen(true); }}
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs gap-1.5 h-9 px-3.5 rounded-xl shrink-0 shadow-sm transition-all duration-200 animate-in fade-in zoom-in-95"
+                            >
+                                <Trash2 size={14} />
+                                Delete Selected ({selectedCount})
+                            </Button>
+                        )}
                         <div className="relative flex-1 sm:w-64">
                             <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                             <Input placeholder="Search task ID, title, doer..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-xs rounded-xl" />
@@ -260,14 +372,22 @@ export default function QuickTask() {
                     </div>
                 </div>
 
+                {/* CHECKLIST TAB */}
                 <TabsContent value="checklist" className="mt-0">
                     <div className="mb-3 flex items-start gap-2.5 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl text-xs text-purple-800 dark:text-purple-300">
                         <Layers size={15} className="shrink-0 mt-0.5 text-purple-600" />
-                        <span>Each row represents a <strong>unique recurring task definition</strong>. The <strong>Occurrences</strong> badge shows how many scheduled instances share this definition. Editing propagates changes to <em>all</em> occurrences in that recurrence group.</span>
+                        <span>Each row represents a <strong>unique recurring task definition</strong>. Select checkboxes to bulk delete or edit. Deleting a unique task removes <em>all scheduled occurrences</em> in that recurrence group.</span>
                     </div>
                     <Card className="shadow-xs overflow-hidden border"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-xs">
                         <thead><tr className="bg-muted/50 text-muted-foreground border-b text-left">
-                            <th className="py-3 px-4 font-bold uppercase tracking-wider text-center w-24">Actions</th>
+                            <th className="py-3 px-3 text-center w-10">
+                                <Checkbox
+                                    checked={isAllChecklistSelected}
+                                    onCheckedChange={toggleSelectAllChecklist}
+                                    aria-label="Select all"
+                                />
+                            </th>
+                            <th className="py-3 px-4 font-bold uppercase tracking-wider text-center w-28">Actions</th>
                             <th className="py-3 px-4 font-bold uppercase tracking-wider">Task ID</th>
                             <th className="py-3 px-4 font-bold uppercase tracking-wider min-w-[220px]">Task Description</th>
                             <th className="py-3 px-4 font-bold uppercase tracking-wider">Doer</th>
@@ -280,31 +400,51 @@ export default function QuickTask() {
                             <th className="py-3 px-4 font-bold uppercase tracking-wider text-center">Occurrences</th>
                         </tr></thead>
                         <tbody className="divide-y">
-                            {loading ? (<tr><td colSpan={11} className="py-12 text-center text-muted-foreground"><RefreshCw size={20} className="animate-spin mx-auto mb-2 opacity-50" />Loading task definitions...</td></tr>)
+                            {loading ? (<tr><td colSpan={12} className="py-12 text-center text-muted-foreground"><RefreshCw size={20} className="animate-spin mx-auto mb-2 opacity-50" />Loading task definitions...</td></tr>)
                             : filteredUniqueGroups.length > 0 ? filteredUniqueGroups.map((group) => {
                                 const t = group.rep; const idStr = `CL-${group.anchorId}`;
-                                return (<tr key={group.anchorId} className="hover:bg-muted/20 transition-colors">
-                                    <td className="py-2.5 px-4 text-center"><Button size="sm" onClick={() => handleOpenGroupEditModal(group)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-3 rounded-lg shadow-2xs"><SquarePen size={13} />Edit</Button></td>
-                                    <td className="py-2.5 px-4 font-mono font-bold text-foreground"><button onClick={() => copyToClipboard(idStr)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">{idStr}{copiedId === idStr ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}</button></td>
-                                    <td className="py-2.5 px-4 font-medium max-w-sm"><p className="line-clamp-2 leading-relaxed text-foreground">{t.task_description}</p></td>
-                                    <td className="py-2.5 px-4 font-semibold text-foreground">{t.doer_name || 'Unassigned'}</td>
-                                    <td className="py-2.5 px-4 text-muted-foreground">{t.given_by_name || 'System Admin'}</td>
-                                    <td className="py-2.5 px-4 text-muted-foreground font-medium">{t.firm_name || '—'}</td>
-                                    <td className="py-2.5 px-4 text-muted-foreground">{t.planned_date ? new Date(t.planned_date).toLocaleDateString() : '—'}</td>
-                                    <td className="py-2.5 px-4"><span className="capitalize px-2 py-0.5 rounded-full font-bold text-[10px] bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800">{t.frequency || 'Daily'}</span></td>
-                                    <td className="py-2.5 px-4 text-muted-foreground">{t.duration || '30 MIN'}</td>
-                                    <td className="py-2.5 px-4 text-center">{t.require_attachment ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Required</span> : <span className="text-[10px] font-semibold text-muted-foreground">Optional</span>}</td>
-                                    <td className="py-2.5 px-4 text-center"><span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800"><Layers size={10} />{group.occurrenceCount}</span></td>
-                                </tr>);
-                            }) : (<tr><td colSpan={11} className="py-12 text-center text-muted-foreground italic">No unique recurring task definitions found</td></tr>)}
+                                const isSelected = selectedChecklistAnchorIds.has(group.anchorId);
+                                return (
+                                    <tr key={group.anchorId} className={`hover:bg-muted/20 transition-colors ${isSelected ? 'bg-purple-50/60 dark:bg-purple-950/20' : ''}`}>
+                                        <td className="py-2.5 px-3 text-center">
+                                            <Checkbox
+                                                checked={isSelected}
+                                                onCheckedChange={() => toggleSelectChecklist(group.anchorId)}
+                                                aria-label={`Select ${idStr}`}
+                                            />
+                                        </td>
+                                        <td className="py-2.5 px-4 text-center">
+                                            <Button size="sm" onClick={() => handleOpenGroupEditModal(group)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-3 rounded-lg shadow-2xs"><SquarePen size={13} />Edit</Button>
+                                        </td>
+                                        <td className="py-2.5 px-4 font-mono font-bold text-foreground"><button onClick={() => copyToClipboard(idStr)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">{idStr}{copiedId === idStr ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}</button></td>
+                                        <td className="py-2.5 px-4 font-medium max-w-sm"><p className="line-clamp-2 leading-relaxed text-foreground">{t.task_description}</p></td>
+                                        <td className="py-2.5 px-4 font-semibold text-foreground">{t.doer_name || 'Unassigned'}</td>
+                                        <td className="py-2.5 px-4 text-muted-foreground">{t.given_by_name || 'System Admin'}</td>
+                                        <td className="py-2.5 px-4 text-muted-foreground font-medium">{t.firm_name || '—'}</td>
+                                        <td className="py-2.5 px-4 text-muted-foreground">{t.planned_date ? new Date(t.planned_date).toLocaleDateString() : '—'}</td>
+                                        <td className="py-2.5 px-4"><span className="capitalize px-2 py-0.5 rounded-full font-bold text-[10px] bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800">{t.frequency || 'Daily'}</span></td>
+                                        <td className="py-2.5 px-4 text-muted-foreground">{t.duration || '30 MIN'}</td>
+                                        <td className="py-2.5 px-4 text-center">{t.require_attachment ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Required</span> : <span className="text-[10px] font-semibold text-muted-foreground">Optional</span>}</td>
+                                        <td className="py-2.5 px-4 text-center"><span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800"><Layers size={10} />{group.occurrenceCount}</span></td>
+                                    </tr>
+                                );
+                            }) : (<tr><td colSpan={12} className="py-12 text-center text-muted-foreground italic">No unique recurring task definitions found</td></tr>)}
                         </tbody>
                     </table></div></CardContent></Card>
                 </TabsContent>
 
+                {/* DELEGATION TAB */}
                 <TabsContent value="delegation" className="mt-0">
                     <Card className="shadow-xs overflow-hidden border"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-xs">
                         <thead><tr className="bg-muted/50 text-muted-foreground border-b text-left">
-                            <th className="py-3 px-4 font-bold uppercase tracking-wider text-center w-24">Actions</th>
+                            <th className="py-3 px-3 text-center w-10">
+                                <Checkbox
+                                    checked={isAllDelegationSelected}
+                                    onCheckedChange={toggleSelectAllDelegation}
+                                    aria-label="Select all"
+                                />
+                            </th>
+                            <th className="py-3 px-4 font-bold uppercase tracking-wider text-center w-28">Actions</th>
                             <th className="py-3 px-4 font-bold uppercase tracking-wider">Task ID</th>
                             <th className="py-3 px-4 font-bold uppercase tracking-wider min-w-[220px]">Task Description</th>
                             <th className="py-3 px-4 font-bold uppercase tracking-wider">Doer</th>
@@ -316,25 +456,72 @@ export default function QuickTask() {
                             <th className="py-3 px-4 font-bold uppercase tracking-wider text-center">Proof Req</th>
                         </tr></thead>
                         <tbody className="divide-y">
-                            {loading ? (<tr><td colSpan={10} className="py-12 text-center text-muted-foreground"><RefreshCw size={20} className="animate-spin mx-auto mb-2 opacity-50" />Loading delegation tasks...</td></tr>)
-                            : filteredDelegationTasks.length > 0 ? filteredDelegationTasks.map((t) => (
-                                <tr key={t.task_id} className="hover:bg-muted/20 transition-colors">
-                                    <td className="py-2.5 px-4 text-center"><Button size="sm" onClick={() => handleOpenDelegationEditModal(t)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-3 rounded-lg shadow-2xs"><SquarePen size={13} />Edit</Button></td>
-                                    <td className="py-2.5 px-4 font-mono font-bold text-foreground"><button onClick={() => copyToClipboard(`DL-${t.task_id}`)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">DL-{t.task_id}{copiedId === `DL-${t.task_id}` ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}</button></td>
-                                    <td className="py-2.5 px-4 font-medium max-w-sm"><p className="line-clamp-2 leading-relaxed text-foreground">{t.task_description}</p></td>
-                                    <td className="py-2.5 px-4 font-semibold text-foreground">{t.doer_name || 'Unassigned'}</td>
-                                    <td className="py-2.5 px-4 text-muted-foreground">{t.given_by_name || 'System Admin'}</td>
-                                    <td className="py-2.5 px-4 text-muted-foreground font-medium">{t.firm_name || '—'}</td>
-                                    <td className="py-2.5 px-4 text-muted-foreground">{t.planned_date ? new Date(t.planned_date).toLocaleDateString() : '—'}</td>
-                                    <td className="py-2.5 px-4"><span className="capitalize px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">One-Time</span></td>
-                                    <td className="py-2.5 px-4 text-muted-foreground">{t.duration || '30 MIN'}</td>
-                                    <td className="py-2.5 px-4 text-center">{t.require_attachment ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Required</span> : <span className="text-[10px] font-semibold text-muted-foreground">Optional</span>}</td>
-                                </tr>
-                            )) : (<tr><td colSpan={10} className="py-12 text-center text-muted-foreground italic">No one-time delegation tasks found</td></tr>)}
+                            {loading ? (<tr><td colSpan={11} className="py-12 text-center text-muted-foreground"><RefreshCw size={20} className="animate-spin mx-auto mb-2 opacity-50" />Loading delegation tasks...</td></tr>)
+                            : filteredDelegationTasks.length > 0 ? filteredDelegationTasks.map((t) => {
+                                const isSelected = selectedDelegationIds.has(t.task_id);
+                                return (
+                                    <tr key={t.task_id} className={`hover:bg-muted/20 transition-colors ${isSelected ? 'bg-blue-50/60 dark:bg-blue-950/20' : ''}`}>
+                                        <td className="py-2.5 px-3 text-center">
+                                            <Checkbox
+                                                checked={isSelected}
+                                                onCheckedChange={() => toggleSelectDelegation(t.task_id)}
+                                                aria-label={`Select DL-${t.task_id}`}
+                                            />
+                                        </td>
+                                        <td className="py-2.5 px-4 text-center">
+                                            <Button size="sm" onClick={() => handleOpenDelegationEditModal(t)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-3 rounded-lg shadow-2xs"><SquarePen size={13} />Edit</Button>
+                                        </td>
+                                        <td className="py-2.5 px-4 font-mono font-bold text-foreground"><button onClick={() => copyToClipboard(`DL-${t.task_id}`)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">DL-{t.task_id}{copiedId === `DL-${t.task_id}` ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}</button></td>
+                                        <td className="py-2.5 px-4 font-medium max-w-sm"><p className="line-clamp-2 leading-relaxed text-foreground">{t.task_description}</p></td>
+                                        <td className="py-2.5 px-4 font-semibold text-foreground">{t.doer_name || 'Unassigned'}</td>
+                                        <td className="py-2.5 px-4 text-muted-foreground">{t.given_by_name || 'System Admin'}</td>
+                                        <td className="py-2.5 px-4 text-muted-foreground font-medium">{t.firm_name || '—'}</td>
+                                        <td className="py-2.5 px-4 text-muted-foreground">{t.planned_date ? new Date(t.planned_date).toLocaleDateString() : '—'}</td>
+                                        <td className="py-2.5 px-4"><span className="capitalize px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">One-Time</span></td>
+                                        <td className="py-2.5 px-4 text-muted-foreground">{t.duration || '30 MIN'}</td>
+                                        <td className="py-2.5 px-4 text-center">{t.require_attachment ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Required</span> : <span className="text-[10px] font-semibold text-muted-foreground">Optional</span>}</td>
+                                    </tr>
+                                );
+                            }) : (<tr><td colSpan={11} className="py-12 text-center text-muted-foreground italic">No one-time delegation tasks found</td></tr>)}
                         </tbody>
                     </table></div></CardContent></Card>
                 </TabsContent>
             </Tabs>
+
+            {/* DELETE CONFIRMATION MODAL */}
+            <Dialog open={isDeleteConfirmOpen} onOpenChange={(open) => !open && !isDeleting && setIsDeleteConfirmOpen(false)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <div className="flex items-start gap-3 pt-2">
+                            <div className="p-2.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 shrink-0">
+                                <Trash2 size={22} />
+                            </div>
+                            <div className="space-y-1">
+                                <DialogTitle className="text-base font-bold text-foreground">
+                                    {deleteTarget === 'selected'
+                                        ? `Delete ${selectedCount} Selected ${activeTab === 'checklist' ? 'Recurring Task Group(s)' : 'One-Time Task(s)'}`
+                                        : deleteTarget?.type === 'checklist'
+                                        ? `Delete Task Group CL-${deleteTarget.id}`
+                                        : `Delete Task DL-${deleteTarget?.id}`}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                                    {activeTab === 'checklist' || (typeof deleteTarget === 'object' && deleteTarget?.type === 'checklist')
+                                        ? 'Deleting a recurring task group will remove the unique task definition and ALL scheduled occurrences associated with it. This action cannot be undone.'
+                                        : 'Are you sure you want to permanently delete this one-time task? This action cannot be undone.'}
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <DialogFooter className="mt-4 gap-2 border-t pt-3">
+                        <Button variant="outline" size="sm" onClick={() => setIsDeleteConfirmOpen(false)} disabled={isDeleting}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={handleConfirmDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2">
+                            {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* EDIT MODAL */}
             <Dialog open={isEditModalOpen} onOpenChange={(open) => !open && closeEditModal()}>

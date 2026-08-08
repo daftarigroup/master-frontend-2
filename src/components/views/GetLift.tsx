@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ShoppingCart, X, Truck, FileText, IndianRupee, CreditCard, User, Phone, CheckCircle2, Package, Info, Upload, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
 import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
@@ -174,6 +175,7 @@ function InlineDeliveryDate({
 
 export default function GetPurchase() {
     const { user } = useAuth() as { user: AuthUser };
+    const { updateAll } = useSheets();
     const [selectedIndent, setSelectedIndent] = useState<GetPurchaseData | null>(null);
     const [historyData, setHistoryData] = useState<HistoryData[]>([]);
     const [tableData, setTableData] = useState<GetPurchaseData[]>([]);
@@ -201,6 +203,7 @@ export default function GetPurchase() {
                 setVendorOptions(vendors);
                 setIndentRecords(indents);
                 setStoreInRecords(storeIns);
+                updateAll(true);
             } catch (error) {
                 console.error('Failed to fetch data:', error);
                 toast.error('Failed to load data');

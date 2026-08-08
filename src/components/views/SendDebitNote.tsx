@@ -30,6 +30,7 @@ import { Input } from '../ui/input';
 import { Truck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
 import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
@@ -105,6 +106,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default () => {
     const { user } = useAuth();
+    const { updateAll } = useSheets();
 
     const [storeInRecords, setStoreInRecords] = useState<StoreInRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(false);
@@ -284,7 +286,8 @@ export default () => {
             setOpenDialog(false);
 
             // Refresh data
-            setTimeout(() => fetchAllData(), 1000);
+            fetchAllData();
+            updateAll(true);
         } catch (error) {
             console.error('❌ Error in onSubmit:', error);
             if (error instanceof Error) {

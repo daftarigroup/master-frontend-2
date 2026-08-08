@@ -21,13 +21,14 @@ import {
     Check,
     UserCheck,
     Eye,
-    Sparkles,
     CalendarDays,
     Loader2,
     MessageSquare,
     Camera,
     Trash2,
     AlertCircle,
+    AlertTriangle,
+    History,
 } from 'lucide-react';
 import Heading from '@/components/element/Heading';
 import FilterToolbar from '@/components/element/FilterToolbar';
@@ -35,10 +36,10 @@ import TaskCard from '@/components/element/TaskCard';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import MediaPreviewDialog from '@/components/element/MediaPreviewDialog';
@@ -148,12 +149,17 @@ export default function DelegationSubmission() {
     const { user } = useAuth();
     const { delegationTasks, loading, refresh } = useChecklistData();
 
+    const [mainTab, setMainTab] = useState<'active' | 'history'>('active');
     const [tabView, setTabView] = useState<'inbox' | 'outbox'>('inbox');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'completed' | 'extended'>('all');
     const [dateHorizon, setDateHorizon] = useState<'today_plus_1' | 'all'>('today_plus_1');
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [copiedId, setCopiedId] = useState<number | null>(null);
+
+    // History Tab Filter State
+    const [historySearchQuery, setHistorySearchQuery] = useState('');
+    const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'done' | 'approved' | 'extend' | 'rejected'>('all');
 
     // Batch infinite scroll state
     const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
@@ -233,7 +239,7 @@ export default function DelegationSubmission() {
                 const planned = toDateOnly(t.planned_date || t.task_start_date);
                 const isOverdue = getTimeBucket(planned, today) === 'Overdue';
                 if (statusFilter === 'overdue') return isOverdue && s !== 'done' && s !== 'approved';
-                if (statusFilter === 'pending') return s === 'pending';
+                if (statusFilter === 'pending') return s === 'pending' || s === 'rejected';
                 return true;
             });
         }
@@ -252,6 +258,42 @@ export default function DelegationSubmission() {
 
         return tasks;
     }, [delegationTasks, tabView, dateHorizon, statusFilter, searchQuery, user]);
+
+    // Submitted / Completed Delegation Tasks History
+    const historyTasks = useMemo(() => {
+        let tasks = delegationTasks.filter(
+            (t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)
+        );
+
+        if (historyStatusFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.status || '').toLowerCase() === historyStatusFilter.toLowerCase());
+        }
+
+        if (historySearchQuery.trim()) {
+            const q = historySearchQuery.toLowerCase().trim();
+            tasks = tasks.filter(
+                (t) =>
+                    (t.task_description || '').toLowerCase().includes(q) ||
+                    (t.firm_name || '').toLowerCase().includes(q) ||
+                    (t.doer_name || '').toLowerCase().includes(q) ||
+                    (t.given_by_name || '').toLowerCase().includes(q) ||
+                    (t.remark || '').toLowerCase().includes(q) ||
+                    `dl-${t.task_id}`.includes(q)
+            );
+        }
+
+        return tasks.sort((a, b) => {
+            const dA = new Date(a.submission_date || a.updated_at || a.created_at || 0).getTime();
+            const dB = new Date(b.submission_date || b.updated_at || a.created_at || 0).getTime();
+            return dB - dA;
+        });
+    }, [delegationTasks, historyStatusFilter, historySearchQuery]);
+
+    // History metrics
+    const historyTotal = historyTasks.length;
+    const historyApproved = historyTasks.filter((t) => t.status === 'approved').length;
+    const historyExtended = historyTasks.filter((t) => t.status === 'extend' || t.status === 'extended').length;
+    const historyDonePending = historyTasks.filter((t) => t.status === 'done').length;
 
     // Reset pagination window when filters change
     useEffect(() => {
@@ -444,7 +486,28 @@ export default function DelegationSubmission() {
                 </div>
             </Heading>
 
-            {/* Sub-Header Toolbar: Inbox/Outbox Tabs, Date Horizon, Filters & Search */}
+            <Tabs defaultValue="active" value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-2.5 rounded-2xl border shadow-xs">
+                    <TabsList className="bg-muted/60 p-1 rounded-xl">
+                        <TabsTrigger value="active" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                            <ClipboardCheck size={15} className="text-purple-600" />
+                            <span>Active Delegations</span>
+                            <span className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                {delegationTasks.filter((t) => !t.status || t.status === 'pending').length}
+                            </span>
+                        </TabsTrigger>
+                        <TabsTrigger value="history" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                            <History size={15} className="text-indigo-600" />
+                            <span>Submission History</span>
+                            <span className="ml-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                {delegationTasks.filter((t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)).length}
+                            </span>
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <TabsContent value="active" className="mt-0 space-y-5">
+                    {/* Sub-Header Toolbar: Inbox/Outbox Tabs, Date Horizon, Filters & Search */}
             <FilterToolbar
                 activeFilterCount={(dateHorizon !== 'today_plus_1' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)}
                 extra={
@@ -646,7 +709,13 @@ export default function DelegationSubmission() {
 
                                             {/* Column 4: Description */}
                                             <TableCell className="font-medium text-foreground">
-                                                {task.task_description}
+                                                <div>{task.task_description}</div>
+                                                {(task.status || '').toLowerCase() === 'rejected' && (
+                                                    <div className="mt-1.5 text-[11px] text-rose-700 dark:text-rose-300 font-bold bg-rose-50 dark:bg-rose-950/60 px-2 py-1 rounded-md border border-rose-200 dark:border-rose-800 flex items-center gap-1.5 w-fit">
+                                                        <AlertCircle size={13} className="shrink-0 text-rose-600" />
+                                                        <span>Rejection Reason: {task.remark || 'Rejected by Admin'}</span>
+                                                    </div>
+                                                )}
                                             </TableCell>
 
                                             {/* Column 5: Project */}
@@ -698,19 +767,25 @@ export default function DelegationSubmission() {
 
                                             {/* Column 10: Select Status */}
                                             <TableCell>
-                                                <span
-                                                    className={`capitalize font-extrabold text-[11px] px-2.5 py-0.5 rounded border ${
-                                                        isDone
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
-                                                            : isExtend
-                                                            ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
-                                                            : isOverdue
-                                                            ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800'
-                                                            : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
-                                                    }`}
-                                                >
-                                                    {isOverdue ? 'overdue' : task.status || 'pending'}
-                                                </span>
+                                                {(task.status || '').toLowerCase() === 'rejected' ? (
+                                                    <span className="capitalize font-extrabold text-[11px] px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                                                        Rejected (Redo)
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        className={`capitalize font-extrabold text-[11px] px-2.5 py-0.5 rounded border ${
+                                                            isDone
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                                                                : isExtend
+                                                                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
+                                                                : isOverdue
+                                                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800'
+                                                                : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
+                                                        }`}
+                                                    >
+                                                        {isOverdue ? 'overdue' : task.status || 'pending'}
+                                                    </span>
+                                                )}
                                             </TableCell>
 
                                             {/* Column 11: Next Target Date */}
@@ -922,8 +997,129 @@ export default function DelegationSubmission() {
                     </span>
                 )}
             </div>
+        </TabsContent>
 
-            {/* HIGH-PREMIUM DELEGATION COMPLETION MODAL */}
+        {/* DELEGATION SUBMISSION HISTORY TAB */}
+        <TabsContent value="history" className="mt-0 space-y-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Card className="p-3 bg-card border shadow-xs">
+                    <p className="text-[11px] font-bold uppercase text-muted-foreground">Total Submissions</p>
+                    <p className="text-xl font-black text-foreground mt-1">{historyTotal}</p>
+                </Card>
+                <Card className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 shadow-xs">
+                    <p className="text-[11px] font-bold uppercase text-blue-700 dark:text-blue-300">Pending Review</p>
+                    <p className="text-xl font-black text-blue-800 dark:text-blue-200 mt-1">{historyDonePending}</p>
+                </Card>
+                <Card className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 shadow-xs">
+                    <p className="text-[11px] font-bold uppercase text-purple-700 dark:text-purple-300">Extension Requested</p>
+                    <p className="text-xl font-black text-purple-800 dark:text-purple-200 mt-1">{historyExtended}</p>
+                </Card>
+            </div>
+
+            {/* Filter Toolbar for History */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-3 rounded-xl border shadow-xs">
+                <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search delegation history..."
+                        value={historySearchQuery}
+                        onChange={(e) => setHistorySearchQuery(e.target.value)}
+                        className="pl-9 h-9 text-xs"
+                    />
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Select value={historyStatusFilter} onValueChange={(v: any) => setHistoryStatusFilter(v)}>
+                        <SelectTrigger className="h-9 text-xs w-48"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                            <SelectItem value="done" className="text-xs">Completed (Pending Review)</SelectItem>
+                            <SelectItem value="approved" className="text-xs">Approved</SelectItem>
+                            <SelectItem value="extend" className="text-xs">Extension Requested</SelectItem>
+                            <SelectItem value="rejected" className="text-xs">Rejected</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Submissions Table */}
+            <div className="border rounded-xl bg-card shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                    <Table className="text-xs">
+                        <TableHeader className="bg-muted/50">
+                            <TableRow>
+                                <TableHead className="font-bold">Task ID</TableHead>
+                                <TableHead className="font-bold min-w-[200px]">Task Description</TableHead>
+                                <TableHead className="font-bold">Project / Firm</TableHead>
+                                <TableHead className="font-bold">Doer</TableHead>
+                                <TableHead className="font-bold">Assign By</TableHead>
+                                <TableHead className="font-bold">Submission Date</TableHead>
+                                <TableHead className="font-bold text-center">Proof Attachments</TableHead>
+                                <TableHead className="font-bold min-w-[160px]">Doer Remark</TableHead>
+                                <TableHead className="font-bold text-center">Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {historyTasks.length > 0 ? (
+                                historyTasks.map((t) => (
+                                    <TableRow key={t.task_id} className="hover:bg-muted/20">
+                                        <TableCell className="font-mono font-bold">
+                                            <button onClick={() => handleCopyId(t.task_id)} className="hover:text-primary inline-flex items-center gap-1">
+                                                DL-{t.task_id}
+                                                {copiedId === t.task_id ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="opacity-50" />}
+                                            </button>
+                                        </TableCell>
+                                        <TableCell className="font-medium max-w-xs"><p className="line-clamp-2">{t.task_description}</p></TableCell>
+                                        <TableCell className="text-muted-foreground">{t.firm_name || '—'}</TableCell>
+                                        <TableCell className="font-semibold">{t.doer_name || '—'}</TableCell>
+                                        <TableCell className="text-muted-foreground">{t.given_by_name || '—'}</TableCell>
+                                        <TableCell className="text-muted-foreground font-mono">
+                                            {t.submission_date ? new Date(t.submission_date).toLocaleString() : '—'}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <MediaPreviewDialog
+                                                imageUrl={t.image}
+                                                audioUrl={t.audio_url}
+                                                title={`Proofs for Task DL-${t.task_id}`}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground max-w-xs"><p className="line-clamp-2 italic">{t.remark || 'No remark'}</p></TableCell>
+                                        <TableCell className="text-center">
+                                            {t.status === 'approved' ? (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                                                    Approved
+                                                </span>
+                                            ) : t.status === 'extend' || t.status === 'extended' ? (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300">
+                                                    Extension Requested
+                                                </span>
+                                            ) : t.status === 'rejected' ? (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300">
+                                                    Rejected
+                                                </span>
+                                            ) : (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-300">
+                                                    Submitted (Pending Review)
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="py-12 text-center text-muted-foreground italic">
+                                        No submitted delegation tasks found in history
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+        </TabsContent>
+    </Tabs>
+
+    {/* HIGH-PREMIUM DELEGATION COMPLETION MODAL */}
             <Dialog open={modalMode === 'done'} onOpenChange={(v) => !v && resetAndCloseModal()}>
                 <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border shadow-2xl bg-card text-left">
                     {/* Header Banner */}
@@ -953,7 +1149,7 @@ export default function DelegationSubmission() {
                                 <p className="font-extrabold text-sm text-foreground leading-snug">
                                     {activeModalTask.task_description}
                                 </p>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                                 <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1 border-t border-slate-200/60 dark:border-slate-800">
                                     <span className="flex items-center gap-1 font-semibold">
                                         <Briefcase size={12} className="text-purple-500" />
                                         {activeModalTask.firm_name || 'General'}
@@ -964,6 +1160,15 @@ export default function DelegationSubmission() {
                                         Assigned by {activeModalTask.given_by_name || 'Manager'}
                                     </span>
                                 </div>
+                                {activeModalTask.status === 'rejected' && (
+                                    <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 p-3 rounded-2xl text-xs text-rose-800 dark:text-rose-200 space-y-1">
+                                        <p className="font-extrabold flex items-center gap-1.5 text-rose-700 dark:text-rose-300">
+                                            <AlertTriangle size={15} /> Previous Submission Rejected By Admin
+                                        </p>
+                                        <p className="text-[11px] font-medium">Rejection Reason: <strong className="font-bold">{activeModalTask.remark || 'No reason provided'}</strong></p>
+                                        <p className="text-[10px] text-muted-foreground pt-0.5">Please attach updated proof photo/voice note and resubmit. Assigned date and time will remain unchanged.</p>
+                                    </div>
+                                )}
                                 {activeModalTask.require_attachment && (
                                     <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 p-2 rounded-xl border border-red-200 dark:border-red-800 mt-1">
                                         <AlertCircle size={14} className="shrink-0" />

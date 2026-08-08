@@ -4,14 +4,20 @@ import daftariImg from '@/assets/daftari2.png';
 
 const styles = StyleSheet.create({
     page: {
-        padding: '15 8',
+        paddingTop: 15,
+        paddingBottom: 135,
+        paddingLeft: 8,
+        paddingRight: 8,
         fontFamily: 'Helvetica',
         fontSize: 9,
         color: '#000000',
         backgroundColor: '#ffffff',
     },
     mainContainer: {
-        border: '1 solid #000000',
+        borderTop: '1 solid #000000',
+        borderLeft: '1 solid #000000',
+        borderRight: '1 solid #000000',
+        flexGrow: 1,
     },
     headerContainer: {
         flexDirection: 'row',
@@ -197,7 +203,9 @@ const styles = StyleSheet.create({
         padding: 6,
     },
     totalBox: {
-        width: '30%',
+        width: '38%',
+        border: '1 solid #000000',
+        padding: 2,
     },
     totalRow: {
         flexDirection: 'row',
@@ -232,11 +240,16 @@ const styles = StyleSheet.create({
         lineHeight: 1.3,
     },
     signatureContainer: {
+        position: 'absolute',
+        bottom: 15,
+        left: 8,
+        right: 8,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
         padding: '4 6',
-        borderBottom: '1 solid #000000',
+        border: '1 solid #000000',
+        backgroundColor: '#ffffff',
     },
     signatureLeft: {
         width: '55%',
@@ -253,7 +266,7 @@ const styles = StyleSheet.create({
     signText: {
         fontSize: 10,
         fontFamily: 'Helvetica-Bold',
-        marginBottom: 15,
+        marginBottom: 5,
     },
     supplierStampName: {
         fontSize: 9,
@@ -367,7 +380,7 @@ export default function PoojaPOFormat(props: POPdfProps) {
         items,
         totalAmount,
         logo,
-        authorizedSignatory = "Authorized Signatory",
+        authorizedSignatory = 'Authorized Signatory',
         companyName,
         companyAddress,
         companyPhone,
@@ -377,18 +390,20 @@ export default function PoojaPOFormat(props: POPdfProps) {
         companyContactPerson,
         subtotal,
         totalGst,
-        terms
+        terms,
     } = props;
 
     const formatCurrency = (amount: number) => {
-        return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return amount.toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
     };
 
     return (
         <Document>
             <Page size="A4" style={styles.page}>
                 <View style={styles.mainContainer}>
-
                     {/* Header */}
                     <View style={styles.headerContainer}>
                         <View style={styles.daftariLogoContainer}>
@@ -467,7 +482,14 @@ export default function PoojaPOFormat(props: POPdfProps) {
                     <View style={styles.commercialSection}>
                         <View style={styles.commercialBox4}>
                             <Text style={styles.commercialLabel}>Project Name:</Text>
-                            <Text style={[styles.commercialValue, { fontFamily: 'Helvetica-Bold', fontSize: 8.5 }]}>{projectName}</Text>
+                            <Text
+                                style={[
+                                    styles.commercialValue,
+                                    { fontFamily: 'Helvetica-Bold', fontSize: 8.5 },
+                                ]}
+                            >
+                                {projectName}
+                            </Text>
                         </View>
                         <View style={styles.commercialBox4}>
                             <Text style={styles.commercialLabel}>Delivery Address:</Text>
@@ -475,15 +497,27 @@ export default function PoojaPOFormat(props: POPdfProps) {
                         </View>
                         <View style={styles.commercialBox4}>
                             <Text style={styles.commercialLabel}>Site Engineer Details 1:</Text>
-                            <Text style={styles.commercialValue}>Name: {siteEngineerName || '--'}</Text>
-                            <Text style={styles.commercialValue}>Phone: {siteEngineerPhoneNo || '--'}</Text>
-                            <Text style={styles.commercialValue}>Email: {siteEngineerEmail || '--'}</Text>
+                            <Text style={styles.commercialValue}>
+                                Name: {siteEngineerName || '--'}
+                            </Text>
+                            <Text style={styles.commercialValue}>
+                                Phone: {siteEngineerPhoneNo || '--'}
+                            </Text>
+                            <Text style={styles.commercialValue}>
+                                Email: {siteEngineerEmail || '--'}
+                            </Text>
                         </View>
                         <View style={styles.commercialBox4Last}>
                             <Text style={styles.commercialLabel}>Site Incharge Details:</Text>
-                            <Text style={styles.commercialValue}>Name: {siteEngineerName2 || '--'}</Text>
-                            <Text style={styles.commercialValue}>Phone: {siteEngineerPhoneNo2 || '--'}</Text>
-                            <Text style={styles.commercialValue}>Email: {siteEngineerEmail2 || '--'}</Text>
+                            <Text style={styles.commercialValue}>
+                                Name: {siteEngineerName2 || '--'}
+                            </Text>
+                            <Text style={styles.commercialValue}>
+                                Phone: {siteEngineerPhoneNo2 || '--'}
+                            </Text>
+                            <Text style={styles.commercialValue}>
+                                Email: {siteEngineerEmail2 || '--'}
+                            </Text>
                         </View>
                     </View>
 
@@ -491,32 +525,62 @@ export default function PoojaPOFormat(props: POPdfProps) {
                     <View style={styles.tableContainer}>
                         <View style={styles.poDetailsHeaderRow}>
                             <Text style={styles.poDetailsHeading}>Purchase Order Details:</Text>
-                            <Text style={styles.poDeliveryDateHeading}>Delivery Date: {deliveryDate}</Text>
+                            <Text style={styles.poDeliveryDateHeading}>
+                                Delivery Date: {deliveryDate}
+                            </Text>
                         </View>
 
                         <View style={styles.tableHeaderRow}>
                             <Text style={[styles.tableHeaderCell, styles.colSr]}>S/N</Text>
-                            <Text style={[styles.tableHeaderCell, styles.colInternalCode]}>Internal Code</Text>
+                            <Text style={[styles.tableHeaderCell, styles.colInternalCode]}>
+                                Internal Code
+                            </Text>
                             <Text style={[styles.tableHeaderCell, styles.colProduct]}>Product</Text>
                             <Text style={[styles.tableHeaderCell, styles.colQty]}>Qty</Text>
                             <Text style={[styles.tableHeaderCell, styles.colUnit]}>Unit</Text>
                             <Text style={[styles.tableHeaderCell, styles.colRate]}>Rate</Text>
                             <Text style={[styles.tableHeaderCell, styles.colGst]}>GST (%)</Text>
-                            <Text style={[styles.tableHeaderCell, styles.colDiscount]}>Discount (%)</Text>
-                            <Text style={[styles.tableHeaderCell, styles.colAmount]}>Amount (₹)</Text>
+                            <Text style={[styles.tableHeaderCell, styles.colDiscount]}>
+                                Discount (%)
+                            </Text>
+                            <Text style={[styles.tableHeaderCell, styles.colAmount]}>
+                                Amount (₹)
+                            </Text>
                         </View>
 
                         {items.map((item, index) => (
-                            <View style={styles.tableRow} key={index}>
+                            <View style={styles.tableRow} key={index} wrap={false}>
                                 <Text style={[styles.tableCell, styles.colSr]}>{index + 1}</Text>
-                                <Text style={[styles.tableCell, styles.colInternalCode]}>{item.internalCode}</Text>
-                                <Text style={[styles.tableCell, styles.colProduct]}>{item.product}</Text>
-                                <Text style={[styles.tableCell, styles.colQty, styles.rightAlign]}>{item.qty}</Text>
+                                <Text style={[styles.tableCell, styles.colInternalCode]}>
+                                    {item.internalCode}
+                                </Text>
+                                <Text style={[styles.tableCell, styles.colProduct]}>
+                                    {item.product}
+                                </Text>
+                                <Text style={[styles.tableCell, styles.colQty, styles.rightAlign]}>
+                                    {item.qty}
+                                </Text>
                                 <Text style={[styles.tableCell, styles.colUnit]}>{item.unit}</Text>
-                                <Text style={[styles.tableCell, styles.colRate, styles.rightAlign]}>{formatCurrency(item.rate)}</Text>
-                                <Text style={[styles.tableCell, styles.colGst, styles.rightAlign]}>{item.gst}</Text>
-                                <Text style={[styles.tableCell, styles.colDiscount, styles.rightAlign]}>{item.discount}</Text>
-                                <Text style={[styles.tableCell, styles.colAmount, styles.rightAlign]}>{formatCurrency(item.amount)}</Text>
+                                <Text style={[styles.tableCell, styles.colRate, styles.rightAlign]}>
+                                    {formatCurrency(item.rate)}
+                                </Text>
+                                <Text style={[styles.tableCell, styles.colGst, styles.rightAlign]}>
+                                    {item.gst}
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.tableCell,
+                                        styles.colDiscount,
+                                        styles.rightAlign,
+                                    ]}
+                                >
+                                    {item.discount}
+                                </Text>
+                                <Text
+                                    style={[styles.tableCell, styles.colAmount, styles.rightAlign]}
+                                >
+                                    {formatCurrency(item.amount)}
+                                </Text>
                             </View>
                         ))}
                     </View>
@@ -532,7 +596,12 @@ export default function PoojaPOFormat(props: POPdfProps) {
                                 <Text style={styles.totalLabel}>GST Amount:</Text>
                                 <Text style={styles.totalValue}>{formatCurrency(totalGst)}</Text>
                             </View>
-                            <View style={[styles.totalRow, { borderTop: '1 solid #000000', marginTop: 2, paddingTop: 2 }]}>
+                            <View
+                                style={[
+                                    styles.totalRow,
+                                    { borderTop: '1 solid #000000', marginTop: 2, paddingTop: 2 },
+                                ]}
+                            >
                                 <Text style={styles.totalLabel}>Grand Total:</Text>
                                 <Text style={styles.totalValue}>{formatCurrency(totalAmount)}</Text>
                             </View>
@@ -541,36 +610,36 @@ export default function PoojaPOFormat(props: POPdfProps) {
 
                     {/* Terms and Conditions */}
                     <View style={styles.termsContainer}>
-                        {terms && terms.map((term, idx) => (
-                            <View style={styles.termRow} key={idx}>
-                                <Text style={styles.termNumber}>{term.num}</Text>
-                                <Text style={styles.termText}>{term.text}</Text>
-                            </View>
-                        ))}
+                        {terms &&
+                            terms.map((term, idx) => (
+                                <View style={styles.termRow} key={idx} wrap={false}>
+                                    <Text style={styles.termNumber}>{term.num}</Text>
+                                    <Text style={styles.termText}>{term.text}</Text>
+                                </View>
+                            ))}
                     </View>
+                </View>
 
-                    {/* Signature Section with Space for Sign and Seal */}
-                    <View style={styles.signatureContainer}>
-                        <View style={styles.signatureLeft}>
-                            <Text style={styles.forText}>For, Pooja Constructions</Text>
-                            <View style={styles.authImagesRow}>
-                                <Image src={sealImg} style={styles.authSealImg} />
-                            </View>
-                            <View style={styles.lineContainer}>
-                                <View style={styles.signLine} />
-                                <Text style={styles.stampText}>{authorizedSignatory}</Text>
-                            </View>
+                {/* Signature Section — Fixed Footer on Every Page */}
+                <View style={styles.signatureContainer} fixed>
+                    <View style={styles.signatureLeft}>
+                        <Text style={styles.forText}>For, Pooja Constructions</Text>
+                        <View style={styles.authImagesRow}>
+                            <Image src={sealImg} style={styles.authSealImg} />
                         </View>
-                        <View style={styles.signatureRight}>
-                            <Text style={styles.signText}>Authorized Signatory</Text>
-                            <Text style={styles.supplierStampName}>{supplierName}</Text>
-                            <View style={styles.lineContainer}>
-                                <View style={styles.stampLine} />
-                                <Text style={styles.stampText}>(Seal & Stamp)</Text>
-                            </View>
+                        <View style={styles.lineContainer}>
+                            <View style={styles.signLine} />
+                            <Text style={styles.stampText}>{authorizedSignatory}</Text>
                         </View>
                     </View>
-
+                    <View style={styles.signatureRight}>
+                        <Text style={styles.signText}>Authorized Signatory</Text>
+                        <Text style={styles.supplierStampName}>{supplierName}</Text>
+                        <View style={styles.lineContainer}>
+                            <View style={styles.stampLine} />
+                            <Text style={styles.stampText}>(Seal & Stamp)</Text>
+                        </View>
+                    </View>
                 </View>
             </Page>
         </Document>

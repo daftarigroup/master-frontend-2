@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/sheet';
 import { formatDate, formatDateTimeFull, getPublicFileUrl } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { Input } from '../ui/input';
@@ -52,6 +53,7 @@ import { filterByFirmAccess } from '@/lib/firmAccess';
 
 export default function ApproveIndent() {
     const { user } = useAuth();
+    const { updateAll } = useSheets();
     const [allData, setAllData] = useState<IndentRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [selectedIndent, setSelectedIndent] = useState<IndentRecord | null>(null);
@@ -112,6 +114,7 @@ export default function ApproveIndent() {
             });
             
             setAllData(filtered);
+            updateAll(true);
 
         } catch (error) {
             console.error('Failed to fetch indent records:', error);

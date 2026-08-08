@@ -98,7 +98,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default () => {
     const { user } = useAuth();
-    const { updateTallyEntrySheet, updatePaymentsSheet } = useSheets();
+    const { updateTallyEntrySheet, updatePaymentsSheet, updateAll } = useSheets();
     const [storeInRecords, setStoreInRecords] = useState<StoreInRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(false);
     const [pendingData, setPendingData] = useState<HodPendingData[]>([]);
@@ -292,6 +292,7 @@ export default () => {
             fetchAllData();
             updateTallyEntrySheet(true);
             updatePaymentsSheet(true);
+            updateAll(true);
         } catch (error: any) {
             console.error('Error in onSubmit:', error);
             // Catch trigger-specific errors (like the 42703 column error)

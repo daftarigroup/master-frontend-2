@@ -297,6 +297,8 @@ export type UserPermissions = {
     firm_access: string[]; // New field for project-based access
 
     role?: 'SUPER_ADMIN' | 'ADMIN' | 'USER'; // New independent role field (Checklist & Delegation module)
+    system_access?: string[];
+    page_access?: Record<string, 'VIEW' | 'EDIT'>;
 
     administrate: boolean;
     createIndent: boolean;
@@ -334,6 +336,19 @@ export type UserPermissions = {
     pendingPo: boolean;
     fullKiting: boolean;
     makePayment: boolean;
+
+    // Checklist & Delegation System Permissions
+    checklistDash?: boolean;
+    checklistQuickTask?: boolean;
+    checklistAssign?: boolean;
+    checklistSubmitChecklist?: boolean;
+    checklistSubmitDelegation?: boolean;
+    checklistApproval?: boolean;
+
+    // Maintenance System Permissions
+    maintDash?: boolean;
+    maintMachines?: boolean;
+    maintBreakdowns?: boolean;
 };
 
 export interface PaymentsSheet {
@@ -404,6 +419,15 @@ export const allPermissionKeys = [
     "pendingPo",
     "fullKiting",
     "makePayment",
+    "checklistDash",
+    "checklistQuickTask",
+    "checklistAssign",
+    "checklistSubmitChecklist",
+    "checklistSubmitDelegation",
+    "checklistApproval",
+    "maintDash",
+    "maintMachines",
+    "maintBreakdowns",
 ] as const;
 
 

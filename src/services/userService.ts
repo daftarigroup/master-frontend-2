@@ -29,6 +29,11 @@ function applyDerivedUserAccess(user: any) {
 }
 
 function mapUserRow(r: any): UserRecord {
+    const role: 'SUPER_ADMIN' | 'ADMIN' | 'USER' =
+        (r.role === 'SUPER_ADMIN' || r.role === 'ADMIN' || r.role === 'USER')
+            ? r.role
+            : (r.administrate ? 'SUPER_ADMIN' : 'USER');
+
     const user: any = {
         id: r.id,
         timestamp: r.timestamp || '',
@@ -39,8 +44,10 @@ function mapUserRow(r: any): UserRecord {
         modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
         firmNameMatch: '',
         firm_access: normalizeFirmAccess(r.firm_access),
-        rowIndex: r.id, // Using ID as a fallback for rowIndex since it's used in and out of tables
-        role: (r.role === 'SUPER_ADMIN' || r.role === 'ADMIN' || r.role === 'USER') ? r.role : undefined,
+        system_access: r.system_access || [],
+        page_access: r.page_access || {},
+        rowIndex: r.id,
+        role: role,
     };
 
     // Map each permission key from snake_case in DB to camelCase in UserPermissions
@@ -74,12 +81,16 @@ export async function fetchUsers(): Promise<UserRecord[]> {
  */
 export async function createUser(userData: Partial<UserPermissions>) {
     try {
+        const userRole = userData.role || (userData.administrate ? 'SUPER_ADMIN' : 'USER');
         const dbRow: any = {
             user_name: userData.username,
             name: userData.name,
             password: userData.password,
-            modify_access: userData.modify_access === 'VIEW' ? 'VIEW' : 'EDIT',
+            role: userRole,
+            modify_access: (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userData.modify_access === 'EDIT') ? 'EDIT' : 'VIEW',
             firm_access: normalizeFirmAccess(userData.firm_access),
+            system_access: userData.system_access || [],
+            page_access: userData.page_access || {},
             timestamp: new Date().toISOString(),
         };
 
@@ -103,12 +114,16 @@ export async function createUser(userData: Partial<UserPermissions>) {
  */
 export async function updateUser(id: number, userData: Partial<UserPermissions>) {
     try {
+        const userRole = userData.role || (userData.administrate ? 'SUPER_ADMIN' : 'USER');
         const dbRow: any = {
             user_name: userData.username,
             name: userData.name,
             password: userData.password,
-            modify_access: userData.modify_access === 'VIEW' ? 'VIEW' : 'EDIT',
+            role: userRole,
+            modify_access: (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userData.modify_access === 'EDIT') ? 'EDIT' : 'VIEW',
             firm_access: normalizeFirmAccess(userData.firm_access),
+            system_access: userData.system_access || [],
+            page_access: userData.page_access || {},
         };
 
         // Map camelCase permissions to snake_case for DB
@@ -169,6 +184,13 @@ export async function getUserByUsername(username: string): Promise<UserRecord | 
     try {
         const res: any = await apiClient.get(`/store/users/by-username/${encodeURIComponent(username)}`);
         if (!res.data) return null;
+
+        if (res.checklistToken) {
+            localStorage.setItem(CHECKLIST_TOKEN_KEY, res.checklistToken);
+        } else {
+            localStorage.removeItem(CHECKLIST_TOKEN_KEY);
+        }
+
         return mapUserRow(res.data);
     } catch (error) {
         console.error('Error fetching user by username:', error);

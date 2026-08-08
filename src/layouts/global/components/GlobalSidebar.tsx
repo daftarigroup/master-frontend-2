@@ -5,6 +5,8 @@ import { useSheets } from '@/context/SheetsContext';
 import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { NAV_CONFIG, getOrderedNavConfig } from '../config/navConfig';
+import { hasPageAccess, isSystemPermitted } from '@/components/element/PermissionGuard';
+import type { UserPermissions } from '@/types/sheets';
 import { getAccentStyle } from '../config/accentStyles';
 import { AppIcon } from './AppIcon';
 import gsap from 'gsap';
@@ -148,13 +150,9 @@ export const GlobalSidebar: React.FC = () => {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const isAdmin = user?.administrate === true || (user?.administrate as any) === 'true';
-
   const isPermitted = (gateKey?: string) => {
     if (!gateKey) return true;
-    if (isAdmin) return true;
-    const userObj = user as any;
-    return userObj?.[gateKey] === true || userObj?.[gateKey] === 'true';
+    return hasPageAccess(user, undefined, 'VIEW', gateKey as keyof UserPermissions);
   };
 
   // Helper notification counter calculation
@@ -288,7 +286,7 @@ export const GlobalSidebar: React.FC = () => {
           // detail — click switches system, navigates to its dashboard, and
           // re-expands the sidebar into the full labeled accordion.
           <div className="flex flex-col items-center gap-3 pt-2">
-            {getOrderedNavConfig().filter(system => system.id !== 'global').map((system) => {
+            {getOrderedNavConfig().filter(system => system.id !== 'global' && isSystemPermitted(user, system)).map((system) => {
               const isPrimary = system.id === activeSystemId;
               return (
                 <Tooltip key={system.id}>
@@ -320,7 +318,7 @@ export const GlobalSidebar: React.FC = () => {
           </div>
         ) : (
         <div ref={contentRef} className="space-y-3">
-        {getOrderedNavConfig().filter(system => system.id !== 'global').map((system) => {
+        {getOrderedNavConfig().filter(system => system.id !== 'global' && isSystemPermitted(user, system)).map((system) => {
           const accent = getAccentStyle(system.accentClassName);
           const isOpen = !!openSystems[system.id];
           const isPrimary = system.id === activeSystemId;
@@ -369,7 +367,9 @@ export const GlobalSidebar: React.FC = () => {
               {!system.disabled && (
                 <CollapsibleSection isOpen={isOpen}>
                   <SidebarGroupContent className="mt-1">
-                    {system.groups.map((grp) => {
+                    {system.groups
+                      .filter((grp) => grp.items.some((item) => isPermitted(item.gateKey)))
+                      .map((grp) => {
                       const namespacedKey = grp.key;
                       const groupOpen = openGroups[namespacedKey] ?? true;
 

@@ -99,3 +99,15 @@ export async function updateDelegationTask(id: number | string, payload: any) {
     const res: any = await checklistApiClient.patch(`/delegation-task/${id}`, payload);
     return res.data;
 }
+
+export async function deleteDelegationTask(id: number | string) {
+    const res: any = await checklistApiClient.delete(`/delegation-task/${id}`);
+    return res?.data ?? res;
+}
+
+export async function deleteDelegationTasksBatch(ids: (number | string)[]) {
+    const res: any = await checklistApiClient.post('/delegation-task/delete-batch', { ids });
+    return (res?.data ?? res) as { deletedCount: number };
+}
+
+

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/core/auth';
 import Loading from '@/components/views/Loading';
 import type { UserPermissions } from '@/types/sheets';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
@@ -12,21 +13,20 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export function GatedRoute({
     children,
+    page,
     identifier,
+    requiredMode = 'VIEW',
 }: {
     children: React.ReactNode;
+    page?: string;
     identifier?: keyof UserPermissions;
+    requiredMode?: 'VIEW' | 'EDIT';
 }) {
     const { user } = useAuth();
-    if (!identifier) return <>{children}</>;
+    if (!page && !identifier) return <>{children}</>;
 
-    const isAdmin = user?.administrate === true || (user?.administrate as any) === "true";
-    if (isAdmin) {
-        return <>{children}</>;
-    }
-
-    const hasPermission = user && ((user as any)[identifier] === true || (user as any)[identifier] === "true");
-    if (!hasPermission) {
+    const isPermitted = hasPageAccess(user, page, requiredMode, identifier);
+    if (!isPermitted) {
         return <Navigate to="/" replace />;
     }
     return <>{children}</>;

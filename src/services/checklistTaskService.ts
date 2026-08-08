@@ -146,5 +146,17 @@ export async function updateChecklistTask(id: number | string, payload: Partial<
  */
 export async function updateChecklistTaskGroup(id: number | string, payload: Partial<AssignTaskPayload>) {
     const res: any = await checklistApiClient.patch(`/checklist-task/${id}/group`, payload);
-    return res.data as { updatedCount: number; anchorTaskId: number };
+    return (res?.data ?? res) as { updatedCount: number; anchorTaskId: number };
 }
+
+export async function deleteChecklistTaskGroup(id: number | string) {
+    const res: any = await checklistApiClient.delete(`/checklist-task/${id}/group`);
+    return (res?.data ?? res) as { deletedCount: number; anchorTaskId: number };
+}
+
+export async function deleteChecklistTaskGroupsBatch(anchorIds: (number | string)[]) {
+    const res: any = await checklistApiClient.post('/checklist-task/delete-groups', { anchorIds });
+    return (res?.data ?? res) as { deletedCount: number };
+}
+
+

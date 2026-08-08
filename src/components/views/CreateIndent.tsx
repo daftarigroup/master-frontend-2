@@ -42,6 +42,7 @@ export default () => {
         updateInventorySheet,
         updateMasterSheet,
         updateIndentSheet,
+        updateAll,
     } = useSheets();
     const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
@@ -631,6 +632,7 @@ export default () => {
             toast.success(`Indent ${nextIndentNumber} created successfully!`);
             fetchHistory();
             updateIndentSheet(true);
+            updateAll(true);
                 // 4. Increment inventory 'indented' counts in background (non-blocking)
             data.products.forEach(product => {
                 const groupHead = product.groupHead || options?.itemGroupHeadMap?.[product.productName] || '';

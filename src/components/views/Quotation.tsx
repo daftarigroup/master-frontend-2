@@ -138,6 +138,7 @@ export default function QuotationPage() {
         poMasterSheet,
         updateIndentSheet,
         updatePoMasterSheet,
+        updateAll,
         masterSheet: details,
     } = useSheets();
     const [mode, setMode] = useState<Mode>('create');
@@ -432,6 +433,7 @@ export default function QuotationPage() {
             setTimeout(() => {
                 updatePoMasterSheet();
                 updateIndentSheet();
+                updateAll(true);
                 fetchLatestQuotationNumbers(); // Refresh history
             }, 1000);
         } catch (e) {

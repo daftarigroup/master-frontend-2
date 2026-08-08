@@ -30,6 +30,7 @@ import { Pill } from '../ui/pill';
 import { filterByFirmAccess, isAllowedFirm } from '@/lib/firmAccess';
 
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
+import { useSheets } from '@/context/SheetsContext';
 import {
     fetchStoreInRecords,
     fetchDirectRecords,
@@ -225,6 +226,7 @@ const formatPlannedDate = (dateString: string) => {
 
 export default () => {
     const { user } = useAuth();
+    const { updateAll } = useSheets();
 
     const [tableData, setTableData] = useState<StoreInPendingData[]>([]);
     const [historyData, setHistoryData] = useState<StoreInHistoryData[]>([]);
@@ -258,6 +260,7 @@ export default () => {
             ]);
             setStoreInRecords(storeIns);
             setDirectData(directIns);
+            updateAll(true);
 
             // Populate master options
             if (masterData) {

@@ -270,7 +270,7 @@ type FormData = z.infer<typeof schema>;
 
 const CreatePO = () => {
     const { user } = useAuth();
-    const { updateMasterSheet } = useSheets();
+    const { updateMasterSheet, updateAll } = useSheets();
 
     // Supabase state
     const [indentSheet, setIndentSheet] = useState<IndentSheetItem[]>([]);
@@ -1158,6 +1158,7 @@ const CreatePO = () => {
 
             // Refresh data from Supabase using loadData()
             await loadData();
+            updateAll(true);
         } catch (e) {
             toast.error(`Failed to ${mode} purchase order`);
         }
@@ -1684,10 +1685,7 @@ const CreatePO = () => {
                                             <TableRow>
                                                 <TableHead>S/N</TableHead>
                                                 <TableHead>Internal Code</TableHead>
-                                                <TableHead>Quotation No.</TableHead>
                                                 <TableHead>Product</TableHead>
-                                                <TableHead>Description</TableHead>
-                                                <TableHead>Payment Term</TableHead>
                                                 <TableHead>Qty</TableHead>
                                                 <TableHead>Unit</TableHead>
                                                 <TableHead>Rate</TableHead>
@@ -1706,26 +1704,7 @@ const CreatePO = () => {
                                                     <TableRow key={field.id}>
                                                         <TableCell>{index + 1}</TableCell>
                                                         <TableCell className="font-medium">{formValue?.indentNumber || 'N/A'}</TableCell>
-                                                        <TableCell className="font-medium">
-                                                            <FormField control={form.control} name={`indents.${index}.quotationNumber`} render={({ field }) => (
-                                                                <FormItem className="flex justify-center">
-                                                                    <FormControl>
-                                                                        <Input className="h-9 w-32 text-center bg-gray-50" value={field.value || ''} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                </FormItem>
-                                                            )} />
-                                                        </TableCell>
                                                         <TableCell>{formValue?.productName || 'No Product'}</TableCell>
-                                                        <TableCell>{formValue?.specifications || <span className="text-muted-foreground italic">No description</span>}</TableCell>
-                                                        <TableCell>
-                                                            <FormField control={form.control} name={`indents.${index}.paymentTerm`} render={({ field }) => (
-                                                                <FormItem className="flex justify-center">
-                                                                    <FormControl>
-                                                                        <Input className="h-9 w-32 text-center bg-gray-50" value={field.value || ''} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                </FormItem>
-                                                            )} />
-                                                        </TableCell>
                                                         <TableCell>
                                                             <FormField control={form.control} name={`indents.${index}.quantity`} render={({ field }) => (
                                                                 <FormItem className="flex justify-center">

@@ -7,6 +7,9 @@ import { NAV_CONFIG, getOrderedNavConfig } from '../config/navConfig';
 import { AppIcon } from './AppIcon';
 import { X } from 'lucide-react';
 
+import { useAuth } from '@/context/AuthContext';
+import { isSystemPermitted } from '@/components/element/PermissionGuard';
+
 gsap.registerPlugin(useGSAP);
 
 /**
@@ -15,6 +18,7 @@ gsap.registerPlugin(useGSAP);
  * system (including "Coming Soon" ones) equal visual weight as an app tile.
  */
 export const AppLauncherOverlay: React.FC = () => {
+  const { user } = useAuth();
   const { isLauncherOpen, setIsLauncherOpen, activeSystemId, setActiveSystemId } = usePlatform();
   const [shouldRender, setShouldRender] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -107,7 +111,7 @@ export const AppLauncherOverlay: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 lg:gap-2">
-            {getOrderedNavConfig().map((system) => {
+            {getOrderedNavConfig().filter((sys) => sys.id === 'global' || isSystemPermitted(user, sys)).map((system) => {
               const isActive = system.id === activeSystemId;
               return (
                 <button

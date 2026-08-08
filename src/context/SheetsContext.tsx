@@ -52,6 +52,7 @@ import type { PaymentsSheet } from '@/types/sheets';
 import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 // ============================================================
 // Domain context interfaces — each component subscribes only
@@ -136,6 +137,7 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
     const { user } = useAuth();
+    const location = useLocation();
 
     // --- Raw state ---
     const [indentSheet, setIndentSheet] = useState<IndentSheet[]>([]);
@@ -586,6 +588,14 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [updateAll]);
+
+    // --- Route Change Refetch ---
+    // Refetch all store sheets silently whenever navigating to a new route/stage
+    useEffect(() => {
+        if (user?.username) {
+            updateAll(true);
+        }
+    }, [location.pathname, user?.username, updateAll]);
 
     // ============================================================
     // Memoized context values — each value object only changes

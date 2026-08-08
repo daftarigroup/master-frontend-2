@@ -22,6 +22,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Users, PenSquare, CheckSquare } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -64,6 +65,7 @@ interface HistoryData {
 
 export default () => {
     const { user } = useAuth();
+    const { updateAll } = useSheets();
 
 
     const [selectedIndent, setSelectedIndent] = useState<RateApprovalData | null>(null);
@@ -261,9 +263,10 @@ export default () => {
             setOpenDialog(false);
             form.reset();
 
-            // Refresh both tables
+            // Refresh both tables and global sheets context
             fetchPendingApprovals();
             fetchCompletedApprovals();
+            updateAll(true);
         } catch (error) {
             console.error('Error approving vendor:', error);
             toast.error('Failed to update vendor');
@@ -296,8 +299,9 @@ export default () => {
             setOpenDialog(false);
             historyUpdateForm.reset({ rate: 0 });
 
-            // Refresh history table
+            // Refresh history table and global sheets context
             fetchCompletedApprovals();
+            updateAll(true);
         } catch (err) {
             console.error('Error updating rate:', err);
             toast.error('Failed to update vendor');

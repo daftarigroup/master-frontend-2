@@ -1022,12 +1022,12 @@ if (rootElement) {
                                     }
                                 >
                                     <Route index element={<Navigate to="/checklist/dashboard" replace />} />
-                                    <Route path="dashboard" element={<ChecklistDashboard />} />
-                                    <Route path="quick-task" element={<QuickTask />} />
-                                    <Route path="assign" element={<AssignTask />} />
-                                    <Route path="submit/checklist" element={<ChecklistSubmission />} />
-                                    <Route path="submit/delegation" element={<DelegationSubmission />} />
-                                    <Route path="approval" element={<AdminApproval />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="checklistDash"><ChecklistDashboard /></GatedRoute>} />
+                                    <Route path="quick-task" element={<GatedRoute identifier="checklistQuickTask"><QuickTask /></GatedRoute>} />
+                                    <Route path="assign" element={<GatedRoute identifier="checklistAssign"><AssignTask /></GatedRoute>} />
+                                    <Route path="submit/checklist" element={<GatedRoute identifier="checklistSubmitChecklist"><ChecklistSubmission /></GatedRoute>} />
+                                    <Route path="submit/delegation" element={<GatedRoute identifier="checklistSubmitDelegation"><DelegationSubmission /></GatedRoute>} />
+                                    <Route path="approval" element={<GatedRoute identifier="checklistApproval"><AdminApproval /></GatedRoute>} />
                                 </Route>
 
                                 {/* LEGACY FLAT ROUTE BACKWARD COMPATIBILITY REDIRECTS */}

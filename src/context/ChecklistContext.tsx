@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { fetchChecklistTasks, type ChecklistTaskRow } from '@/services/checklistTaskService';
 import { fetchDelegationTasks, type DelegationTaskRow } from '@/services/delegationTaskService';
 import { fetchHolidays, type HolidayRow } from '@/services/holidayService';
@@ -27,6 +28,7 @@ const ChecklistContext = createContext<ChecklistContextState | null>(null);
 
 export const ChecklistProvider = ({ children }: { children: React.ReactNode }) => {
     const { loggedIn } = useAuth();
+    const location = useLocation();
     const [checklistTasks, setChecklistTasks] = useState<ChecklistTaskRow[]>([]);
     const [delegationTasks, setDelegationTasks] = useState<DelegationTaskRow[]>([]);
     const [holidays, setHolidays] = useState<HolidayRow[]>([]);
@@ -57,10 +59,11 @@ export const ChecklistProvider = ({ children }: { children: React.ReactNode }) =
     }, []);
 
     useEffect(() => {
-        if (loggedIn) {
+        const token = localStorage.getItem('checklistToken');
+        if (loggedIn && token) {
             refresh();
         }
-    }, [loggedIn, refresh]);
+    }, [loggedIn, location.pathname, refresh]);
 
     return (
         <ChecklistContext.Provider

@@ -31,6 +31,7 @@ import {
     Camera,
     Trash2,
     AlertTriangle,
+    History,
 } from 'lucide-react';
 import Heading from '@/components/element/Heading';
 import FilterToolbar from '@/components/element/FilterToolbar';
@@ -43,6 +44,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import MediaPreviewDialog from '@/components/element/MediaPreviewDialog';
 import { uploadFile } from '@/lib/fetchers';
 import { useChecklistData } from '@/context/ChecklistContext';
@@ -146,11 +148,16 @@ function CustomFilePicker({
 
 export default function ChecklistSubmission() {
     const { checklistTasks, loading, refresh } = useChecklistData();
+    const [mainTab, setMainTab] = useState<'pending' | 'history'>('pending');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'done'>('all');
     const [dateHorizon, setDateHorizon] = useState<'today_plus_1' | 'all'>('today_plus_1');
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [copiedId, setCopiedId] = useState<number | null>(null);
+
+    // History Tab Filter State
+    const [historySearchQuery, setHistorySearchQuery] = useState('');
+    const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'done' | 'approved' | 'rejected'>('all');
 
     // Batch infinite scroll state
     const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
@@ -212,7 +219,7 @@ export default function ChecklistSubmission() {
 
         if (statusFilter !== 'all') {
             if (statusFilter === 'pending') {
-                tasks = tasks.filter((t) => (t.status || 'pending').toLowerCase() === 'pending');
+                tasks = tasks.filter((t) => (t.status || 'pending').toLowerCase() === 'pending' || (t.status || '').toLowerCase() === 'rejected');
             } else if (statusFilter === 'done') {
                 tasks = tasks.filter((t) => (t.status || '').toLowerCase() === 'done' || (t.status || '').toLowerCase() === 'approved');
             }
@@ -232,6 +239,42 @@ export default function ChecklistSubmission() {
         }
         return tasks;
     }, [checklistTasks, dateHorizon, searchQuery, statusFilter]);
+
+    // Submitted / Completed Tasks History
+    const historyTasks = useMemo(() => {
+        let tasks = checklistTasks.filter(
+            (t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)
+        );
+
+        if (historyStatusFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.status || '').toLowerCase() === historyStatusFilter.toLowerCase());
+        }
+
+        if (historySearchQuery.trim()) {
+            const q = historySearchQuery.toLowerCase().trim();
+            tasks = tasks.filter(
+                (t) =>
+                    (t.task_description || '').toLowerCase().includes(q) ||
+                    (t.firm_name || '').toLowerCase().includes(q) ||
+                    (t.doer_name || '').toLowerCase().includes(q) ||
+                    (t.given_by_name || '').toLowerCase().includes(q) ||
+                    (t.remark || '').toLowerCase().includes(q) ||
+                    `ck-${t.task_id}`.includes(q)
+            );
+        }
+
+        return tasks.sort((a, b) => {
+            const dA = new Date(a.submission_date || a.created_at || 0).getTime();
+            const dB = new Date(b.submission_date || b.created_at || 0).getTime();
+            return dB - dA;
+        });
+    }, [checklistTasks, historyStatusFilter, historySearchQuery]);
+
+    // History metrics
+    const historyTotal = historyTasks.length;
+    const historyApproved = historyTasks.filter((t) => t.status === 'approved').length;
+    const historyPendingAdmin = historyTasks.filter((t) => t.status === 'done').length;
+    const historyRejected = historyTasks.filter((t) => t.status === 'rejected').length;
 
     // Reset pagination window when filters change
     useEffect(() => {
@@ -420,7 +463,28 @@ export default function ChecklistSubmission() {
                 </div>
             </Heading>
 
-            {/* Compliance Progress Banner */}
+            <Tabs defaultValue="pending" value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-2.5 rounded-2xl border shadow-xs">
+                    <TabsList className="bg-muted/60 p-1 rounded-xl">
+                        <TabsTrigger value="pending" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                            <CheckSquare size={15} className="text-sky-600" />
+                            <span>Pending Execution</span>
+                            <span className="ml-1 bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                {checklistTasks.filter((t) => !t.status || t.status === 'pending').length}
+                            </span>
+                        </TabsTrigger>
+                        <TabsTrigger value="history" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                            <History size={15} className="text-purple-600" />
+                            <span>Submission History</span>
+                            <span className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                {checklistTasks.filter((t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)).length}
+                            </span>
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <TabsContent value="pending" className="mt-0 space-y-5">
+                    {/* Compliance Progress Banner */}
             <Card className="bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-indigo-500/10 border-sky-200 dark:border-sky-900/60 shadow-2xs">
                 <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="space-y-1 w-full md:w-auto">
@@ -645,7 +709,13 @@ export default function ChecklistSubmission() {
 
                                             {/* Column 5: Description */}
                                             <TableCell className="font-medium text-foreground">
-                                                {cleanDesc}
+                                                <div>{cleanDesc}</div>
+                                                {(task.status || '').toLowerCase() === 'rejected' && (
+                                                    <div className="mt-1.5 text-[11px] text-rose-700 dark:text-rose-300 font-bold bg-rose-50 dark:bg-rose-950/60 px-2 py-1 rounded-md border border-rose-200 dark:border-rose-800 flex items-center gap-1.5 w-fit">
+                                                        <AlertTriangle size={13} className="shrink-0 text-rose-600" />
+                                                        <span>Rejection Reason: {task.remark || 'Rejected by Admin'}</span>
+                                                    </div>
+                                                )}
                                             </TableCell>
 
                                             {/* Column 6: Project */}
@@ -696,15 +766,21 @@ export default function ChecklistSubmission() {
 
                                             {/* Column 12: Status */}
                                             <TableCell>
-                                                <span
-                                                    className={`capitalize font-bold text-[11px] px-2 py-0.5 rounded ${
-                                                        isDone
-                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                                                    }`}
-                                                >
-                                                    {task.status || 'pending'}
-                                                </span>
+                                                {(task.status || '').toLowerCase() === 'rejected' ? (
+                                                    <span className="capitalize font-extrabold text-[11px] px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                                                        Rejected (Redo)
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        className={`capitalize font-bold text-[11px] px-2 py-0.5 rounded ${
+                                                            isDone
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                                        }`}
+                                                    >
+                                                        {task.status || 'pending'}
+                                                    </span>
+                                                )}
                                             </TableCell>
 
                                             {/* Column 13: Remark */}
@@ -869,8 +945,122 @@ export default function ChecklistSubmission() {
                     </span>
                 )}
             </div>
+        </TabsContent>
 
-            {/* HIGH-PREMIUM TASK COMPLETION DIALOG */}
+        {/* SUBMISSION HISTORY TAB */}
+        <TabsContent value="history" className="mt-0 space-y-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Card className="p-3 bg-card border shadow-xs">
+                    <p className="text-[11px] font-bold uppercase text-muted-foreground">Total Submissions</p>
+                    <p className="text-xl font-black text-foreground mt-1">{historyTotal}</p>
+                </Card>
+                <Card className="p-3 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 shadow-xs">
+                    <p className="text-[11px] font-bold uppercase text-sky-700 dark:text-sky-300">Pending Review</p>
+                    <p className="text-xl font-black text-sky-800 dark:text-sky-200 mt-1">{historyPendingAdmin}</p>
+                </Card>
+                <Card className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 shadow-xs">
+                    <p className="text-[11px] font-bold uppercase text-red-700 dark:text-red-300">Rejected</p>
+                    <p className="text-xl font-black text-red-800 dark:text-red-200 mt-1">{historyRejected}</p>
+                </Card>
+            </div>
+
+            {/* Filter Toolbar for History */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-3 rounded-xl border shadow-xs">
+                <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search submitted tasks, doer, project..."
+                        value={historySearchQuery}
+                        onChange={(e) => setHistorySearchQuery(e.target.value)}
+                        className="pl-9 h-9 text-xs"
+                    />
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Select value={historyStatusFilter} onValueChange={(v: any) => setHistoryStatusFilter(v)}>
+                        <SelectTrigger className="h-9 text-xs w-44"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                            <SelectItem value="done" className="text-xs">Pending Approval (Done)</SelectItem>
+                            <SelectItem value="approved" className="text-xs">Approved</SelectItem>
+                            <SelectItem value="rejected" className="text-xs">Rejected</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Submissions Table */}
+            <div className="border rounded-xl bg-card shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                    <Table className="text-xs">
+                        <TableHeader className="bg-muted/50">
+                            <TableRow>
+                                <TableHead className="font-bold">Task ID</TableHead>
+                                <TableHead className="font-bold min-w-[200px]">Task Description</TableHead>
+                                <TableHead className="font-bold">Project / Firm</TableHead>
+                                <TableHead className="font-bold">Doer</TableHead>
+                                <TableHead className="font-bold">Submission Date</TableHead>
+                                <TableHead className="font-bold text-center">Proof Attachments</TableHead>
+                                <TableHead className="font-bold min-w-[160px]">Doer Remark</TableHead>
+                                <TableHead className="font-bold text-center">Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {historyTasks.length > 0 ? (
+                                historyTasks.map((t) => (
+                                    <TableRow key={t.task_id} className="hover:bg-muted/20">
+                                        <TableCell className="font-mono font-bold">
+                                            <button onClick={() => handleCopyId(t.task_id)} className="hover:text-primary inline-flex items-center gap-1">
+                                                CK-{t.task_id}
+                                                {copiedId === t.task_id ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="opacity-50" />}
+                                            </button>
+                                        </TableCell>
+                                        <TableCell className="font-medium max-w-xs"><p className="line-clamp-2">{t.task_description}</p></TableCell>
+                                        <TableCell className="text-muted-foreground">{t.firm_name || '—'}</TableCell>
+                                        <TableCell className="font-semibold">{t.doer_name || '—'}</TableCell>
+                                        <TableCell className="text-muted-foreground font-mono">
+                                            {t.submission_date ? new Date(t.submission_date).toLocaleString() : '—'}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <MediaPreviewDialog
+                                                imageUrl={t.image}
+                                                audioUrl={t.audio_url}
+                                                title={`Proofs for Task CK-${t.task_id}`}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground max-w-xs"><p className="line-clamp-2 italic">{t.remark || 'No remark'}</p></TableCell>
+                                        <TableCell className="text-center">
+                                            {t.status === 'approved' ? (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                                                    Approved
+                                                </span>
+                                            ) : t.status === 'rejected' ? (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300">
+                                                    Rejected
+                                                </span>
+                                            ) : (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300">
+                                                    Submitted (Pending Review)
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={8} className="py-12 text-center text-muted-foreground italic">
+                                        No submitted checklist tasks found in history
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+        </TabsContent>
+    </Tabs>
+
+    {/* HIGH-PREMIUM TASK COMPLETION DIALOG */}
             <Dialog open={modalAction === 'done'} onOpenChange={(open) => !open && setModalAction(null)}>
                 <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border shadow-2xl bg-card">
                     {/* Header Banner with Vibrant Gradient Icon Badge */}
@@ -936,6 +1126,16 @@ export default function ChecklistSubmission() {
                                         </>
                                     );
                                 })()}
+
+                                {activeModalTask.status === 'rejected' && (
+                                    <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 p-3 rounded-2xl text-xs text-rose-800 dark:text-rose-200 space-y-1">
+                                        <p className="font-extrabold flex items-center gap-1.5 text-rose-700 dark:text-rose-300">
+                                            <AlertTriangle size={15} /> Previous Submission Rejected By Admin
+                                        </p>
+                                        <p className="text-[11px] font-medium">Rejection Reason: <strong className="font-bold">{activeModalTask.remark || 'No reason provided'}</strong></p>
+                                        <p className="text-[10px] text-muted-foreground pt-0.5">Please attach updated proof photo/voice note and resubmit. Assigned date and time will remain unchanged.</p>
+                                    </div>
+                                )}
 
                                 {activeModalTask.require_attachment && (
                                     <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 p-2 rounded-xl border border-red-200 dark:border-red-800">

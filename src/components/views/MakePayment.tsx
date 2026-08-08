@@ -139,14 +139,17 @@ interface UpdatePayload {
 
 export default function MakePayment() {
     const { user } = useAuth();
-    // Grab the context updater so the sidebar badge reflects payment status immediately
-    const { updatePaymentsSheet } = useSheets();
+    // Grab context updaters so global sheets and sidebar badges reflect payment status immediately
+    const { updatePaymentsSheet, updateAll: updateGlobalSheets } = useSheets();
     const [paymentsLoading, setPaymentsLoading] = useState(false);
     const [paymentsSheet, setPaymentsSheet] = useState<PaymentsRecord[]>([]);
     const [paymentHistoryLoading, setPaymentHistoryLoading] = useState(false);
     const [paymentHistorySheet, setPaymentHistorySheet] = useState<PaymentHistoryRecord[]>([]);
     const [reloadKey, setReloadKey] = useState(0);
-    const updateAll = () => setReloadKey(k => k + 1);
+    const updateAll = () => {
+        setReloadKey(k => k + 1);
+        updateGlobalSheets(true);
+    };
     const [pendingData, setPendingData] = useState<DisplayPayment[]>([]);
     const [historyData, setHistoryData] = useState<DisplayPaymentHistory[]>([]);
     const [storeInRecords, setStoreInRecords] = useState<any[]>([]); // To store full metadata

@@ -41,6 +41,7 @@ export default () => {
         stockTransferSheet,
         updateIssueSheet,
         updateStockTransferSheet,
+        updateAll,
     } = useSheets();
 
     const [options, setOptions] = useState<MasterData | null>(null);
@@ -163,6 +164,7 @@ export default () => {
             toast.success('Return updated successfully');
 
             fetchData(); // Refresh data
+            updateAll(true);
 
             form.reset({
                 constructorName: '',
