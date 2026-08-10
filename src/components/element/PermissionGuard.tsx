@@ -40,6 +40,12 @@ export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
     storeIssue: 'store_issue',
     storeIssueReturn: 'store_issue_return',
     issueData: 'issue_data',
+    checklistDash: 'checklist_dash',
+    checklistQuickTask: 'checklist_quick_task',
+    checklistAssign: 'checklist_assign',
+    checklistSubmitChecklist: 'checklist_submit_checklist',
+    checklistSubmitDelegation: 'checklist_submit_delegation',
+    checklistApproval: 'checklist_approval',
 };
 
 /**

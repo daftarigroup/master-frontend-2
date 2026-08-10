@@ -32,7 +32,8 @@ import Heading from '@/components/element/Heading';
 import TaskCard from '@/components/element/TaskCard';
 import { useAuth } from '@/context/AuthContext';
 import { useChecklistData } from '@/context/ChecklistContext';
-import { isChecklistAdmin } from '@/lib/roleAccess';
+import { isChecklistAdmin, isChecklistSuperAdmin } from '@/lib/roleAccess';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import { cn } from '@/lib/utils';
 import { toDateOnly, getTimeBucket } from '@/lib/checklistBuckets';
 
@@ -347,7 +348,9 @@ export default function ChecklistDashboard() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { checklistTasks, delegationTasks, loading } = useChecklistData();
-    const isAdmin = isChecklistAdmin(user);
+    const isSuperAdmin = isChecklistSuperAdmin(user) || user?.administrate === true;
+    const hasApprovalAccess = hasPageAccess(user, undefined, 'VIEW', 'checklistApproval');
+    const canViewApprovalCard = isSuperAdmin || (isChecklistAdmin(user) && hasApprovalAccess);
 
     const [mode, setMode] = useState<DashboardMode>('all');
     const [datePreset, setDatePreset] = useState<DatePreset>('mtd');
@@ -799,7 +802,7 @@ export default function ChecklistDashboard() {
                 </Card>
 
                 <div className="lg:col-span-7 flex flex-col gap-4">
-                    {isAdmin && (
+                    {canViewApprovalCard && (
                         <Card className="border-l-4 border-l-purple-600 overflow-hidden shadow-2xs bg-card rounded-2xl">
                             <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600" />
                             <CardHeader className="flex flex-row items-center justify-between pt-4 pb-2">
@@ -838,7 +841,7 @@ export default function ChecklistDashboard() {
                                 onClick={() => navigate('/checklist/quick-task')}
                             >
                                 <ListTodo size={15} className="text-sky-600" />
-                                Quick Add Task
+                                Quick Task
                             </Button>
                             <Button
                                 variant="outline"
@@ -846,7 +849,7 @@ export default function ChecklistDashboard() {
                                 onClick={() => navigate('/checklist/assign')}
                             >
                                 <Clock size={15} className="text-emerald-600" />
-                                Assign Recurrence
+                                Assign Task
                             </Button>
                             <Button
                                 variant="outline"
