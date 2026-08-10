@@ -888,7 +888,7 @@ const routes: RouteAttributes[] = [
     },
     {
         path: 'master-registry',
-        gateKey: 'administrate',
+        gateKey: 'masterRegistry',
         name: 'Master Registry',
         icon: <FileSpreadsheet size={20} />,
         element: <MasterManagement />,
@@ -911,7 +911,7 @@ const routes: RouteAttributes[] = [
     },
     {
         path: 'manage-users',
-        gateKey: 'administrate',
+        gateKey: 'manageUsers',
         name: 'Manage Users',
         icon: <Users size={20} />,
         element: <ManageUsers />,
@@ -997,10 +997,10 @@ if (rootElement) {
                                     <Route path="auditing/pc-report" element={<GatedRoute identifier="dbForPc"><DBforPc /></GatedRoute>} />
 
                                     {/* Admin Sub-Routes */}
-                                    <Route path="admin/master-registry" element={<GatedRoute identifier="administrate"><MasterManagement /></GatedRoute>} />
-                                    <Route path="admin/manage-users" element={<GatedRoute identifier="administrate"><ManageUsers /></GatedRoute>} />
-                                    <Route path="admin/working-calendar" element={<GatedRoute identifier="administrate"><WorkingCalendar /></GatedRoute>} />
-                                    <Route path="admin/holidays" element={<GatedRoute identifier="administrate"><Holidays /></GatedRoute>} />
+                                    <Route path="admin/master-registry" element={<GatedRoute identifier="masterRegistry"><MasterManagement /></GatedRoute>} />
+                                    <Route path="admin/manage-users" element={<GatedRoute identifier="manageUsers"><ManageUsers /></GatedRoute>} />
+                                    <Route path="admin/working-calendar" element={<GatedRoute identifier="workingCalendar"><WorkingCalendar /></GatedRoute>} />
+                                    <Route path="admin/holidays" element={<GatedRoute identifier="holidays"><Holidays /></GatedRoute>} />
                                     <Route path="admin/license" element={<Liecense />} />
                                 </Route>
 

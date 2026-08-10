@@ -15,7 +15,11 @@ export interface PermissionGuardProps {
  * Mapping between legacy boolean property names (gateKey) and unified JSON page IDs
  */
 export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
-    administrate: 'admin_users',
+    administrate: 'manage_users',
+    manageUsers: 'manage_users',
+    masterRegistry: 'master_registry',
+    workingCalendar: 'working_calendar',
+    holidays: 'holidays',
     createIndent: 'create_indent',
     indentApprovalView: 'indent_approval',
     indentApprovalAction: 'indent_approval',

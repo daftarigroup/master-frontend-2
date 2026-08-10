@@ -155,7 +155,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         key: 'store_admin',
         title: 'Store Administration',
         items: [
-          { name: 'Master Registry', path: '/store/admin/master-registry', icon: FileSpreadsheet, gateKey: 'administrate' },
+          { name: 'Master Registry', path: '/store/admin/master-registry', icon: FileSpreadsheet, gateKey: 'masterRegistry' },
           { name: 'License', path: '/store/admin/license', icon: KeyRound },
         ],
       },
@@ -193,15 +193,15 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         key: 'global_user_management',
         title: 'User Management',
         items: [
-          { name: 'Manage Users', path: '/store/admin/manage-users', icon: Users, gateKey: 'administrate' },
+          { name: 'Manage Users', path: '/store/admin/manage-users', icon: Users, gateKey: 'manageUsers' },
         ],
       },
       {
         key: 'global_calendar',
         title: 'Calendar & Holidays',
         items: [
-          { name: 'Working Calendar', path: '/store/admin/working-calendar', icon: Clock, gateKey: 'administrate' },
-          { name: 'Holidays', path: '/store/admin/holidays', icon: CalendarOff, gateKey: 'administrate' },
+          { name: 'Working Calendar', path: '/store/admin/working-calendar', icon: Clock, gateKey: 'workingCalendar' },
+          { name: 'Holidays', path: '/store/admin/holidays', icon: CalendarOff, gateKey: 'holidays' },
         ],
       },
     ],

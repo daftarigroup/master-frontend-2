@@ -1,5 +1,5 @@
 import { 
-    Building, ShieldCheck, User as UserIcon, Eye, EyeClosed, MoreHorizontal, Pencil, 
+    Building, ShieldCheck, User as UserIcon, Users, Eye, EyeClosed, MoreHorizontal, Pencil, 
     ShieldUser, Trash, UserPlus, Fingerprint, Lock, Shield, Settings, CheckSquare, 
     ListTodo, ClipboardCheck, Truck, BarChart3, Box, Crown, ChevronDown, ChevronRight,
     Wrench, Layers, AlertCircle, Edit3, ShieldAlert
@@ -74,6 +74,37 @@ interface SystemConfig {
 
 const SYSTEM_HIERARCHY: SystemConfig[] = [
     {
+        id: 'master_settings',
+        name: 'Master Settings & User Management',
+        badgeBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
+        badgeText: 'Master Settings',
+        icon: <Users className="size-5 text-indigo-500" />,
+        description: 'User access administration, user accounts, roles, and global permissions settings',
+        pages: [
+            {
+                id: 'manage_users',
+                name: 'Manage Users',
+                description: 'User access administration, user accounts, and permissions settings',
+                viewKeys: ['manageUsers'],
+                editKeys: ['manageUsers'],
+            },
+            {
+                id: 'working_calendar',
+                name: 'Working Calendar',
+                description: 'Configure organization working days and weekly off schedules',
+                viewKeys: ['workingCalendar'],
+                editKeys: ['workingCalendar'],
+            },
+            {
+                id: 'holidays',
+                name: 'Holidays',
+                description: 'Manage company holidays excluded from task generation',
+                viewKeys: ['holidays'],
+                editKeys: ['holidays'],
+            },
+        ]
+    },
+    {
         id: 'store',
         name: 'Store Management System',
         badgeBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
@@ -82,11 +113,11 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
         description: 'Inventory control, indent approvals, purchase orders, store check-in/issue, and financial audits',
         pages: [
             {
-                id: 'admin_users',
-                name: 'Manage Users & Master Registry',
-                description: 'User access administration and core master registry settings',
-                viewKeys: ['administrate'],
-                editKeys: ['administrate'],
+                id: 'master_registry',
+                name: 'Master Registry',
+                description: 'Core master registry settings for Vendors, Items, Departments, and Corporate Profiles',
+                viewKeys: ['masterRegistry'],
+                editKeys: ['masterRegistry'],
             },
             {
                 id: 'create_indent',
@@ -259,6 +290,7 @@ export default function ManageUsers() {
     const [showPassword, setShowPassword] = useState(false);
     const [allProjectOptions, setAllProjectOptions] = useState<{ id: number; name: string }[]>([]);
     const [expandedSystems, setExpandedSystems] = useState<Record<string, boolean>>({
+        master_settings: true,
         store: true,
         checklist: true,
     });

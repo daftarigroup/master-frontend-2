@@ -301,6 +301,10 @@ export type UserPermissions = {
     page_access?: Record<string, 'VIEW' | 'EDIT'>;
 
     administrate: boolean;
+    manageUsers?: boolean;
+    masterRegistry?: boolean;
+    workingCalendar?: boolean;
+    holidays?: boolean;
     createIndent: boolean;
     createPo: boolean;
     indentApprovalView: boolean;
@@ -384,6 +388,10 @@ export interface PaymentsSheet {
 
 export const allPermissionKeys = [
     "administrate",
+    "manageUsers",
+    "masterRegistry",
+    "workingCalendar",
+    "holidays",
     "createIndent",
     "createPo",
     "indentApprovalView",
