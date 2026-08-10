@@ -4,11 +4,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
-import { NAV_CONFIG, getOrderedNavConfig } from '../config/navConfig';
+import { getOrderedNavConfig } from '../config/navConfig';
 import { hasPageAccess, isSystemPermitted } from '@/components/element/PermissionGuard';
 import type { UserPermissions } from '@/types/sheets';
 import { getAccentStyle } from '../config/accentStyles';
 import { AppIcon } from './AppIcon';
+import { cn } from '@/lib/utils';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import {
@@ -24,7 +25,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { LayoutDashboard, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, ChevronRight } from 'lucide-react';
 
 gsap.registerPlugin(useGSAP);
 
@@ -53,12 +54,12 @@ const CollapsibleSection: React.FC<{ isOpen: boolean; children: React.ReactNode;
 
       if (isOpen) {
         gsap.set(el, { display: 'block' });
-        gsap.fromTo(el, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.25, ease: 'power2.out' });
+        gsap.fromTo(el, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.2, ease: 'power2.out' });
       } else {
         gsap.to(el, {
           height: 0,
           opacity: 0,
-          duration: 0.2,
+          duration: 0.18,
           ease: 'power1.out',
           onComplete: () => {
             if (el) el.style.display = 'none';
@@ -76,10 +77,6 @@ const CollapsibleSection: React.FC<{ isOpen: boolean; children: React.ReactNode;
   );
 };
 
-// ACCENT_STYLES moved to `../config/accentStyles.ts` — shared with AppIcon /
-// AppLauncherOverlay so every "system" surface draws from one palette.
-// const ACCENT_STYLES = { ... };
-
 export const GlobalSidebar: React.FC = () => {
   const { user } = useAuth();
   const { activeSystemId, setActiveSystemId } = usePlatform();
@@ -89,14 +86,6 @@ export const GlobalSidebar: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null);
   const isRail = !isMobile && state === 'collapsed';
 
-  // The mobile drawer's slide-in/out transform is owned by Radix's Sheet
-  // primitive (`ui/sheet.tsx`, CSS `data-[state]:animate-in/out` classes) —
-  // Radix's Presence waits for that CSS animation to finish before unmounting
-  // the portal, so re-driving the same transform with GSAP would race Radix's
-  // own exit timing and risk breaking focus-trap/unmount cleanup. Instead,
-  // GSAP owns a complementary entrance (stagger fade/slide) on the nav content
-  // *inside* the already-sliding panel, which doesn't fight Radix for the same
-  // transform target.
   useGSAP(
     () => {
       if (!isMobile || !openMobile || !contentRef.current) return;
@@ -104,8 +93,8 @@ export const GlobalSidebar: React.FC = () => {
       if (!sections.length) return;
       gsap.fromTo(
         sections,
-        { opacity: 0, y: 8 },
-        { opacity: 1, y: 0, duration: 0.25, ease: 'power2.out', stagger: 0.04 }
+        { opacity: 0, y: 6 },
+        { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out', stagger: 0.03 }
       );
     },
     { dependencies: [isMobile, openMobile], scope: contentRef }
@@ -154,7 +143,7 @@ export const GlobalSidebar: React.FC = () => {
     }
   }, [location.pathname]);
 
-  // Instantly position active nav item into view when sidebar is opened or active route changes (no top-to-bottom scroll animation)
+  // Instantly position active nav item into view when sidebar is opened or active route changes
   useLayoutEffect(() => {
     if ((isMobile && openMobile) || !isMobile) {
       const scrollToActive = () => {
@@ -166,7 +155,6 @@ export const GlobalSidebar: React.FC = () => {
       };
 
       scrollToActive();
-      // Second instant check in case collapsible animations/layout take a frame to measure
       const rafId = requestAnimationFrame(scrollToActive);
       return () => cancelAnimationFrame(rafId);
     }
@@ -176,7 +164,6 @@ export const GlobalSidebar: React.FC = () => {
     setOpenSystems((prev) => ({ ...prev, [systemId]: !prev[systemId] }));
   };
 
-  // Expanded group accordions, namespaced per system to avoid key collisions.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     store_overview: true,
     store_inv: true,
@@ -199,7 +186,6 @@ export const GlobalSidebar: React.FC = () => {
     return hasPageAccess(user, undefined, 'VIEW', gateKey as keyof UserPermissions);
   };
 
-  // Helper notification counter calculation
   const getBadgeCount = (itemPath: string): number => {
     try {
       const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
@@ -289,25 +275,18 @@ export const GlobalSidebar: React.FC = () => {
         ).length;
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
       if (import.meta.env.DEV) {
-        console.error(`[getBadgeCount] Failed for route "${itemPath}" at ${new Date().toISOString()}:`, e);
+        console.error(`[getBadgeCount] Failed for route "${itemPath}":`, e);
       }
       return 0;
     }
     return 0;
   };
 
-  // ---------------------------------------------------------------------
-  // REPLACED BY `NAV_CONFIG` (src/layouts/global/config/navConfig.ts) — the
-  // hardcoded per-system arrays below are kept commented out for diffing.
-  // ---------------------------------------------------------------------
-  // const storeGroups: { key: string; title: string; items: NavItem[] }[] = [ ... ];
-  // const maintenanceGroups = [ ... ];
-
   return (
-    <Sidebar side="left" variant="inset" collapsible="icon" className="md:top-14 md:h-[calc(100vh-3.5rem)]">
-      <SidebarHeader className="p-3 border-b border-sidebar-border/60">
+    <Sidebar side="left" variant="inset" collapsible="icon" className="md:top-14 md:h-[calc(100vh-3.5rem)] bg-[#F8F9FB] dark:bg-[#111318] border-r border-black/[0.07] dark:border-white/[0.08]">
+      {/* Platform Header */}
+      <SidebarHeader className="p-3 pb-2 border-b border-black/[0.06] dark:border-white/[0.06]">
         <NavLink
           to="/dashboard"
           onClick={() => {
@@ -316,24 +295,25 @@ export const GlobalSidebar: React.FC = () => {
           }}
           data-active={location.pathname === '/dashboard' ? 'true' : 'false'}
           className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-bold text-xs tracking-wider transition-all duration-200 shadow-2xs no-underline hover:no-underline [text-decoration:none] ${
+            cn(
+              "flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors no-underline text-xs",
               isActive
-                ? 'bg-primary text-primary-foreground shadow-xs'
-                : 'bg-primary/5 text-primary hover:bg-primary/15 border border-primary/20'
-            }`
+                ? "bg-slate-200/70 dark:bg-slate-800/80 text-foreground font-semibold"
+                : "text-slate-700 dark:text-slate-300 hover:bg-slate-200/40 dark:hover:bg-slate-800/40 font-medium"
+            )
           }
         >
-          <LayoutDashboard size={18} />
-          <span className="group-data-[collapsible=icon]:hidden font-extrabold uppercase">Global Platform Dashboard</span>
+          <LayoutDashboard size={16} className="text-slate-500 shrink-0" />
+          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Global Platform</span>
+            <span className="text-xs font-semibold text-foreground truncate mt-0.5">Dashboard</span>
+          </div>
         </NavLink>
       </SidebarHeader>
 
-      <SidebarContent className="py-2 border-b-1">
+      <SidebarContent className="py-2 custom-scrollbar [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-300/40 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700/40 [&::-webkit-scrollbar-thumb]:rounded-full">
         {isRail ? (
-          // Icon dock (rail mode): one colored AppIcon per system, no group/item
-          // detail — click switches system, navigates to its dashboard, and
-          // re-expands the sidebar into the full labeled accordion.
-          <div className="flex flex-col items-center gap-3 pt-2">
+          <div className="flex flex-col items-center gap-2.5 pt-2">
             {getOrderedNavConfig().filter(system => system.id !== 'global' && isSystemPermitted(user, system)).map((system) => {
               const isPrimary = system.id === activeSystemId;
               return (
@@ -348,11 +328,11 @@ export const GlobalSidebar: React.FC = () => {
                         navigate(system.dashboardPath);
                         setOpen(true);
                       }}
-                      className={`relative ${system.disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      className={cn("relative p-1.5 rounded-lg transition-colors", system.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-800/50")}
                     >
-                      <AppIcon icon={system.icon} accentClassName={system.accentClassName} active={isPrimary} disabled={system.disabled} />
+                      <AppIcon icon={system.icon} accentClassName={system.accentClassName} size="sm" active={isPrimary} disabled={system.disabled} />
                       {isPrimary && !system.disabled && (
-                        <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-primary ring-2 ring-sidebar" />
+                        <span className="absolute right-1 bottom-1 size-2 rounded-full bg-primary ring-2 ring-sidebar" />
                       )}
                     </button>
                   </TooltipTrigger>
@@ -365,143 +345,149 @@ export const GlobalSidebar: React.FC = () => {
             })}
           </div>
         ) : (
-        <div ref={contentRef} className="space-y-3">
-        {getOrderedNavConfig().filter(system => system.id !== 'global' && isSystemPermitted(user, system)).map((system) => {
-          const accent = getAccentStyle(system.accentClassName);
-          const isOpen = !!openSystems[system.id];
-          const isPrimary = system.id === activeSystemId;
-          const Icon = system.icon;
+          <div ref={contentRef} className="px-1.5 space-y-1">
+            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 group-data-[collapsible=icon]:hidden select-none">
+              Applications
+            </div>
 
-          return (
-            <SidebarGroup key={system.id}>
-              <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={isOpen}
-                onClick={() => !system.disabled && toggleSystem(system.id)}
-                onKeyDown={(e) => {
-                  if (!system.disabled && (e.key === 'Enter' || e.key === ' ')) toggleSystem(system.id);
-                }}
-                className={`flex items-center justify-between px-3 py-2 mx-1 my-1.5 rounded-lg bg-gradient-to-r border-l-4 shadow-2xs group-data-[collapsible=icon]:hidden transition-transform duration-150 ${
-                  accent.gradient
-                } ${accent.border} ${system.disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.01]'}`}
-              >
-                <div className={`flex items-center gap-2.5 font-extrabold text-xs tracking-wider uppercase ${accent.text}`}>
-                  <div className={`p-1 rounded-md text-white shadow-2xs ${accent.iconBg}`}>
-                    <Icon size={14} />
+            {getOrderedNavConfig().filter(system => system.id !== 'global' && isSystemPermitted(user, system)).map((system) => {
+              const accent = getAccentStyle(system.accentClassName);
+              const isOpen = !!openSystems[system.id];
+              const isPrimary = system.id === activeSystemId;
+              const Icon = system.icon;
+
+              return (
+                <SidebarGroup key={system.id} className="p-0">
+                  {/* System / Application Header Row */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isOpen}
+                    onClick={() => !system.disabled && toggleSystem(system.id)}
+                    onKeyDown={(e) => {
+                      if (!system.disabled && (e.key === 'Enter' || e.key === ' ')) toggleSystem(system.id);
+                    }}
+                    className={cn(
+                      "flex items-center justify-between px-2 py-1.5 my-0.5 rounded-lg text-sm transition-colors group-data-[collapsible=icon]:hidden select-none",
+                      system.disabled
+                        ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                        : "cursor-pointer",
+                      isPrimary && !system.disabled
+                        ? "bg-slate-200/60 dark:bg-slate-800/70 font-semibold text-foreground"
+                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-200/35 dark:hover:bg-slate-800/40 font-medium"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* System Icon Badge: 18px icon with subtle soft container */}
+                      <div className={cn(
+                        "p-1 rounded-md flex items-center justify-center shrink-0 transition-colors",
+                        isPrimary ? "bg-primary/10 text-primary" : "bg-slate-200/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400"
+                      )}>
+                        <Icon size={18} />
+                      </div>
+                      <span className="truncate text-sm font-semibold">{system.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {system.disabled && (
+                        <span className="text-[9px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                          Soon
+                        </span>
+                      )}
+                      {!system.disabled && (
+                        <ChevronRight
+                          size={14}
+                          className={cn("text-slate-400 transition-transform duration-200", isOpen && "rotate-90")}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <span>{system.name}</span>
-                  {isPrimary && !system.disabled && (
-                    <span className="text-[9px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-bold normal-case tracking-normal">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {system.disabled && (
-                    <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground normal-case tracking-normal">
-                      Coming Soon
-                    </span>
-                  )}
+
+                  {/* System Collapsible Content */}
                   {!system.disabled && (
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${accent.text}`}
-                    />
+                    <CollapsibleSection isOpen={isOpen}>
+                      <SidebarGroupContent className="pt-0.5 pb-1">
+                        {system.groups
+                          .filter((grp) => grp.items.some((item) => isPermitted(item.gateKey)))
+                          .map((grp) => {
+                            const namespacedKey = grp.key;
+                            const groupOpen = openGroups[namespacedKey] ?? true;
+
+                            return (
+                              <div key={grp.key} className="mb-1">
+                                {/* Section Header */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleGroup(namespacedKey)}
+                                  className="w-full flex items-center justify-between pl-5 pr-2.5 py-1 my-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 hover:text-foreground transition-colors group-data-[collapsible=icon]:hidden select-none"
+                                >
+                                  <span>{grp.title}</span>
+                                  <ChevronRight size={11} className={cn("text-slate-400 transition-transform duration-200", groupOpen && "rotate-90")} />
+                                </button>
+
+                                {/* Page Items */}
+                                <CollapsibleSection isOpen={groupOpen}>
+                                  <SidebarMenu className="space-y-0.5 pl-4 my-0.5">
+                                    {grp.items
+                                      .filter((item) => isPermitted(item.gateKey))
+                                      .map((item) => {
+                                        const count = getBadgeCount(item.path);
+                                        const isSelected = location.pathname === item.path;
+                                        const ItemIcon = item.icon;
+
+                                        return (
+                                          <SidebarMenuItem key={item.path} data-active={isSelected ? 'true' : 'false'}>
+                                            <SidebarMenuButton
+                                              asChild
+                                              isActive={isSelected}
+                                              tooltip={item.name}
+                                              className={cn(
+                                                "py-1.5 px-2.5 h-auto text-[13px] rounded-md transition-all no-underline flex items-center justify-between w-full select-none",
+                                                isSelected
+                                                  ? "bg-primary/10 text-primary font-semibold dark:bg-primary/20"
+                                                  : "text-slate-600 dark:text-slate-300 font-normal hover:bg-slate-200/40 dark:hover:bg-slate-800/40 hover:text-foreground"
+                                              )}
+                                            >
+                                              <NavLink
+                                                to={item.path}
+                                                onClick={() => {
+                                                  if (activeSystemId !== system.id) setActiveSystemId(system.id);
+                                                  if (isMobile) setOpenMobile(false);
+                                                }}
+                                                className="flex justify-between items-center w-full no-underline hover:no-underline [text-decoration:none]"
+                                              >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                  {/* Flat 15px Page Icon */}
+                                                  <ItemIcon size={15} className={cn("shrink-0 transition-colors", isSelected ? "text-primary" : "text-slate-400 dark:text-slate-500")} />
+                                                  <span className="truncate group-data-[collapsible=icon]:hidden">{item.name}</span>
+                                                </div>
+                                                {count > 0 && (
+                                                  <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold px-1.5 py-0.2 rounded-md shrink-0 group-data-[collapsible=icon]:hidden">
+                                                    {count > 99 ? '99+' : count}
+                                                  </span>
+                                                )}
+                                              </NavLink>
+                                            </SidebarMenuButton>
+                                          </SidebarMenuItem>
+                                        );
+                                      })}
+                                  </SidebarMenu>
+                                </CollapsibleSection>
+                              </div>
+                            );
+                          })}
+                      </SidebarGroupContent>
+                    </CollapsibleSection>
                   )}
-                </div>
-              </div>
-
-              {!system.disabled && (
-                <CollapsibleSection isOpen={isOpen}>
-                  <SidebarGroupContent className="mt-1">
-                    {system.groups
-                      .filter((grp) => grp.items.some((item) => isPermitted(item.gateKey)))
-                      .map((grp) => {
-                      const namespacedKey = grp.key;
-                      const groupOpen = openGroups[namespacedKey] ?? true;
-
-                      return (
-                        <div key={grp.key} className="mb-1">
-                          <button
-                            type="button"
-                            onClick={() => toggleGroup(namespacedKey)}
-                            className={`w-full flex items-center justify-between px-3 py-2 my-0.5 text-xs font-bold rounded-md transition-all duration-200 group-data-[collapsible=icon]:hidden ${
-                              groupOpen
-                                ? 'text-slate-900 dark:text-slate-100 bg-slate-100/70 dark:bg-slate-800/60 shadow-2xs'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/50 dark:hover:bg-slate-800/40'
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className={`w-1.5 h-1.5 rounded-full transition-colors ${groupOpen ? 'bg-primary ring-2 ring-primary/20' : 'bg-slate-300 dark:bg-slate-600'}`}></span>
-                              <span>{grp.title}</span>
-                            </span>
-                            <ChevronDown size={14} className={`transition-transform duration-200 ${groupOpen ? 'rotate-180 text-primary font-bold' : 'text-slate-400'}`} />
-                          </button>
-
-                          <CollapsibleSection isOpen={groupOpen}>
-                            <SidebarMenu className="pl-3 ml-2.5 my-1 border-l-2 border-slate-200/80 dark:border-slate-800/80 space-y-1">
-                              {grp.items
-                                .filter((item) => isPermitted(item.gateKey))
-                                .map((item) => {
-                                  const count = getBadgeCount(item.path);
-                                  const isSelected = location.pathname === item.path;
-                                  const ItemIcon = item.icon;
-
-                                  return (
-                                    <SidebarMenuItem key={item.path} data-active={isSelected ? 'true' : 'false'}>
-                                      <SidebarMenuButton
-                                        asChild
-                                        isActive={isSelected}
-                                        tooltip={item.name}
-                                        className={`py-2 px-2.5 text-xs rounded-md transition-all duration-150 no-underline hover:no-underline [text-decoration:none] ${
-                                          isSelected
-                                            ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-primary'
-                                        }`}
-                                      >
-                                        <NavLink
-                                          to={item.path}
-                                          onClick={() => {
-                                            if (activeSystemId !== system.id) setActiveSystemId(system.id);
-                                            if (isMobile) setOpenMobile(false);
-                                          }}
-                                          className="flex justify-between items-center w-full no-underline hover:no-underline [text-decoration:none]"
-                                        >
-                                          <div className="flex items-center gap-2.5 min-w-0">
-                                            <div className={`shrink-0 transition-colors ${isSelected ? 'text-primary-foreground' : 'text-slate-500 group-hover:text-primary'}`}>
-                                              <ItemIcon size={18} />
-                                            </div>
-                                            <span className="truncate group-data-[collapsible=icon]:hidden no-underline">{item.name}</span>
-                                          </div>
-                                          {count > 0 && (
-                                            <span className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 shadow-xs group-data-[collapsible=icon]:hidden">
-                                              {count > 99 ? '99+' : count}
-                                            </span>
-                                          )}
-                                        </NavLink>
-                                      </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                  );
-                                })}
-                            </SidebarMenu>
-                          </CollapsibleSection>
-                        </div>
-                      );
-                    })}
-                  </SidebarGroupContent>
-                </CollapsibleSection>
-              )}
-            </SidebarGroup>
-          );
-        })}
-        </div>
+                </SidebarGroup>
+              );
+            })}
+          </div>
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-2 border-t">
-        <div className="text-center text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Powered by <a href="https://botivate.in" target="_blank" rel="noreferrer" className="text-primary font-semibold">Botivate</a>
+      <SidebarFooter className="p-2.5 border-t border-black/[0.06] dark:border-white/[0.06]">
+        <div className="text-center text-[11px] text-muted-foreground/70 group-data-[collapsible=icon]:hidden">
+          Powered by <a href="https://botivate.in" target="_blank" rel="noreferrer" className="text-foreground/80 font-medium hover:text-primary transition-colors">Botivate</a>
         </div>
       </SidebarFooter>
     </Sidebar>
