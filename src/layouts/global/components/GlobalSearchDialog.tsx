@@ -37,6 +37,8 @@ import {
   PlusCircle,
   CheckSquare,
   ClipboardCheck,
+  Clock,
+  CalendarOff,
   X,
 } from 'lucide-react';
 
@@ -169,15 +171,17 @@ export const GlobalSearchDialog: React.FC = () => {
       { title: 'Technical Approval', category: 'Indents', path: '/store/indents/technical-approval', icon: <Wrench className="mr-2 h-4 w-4 text-indigo-500" /> },
       { title: 'Management Approval', category: 'Indents', path: '/store/indents/management-approval', icon: <ShieldCheck className="mr-2 h-4 w-4 text-teal-500" /> },
       { title: 'Pending PO to Make', category: 'Procurement', path: '/store/procurement/pending-po', icon: <FileCheck className="mr-2 h-4 w-4 text-amber-500" /> },
-      { title: 'Create Purchase Order (PO)', category: 'Procurement', path: '/store/procurement/po', icon: <ShoppingBag className="mr-2 h-4 w-4 text-orange-500" /> },
-      { title: 'PO Order History', category: 'Procurement', path: '/store/procurement/order-history', icon: <History className="mr-2 h-4 w-4 text-violet-500" /> },
+      { title: 'Create Purchase Order (PO)', category: 'Procurement', path: '/store/procurement/create-po', icon: <ShoppingBag className="mr-2 h-4 w-4 text-orange-500" /> },
+      { title: 'PO Order History', category: 'Procurement', path: '/store/procurement/po-history', icon: <History className="mr-2 h-4 w-4 text-violet-500" /> },
       { title: 'Lifting & Dispatch', category: 'Procurement', path: '/store/procurement/lifting', icon: <Truck className="mr-2 h-4 w-4 text-cyan-500" /> },
       { title: 'Store In (GRN)', category: 'Receipts', path: '/store/receipts/store-in', icon: <ArrowDownLeft className="mr-2 h-4 w-4 text-emerald-500" /> },
-      { title: 'Store Out (Issue)', category: 'Receipts', path: '/store/receipts/store-out', icon: <ArrowUpRight className="mr-2 h-4 w-4 text-rose-500" /> },
-      { title: 'Full Kitting', category: 'Receipts', path: '/store/receipts/full-kitting', icon: <Boxes className="mr-2 h-4 w-4 text-blue-500" /> },
-      { title: 'Inventory Stock', category: 'Inventory', path: '/store/inventory', icon: <Package className="mr-2 h-4 w-4 text-purple-500" /> },
-      { title: 'Manage Users & Roles', category: 'Settings', path: '/store/settings/users', icon: <Users className="mr-2 h-4 w-4 text-blue-600" /> },
-      { title: 'Master Management (Vendors & Items)', category: 'Settings', path: '/store/settings/masters', icon: <Database className="mr-2 h-4 w-4 text-indigo-600" /> },
+      { title: 'Store Out (Issue)', category: 'Receipts', path: '/store/inventory/issue', icon: <ArrowUpRight className="mr-2 h-4 w-4 text-rose-500" /> },
+      { title: 'Full Kitting', category: 'Receipts', path: '/store/finance/freight-payment', icon: <Boxes className="mr-2 h-4 w-4 text-blue-500" /> },
+      { title: 'Inventory Stock', category: 'Inventory', path: '/store/inventory/stock', icon: <Package className="mr-2 h-4 w-4 text-purple-500" /> },
+      { title: 'Manage Users & Roles', category: 'Master Settings', path: '/store/admin/manage-users', icon: <Users className="mr-2 h-4 w-4 text-blue-600" /> },
+      { title: 'Master Registry (Vendors & Items)', category: 'Store Admin', path: '/store/admin/master-registry', icon: <Database className="mr-2 h-4 w-4 text-indigo-600" /> },
+      { title: 'Working Calendar', category: 'Master Settings', path: '/store/admin/working-calendar', icon: <Clock className="mr-2 h-4 w-4 text-amber-600" /> },
+      { title: 'Holidays', category: 'Master Settings', path: '/store/admin/holidays', icon: <CalendarOff className="mr-2 h-4 w-4 text-rose-600" /> },
       { title: 'Checklist Dashboard', category: 'Checklist', path: '/checklist/dashboard', icon: <LayoutDashboard className="mr-2 h-4 w-4 text-purple-500" /> },
       { title: 'Quick Task', category: 'Checklist', path: '/checklist/quick-task', icon: <PlusCircle className="mr-2 h-4 w-4 text-blue-500" /> },
       { title: 'Assign Task', category: 'Checklist', path: '/checklist/assign', icon: <ClipboardList className="mr-2 h-4 w-4 text-emerald-500" /> },
@@ -333,7 +337,7 @@ export const GlobalSearchDialog: React.FC = () => {
                     <CommandItem
                       key={poNum}
                       value={`PO Purchase Order ${poNum} ${party} ${product}`}
-                      onSelect={() => handleSelect(() => navigate('/store/procurement/order-history'))}
+                      onSelect={() => handleSelect(() => navigate('/store/procurement/po-history'))}
                       className="gsap-cmd-item cursor-pointer flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-accent/70 transition-colors"
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -359,7 +363,7 @@ export const GlobalSearchDialog: React.FC = () => {
                   <CommandItem
                     key={`${v.vendorName || 'v'}-${idx}`}
                     value={`Vendor Supplier ${v.vendorName || ''} ${v.email || ''} ${v.phone || ''}`}
-                    onSelect={() => handleSelect(() => navigate('/store/settings/masters'))}
+                    onSelect={() => handleSelect(() => navigate('/store/admin/master-registry'))}
                     className="gsap-cmd-item cursor-pointer flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-accent/70 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0">

@@ -7,7 +7,7 @@ import {
     FileQuestion,
     X,
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn, getPublicFileUrl } from '@/lib/utils';
@@ -87,6 +87,9 @@ export default function MediaPreviewDialog({
                         <DialogTitle className="text-xs font-semibold tracking-tight text-foreground/90">
                             {title}
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Preview photo and voice note proof attachments for this task.
+                        </DialogDescription>
                         {hasImage && hasAudio && (
                             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-auto">
                                 <TabsList className="h-7 bg-muted/80 p-0.5 rounded-lg">

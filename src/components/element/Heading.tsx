@@ -58,7 +58,7 @@ export default ({
             </div>
             */}
             {action && (
-                <div className="flex justify-end p-2">
+                <div className="flex justify-center sm:justify-end p-2.5 sm:p-4 w-full">
                     {action}
                 </div>
             )}

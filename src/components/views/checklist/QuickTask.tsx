@@ -313,53 +313,55 @@ export default function QuickTask() {
     return (
         <div className="space-y-6">
             <Heading heading="Quick Task Studio" subtext="Unique task definition registry — edit once to update all recurrences">
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" onClick={() => refresh()} disabled={loading} className="gap-2 text-xs">
+                <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2.5 w-full sm:w-auto">
+                    <Button variant="outline" size="sm" onClick={() => refresh()} disabled={loading} className="gap-2 text-xs flex-1 sm:flex-none">
                         <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />Refresh
                     </Button>
-                    <Button onClick={() => setIsCreateModalOpen(true)} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold gap-2 shadow-md rounded-xl">
+                    <Button onClick={() => setIsCreateModalOpen(true)} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold gap-2 shadow-md rounded-xl flex-1 sm:flex-none">
                         <Plus size={16} />Assign New Task
                     </Button>
                 </div>
             </Heading>
 
             <Tabs defaultValue="checklist" value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-3 rounded-2xl border shadow-xs">
-                    <TabsList className="bg-muted/60 p-1 rounded-xl">
-                        <TabsTrigger value="checklist" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                            <CheckSquare size={15} className="text-purple-600" /><span>Checklist (Recurring)</span>
-                            <span className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">{filteredUniqueGroups.length} unique</span>
+                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 bg-card p-3 rounded-2xl border shadow-xs">
+                    <TabsList className="bg-muted/60 p-1 rounded-xl grid grid-cols-2 sm:flex w-full lg:w-auto">
+                        <TabsTrigger value="checklist" className="gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs justify-center">
+                            <CheckSquare size={15} className="text-purple-600 shrink-0" />
+                            <span className="truncate">Checklist</span>
+                            <span className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0">{filteredUniqueGroups.length}</span>
                         </TabsTrigger>
-                        <TabsTrigger value="delegation" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                            <ClipboardList size={15} className="text-blue-600" /><span>Delegation (One-Time)</span>
-                            <span className="ml-1 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">{delegationTasks.length}</span>
+                        <TabsTrigger value="delegation" className="gap-1.5 px-3 sm:px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs justify-center">
+                            <ClipboardList size={15} className="text-blue-600 shrink-0" />
+                            <span className="truncate">Delegation</span>
+                            <span className="ml-1 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0">{delegationTasks.length}</span>
                         </TabsTrigger>
                     </TabsList>
                     
                     {/* Filters Div alongside Delete Button */}
-                    <div className="flex flex-wrap items-center justify-end gap-2.5 w-full sm:w-auto">
+                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                         {/* Conditionally rendered Delete Button when at least 1 checkbox is selected */}
                         {selectedCount > 0 && (
                             <Button
                                 variant="destructive"
                                 onClick={() => { setDeleteTarget('selected'); setIsDeleteConfirmOpen(true); }}
-                                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs gap-1.5 h-9 px-3.5 rounded-xl shrink-0 shadow-sm transition-all duration-200 animate-in fade-in zoom-in-95"
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs gap-1.5 h-9 px-3.5 rounded-xl w-full sm:w-auto shrink-0 shadow-xs transition-all duration-200 animate-in fade-in zoom-in-95"
                             >
                                 <Trash2 size={14} />
                                 Delete Selected ({selectedCount})
                             </Button>
                         )}
-                        <div className="relative flex-1 sm:w-64">
+                        <div className="relative flex-1 min-w-[180px] sm:w-64">
                             <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                             <Input placeholder="Search task ID, title, doer..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-xs rounded-xl" />
                         </div>
                         <Select value={firmFilter} onValueChange={setFirmFilter}>
-                            <SelectTrigger className="h-9 text-xs w-36 rounded-xl"><SelectValue placeholder="All Projects" /></SelectTrigger>
+                            <SelectTrigger className="h-9 text-xs flex-1 min-w-[130px] sm:w-36 rounded-xl"><SelectValue placeholder="All Projects" /></SelectTrigger>
                             <SelectContent><SelectItem value="all">All Projects</SelectItem>{permittedFirms.map((f) => (<SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>))}</SelectContent>
                         </Select>
                         {activeTab === 'checklist' && (
                             <Select value={frequencyFilter} onValueChange={setFrequencyFilter}>
-                                <SelectTrigger className="h-9 text-xs w-36 rounded-xl"><SelectValue placeholder="All Frequencies" /></SelectTrigger>
+                                <SelectTrigger className="h-9 text-xs flex-1 min-w-[130px] sm:w-36 rounded-xl"><SelectValue placeholder="All Frequencies" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Frequencies</SelectItem>
                                     <SelectItem value="daily">Daily</SelectItem><SelectItem value="alternate-day">Alternate Day</SelectItem>
@@ -378,7 +380,50 @@ export default function QuickTask() {
                         <Layers size={15} className="shrink-0 mt-0.5 text-purple-600" />
                         <span>Each row represents a <strong>unique recurring task definition</strong>. Select checkboxes to bulk delete or edit. Deleting a unique task removes <em>all scheduled occurrences</em> in that recurrence group.</span>
                     </div>
-                    <Card className="shadow-xs overflow-hidden border"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-xs">
+
+                    {/* MOBILE CARD VIEW (< md) */}
+                    <div className="md:hidden space-y-3">
+                        {loading ? (
+                            <Card className="p-8 text-center text-muted-foreground"><RefreshCw size={20} className="animate-spin mx-auto mb-2 opacity-50" />Loading task definitions...</Card>
+                        ) : filteredUniqueGroups.length > 0 ? (
+                            filteredUniqueGroups.map((group) => {
+                                const t = group.rep; const idStr = `CL-${group.anchorId}`;
+                                const isSelected = selectedChecklistAnchorIds.has(group.anchorId);
+                                return (
+                                    <div key={group.anchorId} className={`p-4 rounded-2xl border transition-all space-y-3 ${isSelected ? 'bg-purple-50/70 border-purple-300 dark:bg-purple-950/40 dark:border-purple-800' : 'bg-card border-border shadow-2xs'}`}>
+                                        <div className="flex items-start justify-between gap-2 border-b pb-2.5">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <Checkbox checked={isSelected} onCheckedChange={() => toggleSelectChecklist(group.anchorId)} aria-label={`Select ${idStr}`} />
+                                                <div className="min-w-0">
+                                                    <button onClick={() => copyToClipboard(idStr)} className="font-mono font-bold text-xs hover:text-primary inline-flex items-center gap-1" title="Click to copy ID">
+                                                        {idStr}
+                                                        {copiedId === idStr ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}
+                                                    </button>
+                                                    <p className="text-[11px] text-muted-foreground font-medium truncate">{t.firm_name || 'No Project'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <span className="capitalize px-2 py-0.5 rounded-full font-bold text-[10px] bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300">{t.frequency || 'Daily'}</span>
+                                                <Button size="sm" onClick={() => handleOpenGroupEditModal(group)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-7 px-2.5 text-xs rounded-lg gap-1 shadow-2xs"><SquarePen size={12} />Edit</Button>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs font-semibold text-foreground leading-snug">{t.task_description}</p>
+                                        <div className="grid grid-cols-2 gap-2 pt-2 text-[11px] text-muted-foreground border-t">
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Doer</span><span className="font-semibold text-foreground">{t.doer_name || 'Unassigned'}</span></div>
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Assign By</span><span className="font-medium text-foreground">{t.given_by_name || 'System Admin'}</span></div>
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Planned Date</span><span>{t.planned_date ? new Date(t.planned_date).toLocaleDateString() : '—'}</span></div>
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Duration / Occurrences</span><div className="flex items-center gap-1.5 mt-0.5"><span>{t.duration || '30 MIN'}</span><span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950 dark:text-violet-300"><Layers size={9} />{group.occurrenceCount}</span></div></div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <Card className="p-8 text-center text-muted-foreground italic">No unique recurring task definitions found</Card>
+                        )}
+                    </div>
+
+                    {/* DESKTOP TABLE VIEW (>= md) */}
+                    <Card className="hidden md:block shadow-xs overflow-hidden border"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[960px] text-xs">
                         <thead><tr className="bg-muted/50 text-muted-foreground border-b text-left">
                             <th className="py-3 px-3 text-center w-10">
                                 <Checkbox
@@ -416,7 +461,12 @@ export default function QuickTask() {
                                         <td className="py-2.5 px-4 text-center">
                                             <Button size="sm" onClick={() => handleOpenGroupEditModal(group)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-3 rounded-lg shadow-2xs"><SquarePen size={13} />Edit</Button>
                                         </td>
-                                        <td className="py-2.5 px-4 font-mono font-bold text-foreground"><button onClick={() => copyToClipboard(idStr)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">{idStr}{copiedId === idStr ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}</button></td>
+                                        <td className="py-2.5 px-4 font-mono font-bold text-foreground">
+                                            <button onClick={() => copyToClipboard(idStr)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">
+                                                {idStr}
+                                                {copiedId === idStr ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}
+                                            </button>
+                                        </td>
                                         <td className="py-2.5 px-4 font-medium max-w-sm"><p className="line-clamp-2 leading-relaxed text-foreground">{t.task_description}</p></td>
                                         <td className="py-2.5 px-4 font-semibold text-foreground">{t.doer_name || 'Unassigned'}</td>
                                         <td className="py-2.5 px-4 text-muted-foreground">{t.given_by_name || 'System Admin'}</td>
@@ -435,7 +485,49 @@ export default function QuickTask() {
 
                 {/* DELEGATION TAB */}
                 <TabsContent value="delegation" className="mt-0">
-                    <Card className="shadow-xs overflow-hidden border"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-xs">
+                    {/* MOBILE CARD VIEW (< md) */}
+                    <div className="md:hidden space-y-3">
+                        {loading ? (
+                            <Card className="p-8 text-center text-muted-foreground"><RefreshCw size={20} className="animate-spin mx-auto mb-2 opacity-50" />Loading delegation tasks...</Card>
+                        ) : filteredDelegationTasks.length > 0 ? (
+                            filteredDelegationTasks.map((t) => {
+                                const isSelected = selectedDelegationIds.has(t.task_id);
+                                const idStr = `DL-${t.task_id}`;
+                                return (
+                                    <div key={t.task_id} className={`p-4 rounded-2xl border transition-all space-y-3 ${isSelected ? 'bg-blue-50/70 border-blue-300 dark:bg-blue-950/40 dark:border-blue-800' : 'bg-card border-border shadow-2xs'}`}>
+                                        <div className="flex items-start justify-between gap-2 border-b pb-2.5">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <Checkbox checked={isSelected} onCheckedChange={() => toggleSelectDelegation(t.task_id)} aria-label={`Select ${idStr}`} />
+                                                <div className="min-w-0">
+                                                    <button onClick={() => copyToClipboard(idStr)} className="font-mono font-bold text-xs hover:text-primary inline-flex items-center gap-1" title="Click to copy ID">
+                                                        {idStr}
+                                                        {copiedId === idStr ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}
+                                                    </button>
+                                                    <p className="text-[11px] text-muted-foreground font-medium truncate">{t.firm_name || 'No Project'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <span className="capitalize px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300">One-Time</span>
+                                                <Button size="sm" onClick={() => handleOpenDelegationEditModal(t)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-7 px-2.5 text-xs rounded-lg gap-1 shadow-2xs"><SquarePen size={12} />Edit</Button>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs font-semibold text-foreground leading-snug">{t.task_description}</p>
+                                        <div className="grid grid-cols-2 gap-2 pt-2 text-[11px] text-muted-foreground border-t">
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Doer</span><span className="font-semibold text-foreground">{t.doer_name || 'Unassigned'}</span></div>
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Assign By</span><span className="font-medium text-foreground">{t.given_by_name || 'System Admin'}</span></div>
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Planned Date</span><span>{t.planned_date ? new Date(t.planned_date).toLocaleDateString() : '—'}</span></div>
+                                            <div><span className="block text-[10px] uppercase font-bold text-muted-foreground/70">Duration &amp; Proof</span><div className="flex items-center gap-1.5 mt-0.5"><span>{t.duration || '30 MIN'}</span>{t.require_attachment ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Proof Req</span> : null}</div></div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <Card className="p-8 text-center text-muted-foreground italic">No one-time delegation tasks found</Card>
+                        )}
+                    </div>
+
+                    {/* DESKTOP TABLE VIEW (>= md) */}
+                    <Card className="hidden md:block shadow-xs overflow-hidden border"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[960px] text-xs">
                         <thead><tr className="bg-muted/50 text-muted-foreground border-b text-left">
                             <th className="py-3 px-3 text-center w-10">
                                 <Checkbox
@@ -471,7 +563,12 @@ export default function QuickTask() {
                                         <td className="py-2.5 px-4 text-center">
                                             <Button size="sm" onClick={() => handleOpenDelegationEditModal(t)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 h-8 px-3 rounded-lg shadow-2xs"><SquarePen size={13} />Edit</Button>
                                         </td>
-                                        <td className="py-2.5 px-4 font-mono font-bold text-foreground"><button onClick={() => copyToClipboard(`DL-${t.task_id}`)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">DL-{t.task_id}{copiedId === `DL-${t.task_id}` ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}</button></td>
+                                        <td className="py-2.5 px-4 font-mono font-bold text-foreground">
+                                            <button onClick={() => copyToClipboard(`DL-${t.task_id}`)} className="hover:text-primary transition-colors inline-flex items-center gap-1" title="Click to copy ID">
+                                                DL-{t.task_id}
+                                                {copiedId === `DL-${t.task_id}` ? <Check size={12} className="text-emerald-600" /> : <Copy size={11} className="text-muted-foreground opacity-60" />}
+                                            </button>
+                                        </td>
                                         <td className="py-2.5 px-4 font-medium max-w-sm"><p className="line-clamp-2 leading-relaxed text-foreground">{t.task_description}</p></td>
                                         <td className="py-2.5 px-4 font-semibold text-foreground">{t.doer_name || 'Unassigned'}</td>
                                         <td className="py-2.5 px-4 text-muted-foreground">{t.given_by_name || 'System Admin'}</td>
@@ -490,7 +587,7 @@ export default function QuickTask() {
 
             {/* DELETE CONFIRMATION MODAL */}
             <Dialog open={isDeleteConfirmOpen} onOpenChange={(open) => !open && !isDeleting && setIsDeleteConfirmOpen(false)}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-md p-4 sm:p-6 rounded-2xl sm:rounded-xl">
                     <DialogHeader>
                         <div className="flex items-start gap-3 pt-2">
                             <div className="p-2.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 shrink-0">
@@ -525,25 +622,25 @@ export default function QuickTask() {
 
             {/* EDIT MODAL */}
             <Dialog open={isEditModalOpen} onOpenChange={(open) => !open && closeEditModal()}>
-                <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto p-0 gap-0">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0 rounded-2xl sm:rounded-xl overflow-hidden">
                     {editSourceTask && (<>
-                        <DialogHeader className="p-5 border-b bg-muted/20">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"><SquarePen size={20} /></div>
-                                    <div>
-                                        <DialogTitle className="text-lg font-bold text-foreground">
+                        <DialogHeader className="p-4 sm:p-5 border-b bg-muted/20 shrink-0 text-left pr-6">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shrink-0"><SquarePen size={20} /></div>
+                                    <div className="min-w-0">
+                                        <DialogTitle className="text-base sm:text-lg font-bold text-foreground truncate">
                                             {isChecklistEdit ? `Edit Recurring Task Group · CL-${editingGroup!.anchorId}` : `Edit Delegation Task · DL-${editingDelegation!.task_id}`}
                                         </DialogTitle>
-                                        <DialogDescription className="text-xs text-muted-foreground">
+                                        <DialogDescription className="text-xs text-muted-foreground truncate">
                                             {isChecklistEdit ? `Changes will apply to all ${editingGroup!.occurrenceCount} occurrence${editingGroup!.occurrenceCount !== 1 ? 's' : ''} of this recurrence group` : 'Modify this one-time delegation task'}
                                         </DialogDescription>
                                     </div>
                                 </div>
-                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-muted text-foreground border">{isChecklistEdit ? 'Recurring Task' : 'One-Time Task'}</span>
+                                <span className="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-muted text-foreground border shrink-0">{isChecklistEdit ? 'Recurring' : 'One-Time'}</span>
                             </div>
                         </DialogHeader>
-                        <div className="p-5 space-y-5">
+                        <div className="p-4 sm:p-5 space-y-4 sm:space-y-5 flex-1 overflow-y-auto">
                             {isChecklistEdit && editingGroup && editingGroup.occurrenceCount > 1 && (
                                 <div className="p-3.5 bg-violet-500/10 border border-violet-500/20 rounded-xl flex items-start gap-3">
                                     <Layers size={16} className="text-violet-600 shrink-0 mt-0.5" />
@@ -629,9 +726,9 @@ export default function QuickTask() {
                                 </label>
                             </div>
                         </div>
-                        <DialogFooter className="p-4 border-t bg-muted/10 gap-2">
-                            <Button variant="outline" size="sm" onClick={closeEditModal}>Cancel</Button>
-                            <Button size="sm" onClick={handleSaveTaskEdit} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2">
+                        <DialogFooter className="p-3.5 sm:p-4 border-t bg-muted/10 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+                            <Button variant="outline" size="sm" onClick={closeEditModal} className="w-full sm:w-auto">Cancel</Button>
+                            <Button size="sm" onClick={handleSaveTaskEdit} disabled={isUpdating} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2">
                                 {isUpdating ? 'Saving Changes...' : isChecklistEdit && editingGroup && editingGroup.occurrenceCount > 1 ? `Update All ${editingGroup.occurrenceCount} Occurrences` : 'Save Task Changes'}
                             </Button>
                         </DialogFooter>
@@ -641,15 +738,15 @@ export default function QuickTask() {
 
             {/* CREATE MODAL */}
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogContent className="sm:max-w-xl p-0 gap-0">
-                    <DialogHeader className="p-5 border-b bg-muted/20">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-xl max-h-[92vh] flex flex-col p-0 gap-0 rounded-2xl sm:rounded-xl overflow-hidden">
+                    <DialogHeader className="p-4 sm:p-5 border-b bg-muted/20 shrink-0 text-left pr-6">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40"><Zap size={20} /></div>
-                            <div><DialogTitle className="text-lg font-bold">Assign New Task</DialogTitle><DialogDescription className="text-xs text-muted-foreground">Instant creation of One-Time or Recurring Checklist tasks</DialogDescription></div>
+                            <div className="p-2 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 shrink-0"><Zap size={20} /></div>
+                            <div><DialogTitle className="text-base sm:text-lg font-bold">Assign New Task</DialogTitle><DialogDescription className="text-xs text-muted-foreground">Instant creation of One-Time or Recurring Checklist tasks</DialogDescription></div>
                         </div>
                     </DialogHeader>
-                    <div className="p-5 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                             <div className="space-y-1"><label className="text-xs font-bold uppercase text-muted-foreground">Project / Firm</label>
                                 <Select value={createFirmId} onValueChange={setCreateFirmId}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select project" /></SelectTrigger><SelectContent>{permittedFirms.map((f) => (<SelectItem key={f.id} value={String(f.id)} className="text-xs">{f.name}</SelectItem>))}</SelectContent></Select>
                             </div>
@@ -678,9 +775,9 @@ export default function QuickTask() {
                             <label htmlFor="create-proof" className="text-xs font-semibold cursor-pointer">Require Doer Verification Proof</label>
                         </div>
                     </div>
-                    <DialogFooter className="p-4 border-t bg-muted/10 gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-                        <Button size="sm" onClick={handleCreateTask} disabled={isCreating} className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2">
+                    <DialogFooter className="p-3.5 sm:p-4 border-t bg-muted/10 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => setIsCreateModalOpen(false)} className="w-full sm:w-auto">Cancel</Button>
+                        <Button size="sm" onClick={handleCreateTask} disabled={isCreating} className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2">
                             <Zap size={14} />{isCreating ? 'Creating Task...' : 'Publish Task'}
                         </Button>
                     </DialogFooter>

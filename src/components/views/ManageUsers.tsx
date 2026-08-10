@@ -21,6 +21,7 @@ import {
     Dialog,
     DialogClose,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -813,38 +814,43 @@ export default function ManageUsers() {
                     </div>
                 </div>
 
-                <DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto custom-scrollbar p-0 border-none bg-background shadow-2xl">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-4xl max-h-[92vh] flex flex-col p-0 rounded-2xl sm:rounded-3xl border shadow-2xl bg-card text-left gap-0 overflow-hidden">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit, onError)} className="flex flex-col h-full">
-                            <div className="p-6 md:p-8 space-y-8">
-                                <DialogHeader className="space-y-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
-                                            {selectedUser ? <Pencil size={22} /> : <UserPlus size={22} />}
-                                        </div>
-                                        <div>
-                                            <DialogTitle className="text-2xl font-bold tracking-tight">
-                                                {selectedUser ? 'Edit User Profile & Access' : 'Register New User'}
-                                            </DialogTitle>
-                                            <p className="text-xs text-muted-foreground mt-0.5">
-                                                Configure user identification, assigned system role, project access, and granular page permissions.
-                                            </p>
-                                        </div>
+                        <form onSubmit={form.handleSubmit(onSubmit, onError)} className="flex flex-col h-full overflow-hidden">
+                            {/* Fixed Header Banner */}
+                            <DialogHeader className="p-4 sm:p-6 border-b shrink-0 bg-muted/20 text-left space-y-0 relative">
+                                <div className="flex items-center gap-3 pr-8">
+                                    <div className="p-2 sm:p-2.5 bg-primary/10 text-primary rounded-xl shrink-0">
+                                        {selectedUser ? <Pencil size={20} className="sm:size-[22px]" /> : <UserPlus size={20} className="sm:size-[22px]" />}
                                     </div>
-                                </DialogHeader>
+                                    <div className="min-w-0">
+                                        <DialogTitle className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-foreground truncate">
+                                            {selectedUser ? 'Edit User Profile & Access' : 'Register New User'}
+                                        </DialogTitle>
+                                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
+                                            Configure user identification, assigned system role, project access, and granular page permissions.
+                                        </p>
+                                    </div>
+                                </div>
+                                <DialogDescription className="sr-only">
+                                    Configure user identification, assigned system role, project access, and granular page permissions.
+                                </DialogDescription>
+                            </DialogHeader>
 
+                            {/* Scrollable Form Content Body */}
+                            <div className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1 custom-scrollbar">
                                 {/* User Details & Role Section */}
-                                <div className="grid md:grid-cols-2 gap-6 bg-muted/30 p-6 rounded-2xl border border-border/50">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 bg-muted/30 p-4 sm:p-6 rounded-2xl border border-border/50">
                                     <FormField
                                         control={form.control}
                                         name="name"
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                                                    <Fingerprint size={14} className="text-primary" /> Full Name
+                                                    <Fingerprint size={14} className="text-primary shrink-0" /> Full Name
                                                 </FormLabel>
                                                 <FormControl>
-                                                    <Input className="bg-background" placeholder="e.g. John Doe" {...field} />
+                                                    <Input className="bg-background text-xs sm:text-sm h-9 sm:h-10" placeholder="e.g. John Doe" {...field} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -856,10 +862,10 @@ export default function ManageUsers() {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                                                    <UserIcon size={14} className="text-primary" /> Username
+                                                    <UserIcon size={14} className="text-primary shrink-0" /> Username
                                                 </FormLabel>
                                                 <FormControl>
-                                                    <Input className="bg-background" placeholder="johndoe123" {...field} />
+                                                    <Input className="bg-background text-xs sm:text-sm h-9 sm:h-10" placeholder="johndoe123" {...field} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -871,13 +877,13 @@ export default function ManageUsers() {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                                                    <Lock size={14} className="text-primary" /> Password
+                                                    <Lock size={14} className="text-primary shrink-0" /> Password
                                                 </FormLabel>
                                                 <FormControl>
                                                     <div className="relative">
                                                         <Input
                                                             type={showPassword ? 'text' : 'password'}
-                                                            className="bg-background pr-10"
+                                                            className="bg-background text-xs sm:text-sm h-9 sm:h-10 pr-10"
                                                             placeholder="••••••••"
                                                             {...field}
                                                         />
@@ -898,14 +904,14 @@ export default function ManageUsers() {
                                         )}
                                     />
 
-                                    {/* Role Selector (Replaces Modify Access) */}
+                                    {/* Role Selector */}
                                     <FormField
                                         control={form.control}
                                         name="role"
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                                                    <Crown size={14} className="text-purple-600 dark:text-purple-400" /> System Role
+                                                    <Crown size={14} className="text-purple-600 dark:text-purple-400 shrink-0" /> System Role
                                                 </FormLabel>
                                                 <Select value={field.value} onValueChange={(val) => {
                                                     field.onChange(val);
@@ -914,19 +920,19 @@ export default function ManageUsers() {
                                                     }
                                                 }}>
                                                     <FormControl>
-                                                        <SelectTrigger className="bg-background w-full">
+                                                        <SelectTrigger className="bg-background w-full text-xs sm:text-sm h-9 sm:h-10">
                                                             <SelectValue placeholder="Select system role" />
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
                                                         <SelectItem value="SUPER_ADMIN" className="font-semibold text-purple-700 dark:text-purple-300">
-                                                            👑 SUPER ADMIN — Full control over every system & user management
+                                                            👑 SUPER ADMIN — Full control over every system
                                                         </SelectItem>
                                                         <SelectItem value="ADMIN" className="font-semibold text-blue-700 dark:text-blue-300">
-                                                            🛡️ ADMIN — Administrative access (View & Edit permitted pages)
+                                                            🛡️ ADMIN — Administrative access
                                                         </SelectItem>
                                                         <SelectItem value="USER" className="font-semibold text-slate-700 dark:text-slate-300">
-                                                            👤 USER — Standard user with custom page-level permissions
+                                                            👤 USER — Standard user with custom permissions
                                                         </SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -935,10 +941,10 @@ export default function ManageUsers() {
                                         )}
                                     />
 
-                                    {/* Permitted Projects (Firm Access) - FIXED SELECTION ISSUE */}
-                                    <div className="md:col-span-2 space-y-4 pt-2 border-t border-border/40">
+                                    {/* Permitted Projects */}
+                                    <div className="sm:col-span-2 space-y-3 sm:space-y-4 pt-2 border-t border-border/40">
                                         <FormLabel className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
-                                            <Building size={14} className="text-primary" /> Permitted Projects (Firm Scope)
+                                            <Building size={14} className="text-primary shrink-0" /> Permitted Projects (Firm Scope)
                                         </FormLabel>
                                         
                                         {permittedProjects.length > 0 && (
@@ -952,11 +958,11 @@ export default function ManageUsers() {
 
                                                     return (
                                                         <FormItem className="flex items-center justify-between rounded-xl border bg-background p-3">
-                                                            <div className="space-y-0.5">
-                                                                <FormLabel htmlFor="select-all-projects" className="text-sm font-bold cursor-pointer">
+                                                            <div className="space-y-0.5 min-w-0 pr-2">
+                                                                <FormLabel htmlFor="select-all-projects" className="text-xs sm:text-sm font-bold cursor-pointer block truncate">
                                                                     Select All Projects
                                                                 </FormLabel>
-                                                                <p className="text-[11px] text-muted-foreground">
+                                                                <p className="text-[11px] text-muted-foreground line-clamp-1">
                                                                     Grant access to every project listed in the Master Registry.
                                                                 </p>
                                                             </div>
@@ -967,6 +973,7 @@ export default function ManageUsers() {
                                                                     onCheckedChange={(checked) => {
                                                                         field.onChange(checked ? permittedProjects.map(p => String(p.id)) : []);
                                                                     }}
+                                                                    className="shrink-0"
                                                                 />
                                                             </FormControl>
                                                         </FormItem>
@@ -975,7 +982,7 @@ export default function ManageUsers() {
                                             />
                                         )}
 
-                                        <div className="bg-background border rounded-xl p-4 max-h-48 overflow-y-auto custom-scrollbar grid sm:grid-cols-2 gap-3">
+                                        <div className="bg-background border rounded-xl p-3 sm:p-4 max-h-48 overflow-y-auto custom-scrollbar grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                             {permittedProjects.map((firm) => (
                                                 <FormField
                                                     key={firm.id}
@@ -999,9 +1006,10 @@ export default function ManageUsers() {
                                                                                 field.onChange(values.filter((v) => v !== firmIdStr && v !== firm.name));
                                                                             }
                                                                         }}
+                                                                        className="shrink-0"
                                                                     />
                                                                 </FormControl>
-                                                                <FormLabel htmlFor={`firm-access-${firm.id}`} className="text-xs font-semibold leading-none cursor-pointer select-none">
+                                                                <FormLabel htmlFor={`firm-access-${firm.id}`} className="text-xs font-semibold leading-tight cursor-pointer select-none truncate">
                                                                     {firm.name}
                                                                 </FormLabel>
                                                             </FormItem>
@@ -1010,22 +1018,22 @@ export default function ManageUsers() {
                                                 />
                                             ))}
                                             {permittedProjects.length === 0 && (
-                                                <p className="text-xs text-muted-foreground italic col-span-2 text-center py-4">No projects found in Master Registry</p>
+                                                <p className="text-xs text-muted-foreground italic col-span-full text-center py-4">No projects found in Master Registry</p>
                                             )}
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Hierarchical Multi-System Page Permissions Interface */}
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between px-1">
+                                <div className="space-y-4 sm:space-y-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-1">
                                         <div className="flex items-center gap-2.5">
-                                            <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                                            <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0">
                                                 <Layers size={18} />
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-lg tracking-tight">System & Page Permissions Interface</h3>
-                                                <p className="text-xs text-muted-foreground">Order: Systems Permissions → Page → Edit / View Access</p>
+                                                <h3 className="font-bold text-base sm:text-lg tracking-tight">System & Page Permissions Interface</h3>
+                                                <p className="text-[11px] sm:text-xs text-muted-foreground">Order: Systems Permissions → Page → Edit / View Access</p>
                                             </div>
                                         </div>
                                         {currentRole !== 'SUPER_ADMIN' && (
@@ -1033,7 +1041,7 @@ export default function ManageUsers() {
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                className="text-xs gap-1.5 h-8"
+                                                className="text-xs gap-1.5 h-8 self-start sm:self-auto"
                                                 onClick={() => {
                                                     const allKeys = [...allPermissionKeys];
                                                     const isAll = currentPermissions.length === allKeys.length;
@@ -1065,38 +1073,39 @@ export default function ManageUsers() {
 
                                                 return (
                                                     <Card key={system.id} className="border border-border/70 shadow-sm overflow-hidden">
-                                                        <div className="p-4 bg-muted/40 flex items-center justify-between border-b border-border/50">
-                                                            <div className="flex items-center gap-3">
+                                                        <div className="p-3.5 sm:p-4 bg-muted/40 flex flex-wrap items-center justify-between border-b border-border/50 gap-2">
+                                                            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                                                                 <button
                                                                     type="button"
-                                                                    className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground"
+                                                                    className="p-1 hover:bg-muted rounded-md transition-colors text-muted-foreground shrink-0"
                                                                     onClick={() => setExpandedSystems((prev) => ({ ...prev, [system.id]: !isExpanded }))}
                                                                 >
                                                                     {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                                 </button>
-                                                                <div className="p-2 rounded-lg bg-background shadow-xs border border-border/50">
+                                                                <div className="p-1.5 sm:p-2 rounded-lg bg-background shadow-xs border border-border/50 shrink-0">
                                                                     {system.icon}
                                                                 </div>
-                                                                <div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <h4 className="font-bold text-sm text-foreground">{system.name}</h4>
-                                                                        <span className={cn("text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border", system.badgeBg)}>
+                                                                <div className="min-w-0">
+                                                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                                                        <h4 className="font-bold text-xs sm:text-sm text-foreground truncate">{system.name}</h4>
+                                                                        <span className={cn("text-[9px] sm:text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border shrink-0", system.badgeBg)}>
                                                                             {system.badgeText}
                                                                         </span>
                                                                     </div>
-                                                                    <p className="text-[11px] text-muted-foreground line-clamp-1">{system.description}</p>
+                                                                    <p className="text-[10px] sm:text-[11px] text-muted-foreground line-clamp-1">{system.description}</p>
                                                                 </div>
                                                             </div>
 
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">
+                                                            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 ml-auto">
+                                                                <span className="text-[11px] sm:text-xs font-semibold text-muted-foreground hidden md:inline">
                                                                     {enabledCount} / {systemPages.length} pages enabled
                                                                 </span>
-                                                                <div className="flex items-center gap-2 pl-3 border-l border-border/60">
+                                                                <div className="flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-3 border-l border-border/60">
                                                                     <Checkbox
                                                                         id={`sys-all-${system.id}`}
                                                                         checked={enabledCount === systemPages.length}
                                                                         onCheckedChange={(chk) => handleToggleSystemAllPages(system, !!chk)}
+                                                                        className="shrink-0"
                                                                     />
                                                                     <label htmlFor={`sys-all-${system.id}`} className="text-xs font-bold cursor-pointer select-none">
                                                                         Select All
@@ -1106,7 +1115,7 @@ export default function ManageUsers() {
                                                         </div>
 
                                                         {isExpanded && (
-                                                            <CardContent className="p-4 space-y-3 bg-background">
+                                                            <CardContent className="p-3 sm:p-4 space-y-3 bg-background">
                                                                 <div className="grid gap-2">
                                                                     {system.pages.map((page) => {
                                                                         const enabled = isPageEnabled(page);
@@ -1122,47 +1131,47 @@ export default function ManageUsers() {
                                                                                         : "bg-background border-border/40 opacity-75 hover:opacity-100"
                                                                                 )}
                                                                             >
-                                                                                <div className="flex items-start gap-3">
+                                                                                <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                                                                                     <Checkbox
                                                                                         id={`page-enable-${page.id}`}
                                                                                         checked={enabled}
-                                                                                        className="mt-0.5"
+                                                                                        className="mt-0.5 shrink-0"
                                                                                         onCheckedChange={(chk) => handleTogglePageAccess(page, !!chk)}
                                                                                     />
-                                                                                    <div>
-                                                                                        <label htmlFor={`page-enable-${page.id}`} className="text-xs font-bold text-foreground cursor-pointer hover:text-primary transition-colors">
+                                                                                    <div className="min-w-0">
+                                                                                        <label htmlFor={`page-enable-${page.id}`} className="text-xs font-bold text-foreground cursor-pointer hover:text-primary transition-colors block leading-tight">
                                                                                             {page.name}
                                                                                         </label>
-                                                                                        <p className="text-[11px] text-muted-foreground">{page.description}</p>
+                                                                                        <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-snug mt-0.5">{page.description}</p>
                                                                                     </div>
                                                                                 </div>
 
                                                                                 {enabled && (
-                                                                                    <div className="flex items-center gap-2 self-end sm:self-center bg-background p-1 rounded-lg border border-border/60 shrink-0">
+                                                                                    <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-center bg-background p-1 rounded-lg border border-border/60 shrink-0">
                                                                                         <button
                                                                                             type="button"
                                                                                             className={cn(
-                                                                                                "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1",
+                                                                                                "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
                                                                                                 accessMode === 'VIEW'
                                                                                                     ? "bg-blue-600 text-white shadow-2xs font-bold"
                                                                                                     : "text-muted-foreground hover:bg-muted"
                                                                                             )}
                                                                                             onClick={() => handleSetPageAccessMode(page, 'VIEW')}
                                                                                         >
-                                                                                            <Eye size={12} /> View Only
+                                                                                            <Eye size={12} className="shrink-0" /> View Only
                                                                                         </button>
 
                                                                                         <button
                                                                                             type="button"
                                                                                             className={cn(
-                                                                                                "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1",
+                                                                                                "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
                                                                                                 accessMode === 'EDIT'
                                                                                                     ? "bg-purple-600 text-white shadow-2xs"
                                                                                                     : "text-muted-foreground hover:bg-muted"
                                                                                             )}
                                                                                             onClick={() => handleSetPageAccessMode(page, 'EDIT')}
                                                                                         >
-                                                                                            <Edit3 size={12} /> Edit (View & Edit)
+                                                                                            <Edit3 size={12} className="shrink-0" /> Edit (View & Edit)
                                                                                         </button>
                                                                                     </div>
                                                                                 )}
@@ -1180,18 +1189,21 @@ export default function ManageUsers() {
                                 </div>
                             </div>
 
-                            <DialogFooter className="p-6 md:p-8 bg-muted/50 border-t items-center gap-3">
+                            {/* Fixed Footer */}
+                            <DialogFooter className="p-3.5 sm:p-5 bg-muted/50 border-t flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 shrink-0">
                                 <DialogClose asChild>
-                                    <Button variant="ghost" className="px-6">Cancel</Button>
+                                    <Button variant="outline" className="w-full sm:w-auto h-9 sm:h-10 px-6 rounded-xl font-semibold text-xs sm:text-sm">
+                                        Cancel
+                                    </Button>
                                 </DialogClose>
 
                                 <Button 
                                     type="submit" 
-                                    className="px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg shadow-primary/20 transition-all active:scale-95"
+                                    className="w-full sm:w-auto h-9 sm:h-10 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs sm:text-sm shadow-lg shadow-primary/20 transition-all active:scale-95"
                                     disabled={form.formState.isSubmitting}
                                 >
                                     {form.formState.isSubmitting ? (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center justify-center gap-2">
                                             <Loader size={16} color="currentColor" />
                                             <span>Processing...</span>
                                         </div>

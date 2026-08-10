@@ -1007,42 +1007,42 @@ export default function MakePayment() {
     ];
 
     return (
-        <div className="container mx-auto py-6 space-y-6 max-w-7xl">
-            <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4">
-                    <div className="bg-primary/10 p-3 rounded-full">
-                        <DollarSign size={32} className="text-primary" />
+        <div className="container mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-7xl">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-xs border border-slate-100">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="bg-primary/10 p-2.5 sm:p-3 rounded-full shrink-0">
+                        <DollarSign className="size-6 sm:size-8 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Make Payment</h1>
-                        <p className="text-slate-500 text-sm">Schedule and confirm vendor transactions</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Make Payment</h1>
+                        <p className="text-slate-500 text-xs sm:text-sm">Schedule and confirm vendor transactions</p>
                     </div>
                 </div>
-                <div className="flex gap-6">
-                    <Card className="shadow-none border-none bg-emerald-50/50">
-                        <CardContent className="p-3 flex flex-col items-center">
-                            <span className="text-xs text-emerald-600 font-semibold uppercase tracking-wider">Total Pending</span>
-                            <span className="text-2xl font-bold text-emerald-700">₹{stats.totalAmount.toLocaleString('en-IN')}</span>
+                <div className="grid grid-cols-2 sm:flex gap-3 sm:gap-6 w-full md:w-auto">
+                    <Card className="shadow-none border border-emerald-100 sm:border-none bg-emerald-50/50 flex-1 sm:flex-none">
+                        <CardContent className="p-2.5 sm:p-3 flex flex-col items-center text-center">
+                            <span className="text-[10px] sm:text-xs text-emerald-600 font-semibold uppercase tracking-wider">Total Pending</span>
+                            <span className="text-sm sm:text-2xl font-bold text-emerald-700 truncate max-w-full">₹{stats.totalAmount.toLocaleString('en-IN')}</span>
                         </CardContent>
                     </Card>
-                    <Card className="shadow-none border-none bg-blue-50/50">
-                        <CardContent className="p-3 flex flex-col items-center">
-                            <span className="text-xs text-blue-600 font-semibold uppercase tracking-wider">Pending Tasks</span>
-                            <span className="text-2xl font-bold text-blue-700">{stats.pendingCount}</span>
+                    <Card className="shadow-none border border-blue-100 sm:border-none bg-blue-50/50 flex-1 sm:flex-none">
+                        <CardContent className="p-2.5 sm:p-3 flex flex-col items-center text-center">
+                            <span className="text-[10px] sm:text-xs text-blue-600 font-semibold uppercase tracking-wider">Pending Tasks</span>
+                            <span className="text-sm sm:text-2xl font-bold text-blue-700">{stats.pendingCount}</span>
                         </CardContent>
                     </Card>
                 </div>
             </div>
 
             <Tabs defaultValue="pending" className="w-full" onValueChange={setActiveTab}>
-                <div className="flex justify-between items-center mb-4">
-                    <TabsList className="bg-slate-100/50 p-1">
-                        <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                            <DollarSign className="w-4 h-4 mr-2" />
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-4">
+                    <TabsList className="bg-slate-100/60 p-1 w-full sm:w-auto">
+                        <TabsTrigger value="pending" className="flex-1 sm:flex-none text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                            <DollarSign className="w-4 h-4 mr-1.5" />
                             Pending Payments
                         </TabsTrigger>
-                        <TabsTrigger value="history" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                            <History className="w-4 h-4 mr-2" />
+                        <TabsTrigger value="history" className="flex-1 sm:flex-none text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                            <History className="w-4 h-4 mr-1.5" />
                             Payment History
                         </TabsTrigger>
                     </TabsList>
@@ -1051,7 +1051,7 @@ export default function MakePayment() {
                         <Button 
                             onClick={handleSubmitSelected} 
                             disabled={isSubmitting}
-                            className="bg-primary hover:bg-primary/90 shadow-md"
+                            className="w-full sm:w-auto bg-primary hover:bg-primary/90 shadow-md"
                         >
                             {isSubmitting ? 'Updating...' : `Mark ${selectedRows.size} as Paid`}
                         </Button>
@@ -1087,43 +1087,43 @@ export default function MakePayment() {
 
             {/* Payment Confirmation Modal */}
             <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-                <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl">Confirm Payment</DialogTitle>
-                        <DialogDescription>
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-[500px] p-4 sm:p-6 rounded-2xl sm:rounded-xl max-h-[92vh] flex flex-col overflow-hidden">
+                    <DialogHeader className="text-left pr-6 shrink-0">
+                        <DialogTitle className="text-lg sm:text-xl font-bold">Confirm Payment</DialogTitle>
+                        <DialogDescription className="text-xs sm:text-sm text-muted-foreground">
                             Enter details for payment <span className="font-bold text-primary">{selectedPaymentItem?.uniqueNo}</span>
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid gap-6 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-slate-600">Vendor</Label>
-                                <div className="text-sm font-semibold p-2 bg-slate-50 rounded border">{selectedPaymentItem?.partyName}</div>
+                    <div className="grid gap-4 sm:gap-6 py-3 overflow-y-auto pr-1 flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs sm:text-sm text-slate-600">Vendor</Label>
+                                <div className="text-xs sm:text-sm font-semibold p-2.5 bg-slate-50 rounded-lg border truncate" title={selectedPaymentItem?.partyName}>{selectedPaymentItem?.partyName}</div>
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-slate-600">PO Number</Label>
-                                <div className="text-sm font-semibold p-2 bg-slate-50 rounded border">{selectedPaymentItem?.poNumber}</div>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs sm:text-sm text-slate-600">PO Number</Label>
+                                <div className="text-xs sm:text-sm font-semibold p-2.5 bg-slate-50 rounded-lg border truncate">{selectedPaymentItem?.poNumber}</div>
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="amount">Payment Amount (₹)</Label>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="amount" className="text-xs sm:text-sm">Payment Amount (₹)</Label>
                             <Input
                                 id="amount"
                                 type="number"
                                 value={paymentModalAmount}
                                 onChange={(e) => setPaymentModalAmount(e.target.value)}
                                 placeholder="Enter amount paid"
-                                className="text-lg font-bold text-emerald-700"
+                                className="text-base sm:text-lg font-bold text-emerald-700 h-10 sm:h-11"
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="status">Status</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="status" className="text-xs sm:text-sm">Status</Label>
                                 <Select value={paymentModalStatus} onValueChange={setPaymentModalStatus}>
-                                    <SelectTrigger id="status">
+                                    <SelectTrigger id="status" className="h-10 sm:h-11">
                                         <SelectValue placeholder="Select status" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1133,36 +1133,36 @@ export default function MakePayment() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="file">Attachment (Proof)</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="file" className="text-xs sm:text-sm">Attachment (Proof)</Label>
                                 <Input
                                     id="file"
                                     type="file"
                                     onChange={(e) => setPaymentModalFile(e.target.files?.[0] || null)}
-                                    className="cursor-pointer"
+                                    className="cursor-pointer h-10 sm:h-11 file:bg-primary/10 file:text-primary file:border-0 file:rounded-md text-xs sm:text-sm"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="remark">Remarks</Label>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="remark" className="text-xs sm:text-sm">Remarks</Label>
                             <Textarea
                                 id="remark"
                                 value={paymentModalRemark}
                                 onChange={(e) => setPaymentModalRemark(e.target.value)}
                                 placeholder="Add internal payment notes..."
-                                className="resize-none"
+                                className="resize-none text-xs sm:text-sm"
                                 rows={3}
                             />
                         </div>
                     </div>
 
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)}>Cancel</Button>
+                    <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t shrink-0">
+                        <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsPaymentModalOpen(false)}>Cancel</Button>
                         <Button 
                             onClick={handleSinglePaymentSubmit} 
                             disabled={isSubmitting || !paymentModalAmount}
-                            className="bg-primary hover:bg-primary/90 shadow-md min-w-[120px]"
+                            className="w-full sm:w-auto bg-primary hover:bg-primary/90 shadow-md min-w-[120px]"
                         >
                             {isSubmitting ? 'Processing...' : 'Confirm Payment'}
                         </Button>

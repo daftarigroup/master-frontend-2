@@ -419,19 +419,19 @@ export default () => {
                 heading="Inventory"
                 subtext="View inventory"
                 action={
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-4 w-full sm:w-auto">
                         <Button
                             onClick={() => setTransferDialog(prev => ({ ...prev, open: true, fromProject: '', toProject: '', itemName: '', quantity: 0 }))}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 flex items-center gap-2"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 flex items-center justify-center gap-2 h-9 text-xs sm:text-sm rounded-xl w-full sm:w-auto"
                         >
-                            <ArrowRightLeft size={18} />
-                            Stock Transfer
+                            <ArrowRightLeft className="size-4" />
+                            <span>Stock Transfer</span>
                         </Button>
-                        <div className="h-8 w-px bg-border" />
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">Project:</span>
+                        <div className="hidden sm:block h-6 w-px bg-border/60" />
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <span className="text-xs sm:text-sm font-semibold text-muted-foreground shrink-0">Project:</span>
                             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                                <SelectTrigger className="w-[200px]">
+                                <SelectTrigger className="w-full sm:w-[200px] h-9 text-xs sm:text-sm rounded-xl bg-background">
                                     <SelectValue placeholder="Select Project" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -604,7 +604,7 @@ export default () => {
                         </DialogHeader>
 
                         <div className="grid gap-6 pb-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                                         <Building2 size={12} /> From Project
@@ -668,7 +668,7 @@ export default () => {
                             </div>
 
                             {transferDialog.itemName && (
-                                <div className="grid grid-cols-2 gap-4 items-end animate-in slide-in-from-top-2 duration-300">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-end animate-in slide-in-from-top-2 duration-300">
                                     <div className="space-y-2">
                                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Quantity</Label>
                                         <Input

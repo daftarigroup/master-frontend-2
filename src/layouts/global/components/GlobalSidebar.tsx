@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
@@ -83,7 +83,7 @@ const CollapsibleSection: React.FC<{ isOpen: boolean; children: React.ReactNode;
 export const GlobalSidebar: React.FC = () => {
   const { user } = useAuth();
   const { activeSystemId, setActiveSystemId } = usePlatform();
-  const { isMobile, openMobile, state, setOpen } = useSidebar();
+  const { isMobile, openMobile, setOpenMobile, state, setOpen } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -122,11 +122,55 @@ export const GlobalSidebar: React.FC = () => {
   // other systems remain visible as collapsed sections for quick jump access.
   const [openSystems, setOpenSystems] = useState<Record<string, boolean>>({ [activeSystemId]: true });
 
-  // Whenever the TopBar switcher changes the active system, force that
-  // system's section open (without collapsing sections the user opened manually).
+  // Whenever location.pathname changes, auto-detect and expand the system and group accordion containing the active route
   useEffect(() => {
-    setOpenSystems((prev) => (prev[activeSystemId] ? prev : { ...prev, [activeSystemId]: true }));
-  }, [activeSystemId]);
+    const currentPath = location.pathname;
+    let foundSystemId: string | null = null;
+    let foundGroupKey: string | null = null;
+
+    for (const system of getOrderedNavConfig()) {
+      for (const group of system.groups) {
+        for (const item of group.items) {
+          if (item.path === currentPath) {
+            foundSystemId = system.id;
+            foundGroupKey = group.key;
+            break;
+          }
+        }
+        if (foundGroupKey) break;
+      }
+      if (foundSystemId) break;
+    }
+
+    if (foundSystemId) {
+      if (activeSystemId !== foundSystemId) {
+        setActiveSystemId(foundSystemId);
+      }
+      setOpenSystems((prev) => (prev[foundSystemId!] ? prev : { ...prev, [foundSystemId!]: true }));
+    }
+
+    if (foundGroupKey) {
+      setOpenGroups((prev) => (prev[foundGroupKey!] ? prev : { ...prev, [foundGroupKey!]: true }));
+    }
+  }, [location.pathname]);
+
+  // Instantly position active nav item into view when sidebar is opened or active route changes (no top-to-bottom scroll animation)
+  useLayoutEffect(() => {
+    if ((isMobile && openMobile) || !isMobile) {
+      const scrollToActive = () => {
+        if (!contentRef.current) return;
+        const activeEl = contentRef.current.querySelector<HTMLElement>('[data-active="true"]');
+        if (activeEl) {
+          activeEl.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+        }
+      };
+
+      scrollToActive();
+      // Second instant check in case collapsible animations/layout take a frame to measure
+      const rafId = requestAnimationFrame(scrollToActive);
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [location.pathname, openMobile, isMobile]);
 
   const toggleSystem = (systemId: string) => {
     setOpenSystems((prev) => ({ ...prev, [systemId]: !prev[systemId] }));
@@ -262,11 +306,15 @@ export const GlobalSidebar: React.FC = () => {
   // const maintenanceGroups = [ ... ];
 
   return (
-    <Sidebar side="left" variant="inset" collapsible="icon" className="top-14 h-[calc(100vh-3.5rem)]">
+    <Sidebar side="left" variant="inset" collapsible="icon" className="md:top-14 md:h-[calc(100vh-3.5rem)]">
       <SidebarHeader className="p-3 border-b border-sidebar-border/60">
         <NavLink
           to="/dashboard"
-          onClick={() => setActiveSystemId('global')}
+          onClick={() => {
+            setActiveSystemId('global');
+            if (isMobile) setOpenMobile(false);
+          }}
+          data-active={location.pathname === '/dashboard' ? 'true' : 'false'}
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg font-bold text-xs tracking-wider transition-all duration-200 shadow-2xs no-underline hover:no-underline [text-decoration:none] ${
               isActive
@@ -401,7 +449,7 @@ export const GlobalSidebar: React.FC = () => {
                                   const ItemIcon = item.icon;
 
                                   return (
-                                    <SidebarMenuItem key={item.path}>
+                                    <SidebarMenuItem key={item.path} data-active={isSelected ? 'true' : 'false'}>
                                       <SidebarMenuButton
                                         asChild
                                         isActive={isSelected}
@@ -416,6 +464,7 @@ export const GlobalSidebar: React.FC = () => {
                                           to={item.path}
                                           onClick={() => {
                                             if (activeSystemId !== system.id) setActiveSystemId(system.id);
+                                            if (isMobile) setOpenMobile(false);
                                           }}
                                           className="flex justify-between items-center w-full no-underline hover:no-underline [text-decoration:none]"
                                         >

@@ -223,6 +223,16 @@ const styles = StyleSheet.create({
     termsContainer: {
         borderTop: '1 solid #000000',
     },
+    termsHeaderRow: {
+        backgroundColor: '#e2e8f0',
+        borderBottom: '1 solid #000000',
+        padding: '4 8',
+    },
+    termsHeading: {
+        fontSize: 8.5,
+        fontFamily: 'Helvetica-Bold',
+        textTransform: 'uppercase',
+    },
     termRow: {
         flexDirection: 'row',
         borderBottom: '1 solid #000000',
@@ -610,6 +620,9 @@ export default function PoojaPOFormat(props: POPdfProps) {
 
                     {/* Terms and Conditions */}
                     <View style={styles.termsContainer}>
+                        <View style={styles.termsHeaderRow} wrap={false}>
+                            <Text style={styles.termsHeading}>Terms & Conditions</Text>
+                        </View>
                         {terms &&
                             terms.map((term, idx) => (
                                 <View style={styles.termRow} key={idx} wrap={false}>

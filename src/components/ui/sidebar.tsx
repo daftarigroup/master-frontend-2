@@ -99,6 +99,33 @@ function SidebarProvider({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [toggleSidebar]);
 
+    // Lock background page scroll position when mobile sidebar drawer is open
+    React.useEffect(() => {
+        if (!isMobile || !openMobile) return;
+
+        const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+
+        const originalStyle = {
+            position: document.body.style.position,
+            top: document.body.style.top,
+            width: document.body.style.width,
+            overflow: document.body.style.overflow,
+        };
+
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.position = originalStyle.position;
+            document.body.style.top = originalStyle.top;
+            document.body.style.width = originalStyle.width;
+            document.body.style.overflow = originalStyle.overflow;
+            window.scrollTo(0, scrollY);
+        };
+    }, [isMobile, openMobile]);
+
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? 'expanded' : 'collapsed';
@@ -172,12 +199,12 @@ function Sidebar({
 
     if (isMobile) {
         return (
-            <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+            <Sheet open={openMobile} onOpenChange={setOpenMobile}>
                 <SheetContent
                     data-sidebar="sidebar"
                     data-slot="sidebar"
                     data-mobile="true"
-                    className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+                    className="bg-sidebar text-sidebar-foreground w-[280px] sm:w-[320px] max-w-[85vw] p-0 [&>button]:hidden fixed top-0 left-0 h-[100dvh] z-50 flex flex-col overflow-hidden border-r shadow-2xl"
                     style={
                         {
                             '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
@@ -189,7 +216,7 @@ function Sidebar({
                         <SheetTitle>Sidebar</SheetTitle>
                         <SheetDescription>Displays the mobile sidebar.</SheetDescription>
                     </SheetHeader>
-                    <div className="flex h-full w-full flex-col">{children}</div>
+                    <div className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden">{children}</div>
                 </SheetContent>
             </Sheet>
         );

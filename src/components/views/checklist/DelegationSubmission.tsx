@@ -36,7 +36,7 @@ import TaskCard from '@/components/element/TaskCard';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
@@ -48,6 +48,7 @@ import { toDateOnly, getTimeBucket } from '@/lib/checklistBuckets';
 import { useChecklistData } from '@/context/ChecklistContext';
 import { submitDelegationTask, type DelegationTaskRow } from '@/services/delegationTaskService';
 import { useAuth } from '@/context/AuthContext';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
 
 const BATCH_SIZE = 15;
@@ -157,6 +158,56 @@ export default function DelegationSubmission() {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
+    // Dynamic Filter State
+    const [doerFilter, setDoerFilter] = useState<string>('all');
+    const [projectFilter, setProjectFilter] = useState<string>('all');
+    const [priorityFilter, setPriorityFilter] = useState<string>('all');
+    const [assignedByFilter, setAssignedByFilter] = useState<string>('all');
+
+    // Extract unique options dynamically from delegationTasks dataset
+    const doerOptions = useMemo(() => {
+        const set = new Set<string>();
+        delegationTasks.forEach((t) => {
+            if (t.doer_name && t.doer_name.trim()) set.add(t.doer_name.trim());
+        });
+        const sorted = Array.from(set).sort((a, b) => a.localeCompare(b));
+        return [
+            { value: 'all', label: 'All Doers' },
+            ...sorted.map((name) => ({ value: name, label: name })),
+        ];
+    }, [delegationTasks]);
+
+    const projectOptions = useMemo(() => {
+        const set = new Set<string>();
+        delegationTasks.forEach((t) => {
+            if (t.firm_name && t.firm_name.trim()) set.add(t.firm_name.trim());
+        });
+        const sorted = Array.from(set).sort((a, b) => a.localeCompare(b));
+        return [
+            { value: 'all', label: 'All Projects' },
+            ...sorted.map((name) => ({ value: name, label: name })),
+        ];
+    }, [delegationTasks]);
+
+    const priorityOptions = [
+        { value: 'all', label: 'All Priorities' },
+        { value: 'P1', label: 'P1 - High Priority' },
+        { value: 'P2', label: 'P2 - Medium Priority' },
+        { value: 'P3', label: 'P3 - Low Priority' },
+    ];
+
+    const assignedByOptions = useMemo(() => {
+        const set = new Set<string>();
+        delegationTasks.forEach((t) => {
+            if (t.given_by_name && t.given_by_name.trim()) set.add(t.given_by_name.trim());
+        });
+        const sorted = Array.from(set).sort((a, b) => a.localeCompare(b));
+        return [
+            { value: 'all', label: 'All Assigners' },
+            ...sorted.map((name) => ({ value: name, label: name })),
+        ];
+    }, [delegationTasks]);
+
     // History Tab Filter State
     const [historySearchQuery, setHistorySearchQuery] = useState('');
     const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'done' | 'approved' | 'extend' | 'rejected'>('all');
@@ -181,7 +232,7 @@ export default function DelegationSubmission() {
     // GSAP Container Ref
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Filter tasks based on Tab (Inbox/Outbox), Date Horizon (Today + 1), Status, and Search
+    // Filter tasks based on Tab (Inbox/Outbox), Date Horizon (Today + 1), Status, Search, and 4 Dynamic Dropdowns
     const filteredTasks = useMemo(() => {
         let tasks = delegationTasks;
 
@@ -244,6 +295,27 @@ export default function DelegationSubmission() {
             });
         }
 
+        if (doerFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.doer_name || '').trim().toLowerCase() === doerFilter.trim().toLowerCase());
+        }
+
+        if (projectFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.firm_name || '').trim().toLowerCase() === projectFilter.trim().toLowerCase());
+        }
+
+        if (priorityFilter !== 'all') {
+            tasks = tasks.filter((t) => {
+                const rawDesc = t.task_description || '';
+                const match = rawDesc.match(/^\[(P1|P2|P3)\]\s*(.*)/i);
+                const taskPriority = match ? match[1].toUpperCase() : 'P2';
+                return taskPriority === priorityFilter;
+            });
+        }
+
+        if (assignedByFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.given_by_name || '').trim().toLowerCase() === assignedByFilter.trim().toLowerCase());
+        }
+
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase().trim();
             tasks = tasks.filter(
@@ -257,7 +329,7 @@ export default function DelegationSubmission() {
         }
 
         return tasks;
-    }, [delegationTasks, tabView, dateHorizon, statusFilter, searchQuery, user]);
+    }, [delegationTasks, tabView, dateHorizon, statusFilter, searchQuery, user, doerFilter, projectFilter, priorityFilter, assignedByFilter]);
 
     // Submitted / Completed Delegation Tasks History
     const historyTasks = useMemo(() => {
@@ -267,6 +339,27 @@ export default function DelegationSubmission() {
 
         if (historyStatusFilter !== 'all') {
             tasks = tasks.filter((t) => (t.status || '').toLowerCase() === historyStatusFilter.toLowerCase());
+        }
+
+        if (doerFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.doer_name || '').trim().toLowerCase() === doerFilter.trim().toLowerCase());
+        }
+
+        if (projectFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.firm_name || '').trim().toLowerCase() === projectFilter.trim().toLowerCase());
+        }
+
+        if (priorityFilter !== 'all') {
+            tasks = tasks.filter((t) => {
+                const rawDesc = t.task_description || '';
+                const match = rawDesc.match(/^\[(P1|P2|P3)\]\s*(.*)/i);
+                const taskPriority = match ? match[1].toUpperCase() : 'P2';
+                return taskPriority === priorityFilter;
+            });
+        }
+
+        if (assignedByFilter !== 'all') {
+            tasks = tasks.filter((t) => (t.given_by_name || '').trim().toLowerCase() === assignedByFilter.trim().toLowerCase());
         }
 
         if (historySearchQuery.trim()) {
@@ -287,7 +380,7 @@ export default function DelegationSubmission() {
             const dB = new Date(b.submission_date || b.updated_at || a.created_at || 0).getTime();
             return dB - dA;
         });
-    }, [delegationTasks, historyStatusFilter, historySearchQuery]);
+    }, [delegationTasks, historyStatusFilter, historySearchQuery, doerFilter, projectFilter, priorityFilter, assignedByFilter]);
 
     // History metrics
     const historyTotal = historyTasks.length;
@@ -298,7 +391,7 @@ export default function DelegationSubmission() {
     // Reset pagination window when filters change
     useEffect(() => {
         setVisibleCount(BATCH_SIZE);
-    }, [tabView, statusFilter, dateHorizon, searchQuery]);
+    }, [tabView, statusFilter, dateHorizon, searchQuery, doerFilter, projectFilter, priorityFilter, assignedByFilter]);
 
     // Paginated subset of tasks currently rendered
     const paginatedTasks = useMemo(() => {
@@ -487,19 +580,19 @@ export default function DelegationSubmission() {
             </Heading>
 
             <Tabs defaultValue="active" value={mainTab} onValueChange={(val: any) => setMainTab(val)} className="w-full space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-2.5 rounded-2xl border shadow-xs">
-                    <TabsList className="bg-muted/60 p-1 rounded-xl">
-                        <TabsTrigger value="active" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                            <ClipboardCheck size={15} className="text-purple-600" />
-                            <span>Active Delegations</span>
-                            <span className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card p-2 sm:p-2.5 rounded-2xl border shadow-2xs">
+                    <TabsList className="grid grid-cols-2 w-full sm:w-auto h-auto bg-muted/60 p-1 rounded-xl">
+                        <TabsTrigger value="active" className="gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                            <ClipboardCheck size={15} className="text-purple-600 shrink-0" />
+                            <span className="truncate">Active Delegations</span>
+                            <span className="ml-0.5 sm:ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
                                 {delegationTasks.filter((t) => !t.status || t.status === 'pending').length}
                             </span>
                         </TabsTrigger>
-                        <TabsTrigger value="history" className="gap-2 px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                            <History size={15} className="text-indigo-600" />
-                            <span>Submission History</span>
-                            <span className="ml-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                        <TabsTrigger value="history" className="gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                            <History size={15} className="text-indigo-600 shrink-0" />
+                            <span className="truncate">Submission History</span>
+                            <span className="ml-0.5 sm:ml-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
                                 {delegationTasks.filter((t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)).length}
                             </span>
                         </TabsTrigger>
@@ -509,33 +602,40 @@ export default function DelegationSubmission() {
                 <TabsContent value="active" className="mt-0 space-y-5">
                     {/* Sub-Header Toolbar: Inbox/Outbox Tabs, Date Horizon, Filters & Search */}
             <FilterToolbar
-                activeFilterCount={(dateHorizon !== 'today_plus_1' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)}
+                activeFilterCount={
+                    (dateHorizon !== 'today_plus_1' ? 1 : 0) +
+                    (statusFilter !== 'all' ? 1 : 0) +
+                    (doerFilter !== 'all' ? 1 : 0) +
+                    (projectFilter !== 'all' ? 1 : 0) +
+                    (priorityFilter !== 'all' ? 1 : 0) +
+                    (assignedByFilter !== 'all' ? 1 : 0)
+                }
                 extra={
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 w-full">
                         {/* Inbox / Outbox Tabs */}
-                        <Tabs value={tabView} onValueChange={(v) => setTabView(v as any)} className="w-auto">
-                            <TabsList className="h-9 bg-muted/60 p-1 rounded-xl">
-                                <TabsTrigger value="inbox" className="text-xs px-3 py-1 font-bold rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-                                    <Inbox size={13} className="mr-1.5" />
-                                    My Inbox (Assigned To Me)
+                        <Tabs value={tabView} onValueChange={(v) => setTabView(v as any)} className="w-full md:w-auto">
+                            <TabsList className="grid grid-cols-2 w-full md:w-auto h-9 bg-muted/60 p-1 rounded-xl">
+                                <TabsTrigger value="inbox" className="text-xs px-2.5 sm:px-3 py-1 font-bold rounded-lg data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+                                    <Inbox size={13} className="mr-1 sm:mr-1.5 shrink-0" />
+                                    <span className="truncate">My Inbox</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="outbox" className="text-xs px-3 py-1 font-bold rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
-                                    <Send size={13} className="mr-1.5" />
-                                    Assigned Out (Given By Me)
+                                <TabsTrigger value="outbox" className="text-xs px-2.5 sm:px-3 py-1 font-bold rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+                                    <Send size={13} className="mr-1 sm:mr-1.5 shrink-0" />
+                                    <span className="truncate">Assigned Out</span>
                                 </TabsTrigger>
                             </TabsList>
                         </Tabs>
 
                         {selectedIds.length > 0 && (
-                            <div className="flex items-center justify-between gap-2 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900 p-2 rounded-xl">
-                                <span className="text-xs font-bold text-purple-800 dark:text-purple-300">
-                                    {selectedIds.length} delegation task(s) selected
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900 p-2 rounded-xl w-full md:w-auto">
+                                <span className="text-xs font-bold text-purple-800 dark:text-purple-300 text-center sm:text-left">
+                                    {selectedIds.length} selected
                                 </span>
                                 <Button
                                     size="sm"
                                     onClick={handleBatchComplete}
                                     disabled={batchSubmitting}
-                                    className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-2xs"
+                                    className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-2xs w-full sm:w-auto"
                                 >
                                     <CheckCircle2 size={14} />
                                     {batchSubmitting ? 'Completing...' : 'Mark Selected Completed'}
@@ -545,7 +645,7 @@ export default function DelegationSubmission() {
                     </div>
                 }
                 search={
-                    <div className="relative md:min-w-[200px] md:max-w-xs">
+                    <div className="relative w-full sm:max-w-xs">
                         <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                         <Input
                             placeholder="Search task ID, project, doer..."
@@ -559,8 +659,8 @@ export default function DelegationSubmission() {
                     <>
                         {/* Date Horizon Window Switcher */}
                         <Select value={dateHorizon} onValueChange={(v) => setDateHorizon(v as any)}>
-                            <SelectTrigger className="w-full md:w-[185px] h-9 text-xs bg-muted/30 border-muted">
-                                <CalendarDays size={13} className="mr-1.5 text-purple-600" />
+                            <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs bg-muted/30 border-muted">
+                                <CalendarDays size={13} className="mr-1.5 text-purple-600 shrink-0" />
                                 <SelectValue placeholder="Date Window" />
                             </SelectTrigger>
                             <SelectContent>
@@ -568,16 +668,16 @@ export default function DelegationSubmission() {
                                     Today & Upcoming
                                 </SelectItem>
                                 <SelectItem value="all" className="text-xs">
-                                    All Delegation Dates
+                                    All Dates
                                 </SelectItem>
                             </SelectContent>
                         </Select>
 
                         {/* Status Filter */}
                         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
-                            <SelectTrigger className="w-full md:w-[140px] h-9 text-xs">
-                                <Filter size={13} className="mr-1.5 text-muted-foreground" />
-                                <SelectValue placeholder="All Statuses" />
+                            <SelectTrigger className="w-full sm:w-[130px] h-9 text-xs">
+                                <Filter size={13} className="mr-1.5 text-muted-foreground shrink-0" />
+                                <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
@@ -587,6 +687,71 @@ export default function DelegationSubmission() {
                                 <SelectItem value="extended" className="text-xs font-semibold text-amber-600">Extended</SelectItem>
                             </SelectContent>
                         </Select>
+
+                        {/* Searchable Doer Filter */}
+                        <SearchableSelect
+                            options={doerOptions}
+                            value={doerFilter}
+                            onValueChange={(v) => setDoerFilter(v)}
+                            placeholder="Filter Doer"
+                            searchPlaceholder="Search doer name..."
+                            emptyText="No doers found"
+                            className="w-full sm:w-[145px] h-9 text-xs"
+                        />
+
+                        {/* Searchable Project Filter */}
+                        <SearchableSelect
+                            options={projectOptions}
+                            value={projectFilter}
+                            onValueChange={(v) => setProjectFilter(v)}
+                            placeholder="Filter Project"
+                            searchPlaceholder="Search project..."
+                            emptyText="No projects found"
+                            className="w-full sm:w-[150px] h-9 text-xs"
+                        />
+
+                        {/* Searchable Priority Filter */}
+                        <SearchableSelect
+                            options={priorityOptions}
+                            value={priorityFilter}
+                            onValueChange={(v) => setPriorityFilter(v)}
+                            placeholder="Filter Priority"
+                            searchPlaceholder="Search priority..."
+                            emptyText="No priority matches"
+                            className="w-full sm:w-[140px] h-9 text-xs"
+                        />
+
+                        {/* Searchable Assigned By Filter */}
+                        <SearchableSelect
+                            options={assignedByOptions}
+                            value={assignedByFilter}
+                            onValueChange={(v) => setAssignedByFilter(v)}
+                            placeholder="Filter Assigned By"
+                            searchPlaceholder="Search assigner..."
+                            emptyText="No assigners found"
+                            className="w-full sm:w-[150px] h-9 text-xs"
+                        />
+
+                        {/* Reset All Filters Button */}
+                        {(dateHorizon !== 'today_plus_1' || statusFilter !== 'all' || doerFilter !== 'all' || projectFilter !== 'all' || priorityFilter !== 'all' || assignedByFilter !== 'all' || searchQuery !== '') && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setDateHorizon('today_plus_1');
+                                    setStatusFilter('all');
+                                    setDoerFilter('all');
+                                    setProjectFilter('all');
+                                    setPriorityFilter('all');
+                                    setAssignedByFilter('all');
+                                    setSearchQuery('');
+                                }}
+                                className="h-9 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 shrink-0 font-semibold"
+                            >
+                                Reset Filters
+                            </Button>
+                        )}
                     </>
                 }
             />
@@ -1042,8 +1207,8 @@ export default function DelegationSubmission() {
                 </div>
             </div>
 
-            {/* Submissions Table */}
-            <div className="border rounded-xl bg-card shadow-xs overflow-hidden">
+            {/* Desktop Submissions Table */}
+            <div className="hidden md:block border rounded-xl bg-card shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table className="text-xs">
                         <TableHeader className="bg-muted/50">
@@ -1116,54 +1281,114 @@ export default function DelegationSubmission() {
                     </Table>
                 </div>
             </div>
+
+            {/* Mobile Submissions Card List */}
+            <div className="md:hidden space-y-3">
+                {historyTasks.length === 0 ? (
+                    <p className="py-10 text-center text-xs text-muted-foreground italic">No submitted delegation tasks found in history.</p>
+                ) : (
+                    historyTasks.map((t) => {
+                        const taskChip = `DL-${t.task_id}`;
+                        return (
+                            <TaskCard
+                                key={t.task_id}
+                                idChip={taskChip}
+                                onCopyId={() => handleCopyId(t.task_id)}
+                                idCopied={copiedId === t.task_id}
+                                title={t.task_description}
+                                statusBadge={
+                                    t.status === 'approved' ? (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                                            Approved
+                                        </span>
+                                    ) : t.status === 'extend' || t.status === 'extended' ? (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300">
+                                            Extension Requested
+                                        </span>
+                                    ) : t.status === 'rejected' ? (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300">
+                                            Rejected
+                                        </span>
+                                    ) : (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-300">
+                                            Submitted (Pending Review)
+                                        </span>
+                                    )
+                                }
+                                meta={[
+                                    { icon: <Briefcase size={12} />, label: 'Project', value: t.firm_name || '—' },
+                                    { icon: <UserCheck size={12} />, label: 'Doer', value: t.doer_name || '—' },
+                                    { icon: <User size={12} />, label: 'Assign By', value: t.given_by_name || '—' },
+                                    {
+                                        icon: <Clock size={12} />,
+                                        label: 'Submitted',
+                                        value: t.submission_date ? new Date(t.submission_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—',
+                                    },
+                                ]}
+                                remark={t.remark ? `Doer Remark: ${t.remark}` : undefined}
+                                actions={
+                                    <MediaPreviewDialog
+                                        imageUrl={t.image}
+                                        audioUrl={t.audio_url}
+                                        title={`Proofs for Task ${taskChip}`}
+                                    />
+                                }
+                            />
+                        );
+                    })
+                )}
+            </div>
         </TabsContent>
     </Tabs>
 
     {/* HIGH-PREMIUM DELEGATION COMPLETION MODAL */}
             <Dialog open={modalMode === 'done'} onOpenChange={(v) => !v && resetAndCloseModal()}>
-                <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border shadow-2xl bg-card text-left">
+                <DialogContent className="w-[95vw] sm:max-w-lg max-h-[92vh] flex flex-col p-0 rounded-2xl sm:rounded-3xl border shadow-2xl bg-card text-left gap-0 overflow-hidden">
                     {/* Header Banner */}
-                    <DialogHeader className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 p-5 border-b flex flex-row items-center justify-between space-y-0 text-left">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-2.5 rounded-2xl shadow-md shadow-emerald-500/25 shrink-0">
+                    <DialogHeader className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 p-4 sm:p-5 border-b flex flex-row items-center justify-between space-y-0 text-left shrink-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-2 sm:p-2.5 rounded-2xl shadow-md shadow-emerald-500/25 shrink-0">
                                 <CheckCircle2 size={22} />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                    <span className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0">
                                         {activeModalTask ? `DL-${activeModalTask.task_id}` : 'Task'}
                                     </span>
-                                    <span className="text-xs font-semibold text-muted-foreground">Delegation Completion</span>
+                                    <span className="text-xs font-semibold text-muted-foreground truncate">Delegation Completion</span>
                                 </div>
-                                <DialogTitle className="text-base font-black text-foreground tracking-tight mt-0.5">
+                                <DialogTitle className="text-base font-black text-foreground tracking-tight mt-0.5 truncate">
                                     Complete Delegated Task
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Complete delegated task with optional remarks and proof attachments.
+                                </DialogDescription>
                             </div>
                         </div>
                     </DialogHeader>
 
                     {activeModalTask && (
-                        <div className="p-5 space-y-4">
+                        <div className="p-4 sm:p-5 space-y-4 text-left overflow-y-auto max-h-[calc(92vh-130px)]">
                             {/* Summary Card */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 border rounded-2xl p-3.5 space-y-2">
                                 <p className="font-extrabold text-sm text-foreground leading-snug">
                                     {activeModalTask.task_description}
                                 </p>
-                                 <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground pt-1 border-t border-slate-200/60 dark:border-slate-800">
                                     <span className="flex items-center gap-1 font-semibold">
-                                        <Briefcase size={12} className="text-purple-500" />
+                                        <Briefcase size={12} className="text-purple-500 shrink-0" />
                                         {activeModalTask.firm_name || 'General'}
                                     </span>
                                     <span>•</span>
                                     <span className="flex items-center gap-1 font-semibold text-foreground">
-                                        <UserCheck size={12} className="text-indigo-500" />
+                                        <UserCheck size={12} className="text-indigo-500 shrink-0" />
                                         Assigned by {activeModalTask.given_by_name || 'Manager'}
                                     </span>
                                 </div>
                                 {activeModalTask.status === 'rejected' && (
                                     <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 p-3 rounded-2xl text-xs text-rose-800 dark:text-rose-200 space-y-1">
                                         <p className="font-extrabold flex items-center gap-1.5 text-rose-700 dark:text-rose-300">
-                                            <AlertTriangle size={15} /> Previous Submission Rejected By Admin
+                                            <AlertTriangle size={15} className="shrink-0" /> Previous Submission Rejected By Admin
                                         </p>
                                         <p className="text-[11px] font-medium">Rejection Reason: <strong className="font-bold">{activeModalTask.remark || 'No reason provided'}</strong></p>
                                         <p className="text-[10px] text-muted-foreground pt-0.5">Please attach updated proof photo/voice note and resubmit. Assigned date and time will remain unchanged.</p>
@@ -1180,7 +1405,7 @@ export default function DelegationSubmission() {
                             {/* Remarks Textarea */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                    <MessageSquare size={14} className="text-emerald-600" />
+                                    <MessageSquare size={14} className="text-emerald-600 shrink-0" />
                                     Completion Remarks (Optional)
                                 </label>
                                 <Textarea
@@ -1215,16 +1440,16 @@ export default function DelegationSubmission() {
                         </div>
                     )}
 
-                    <div className="p-4 border-t bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-end gap-2.5">
+                    <div className="p-3.5 sm:p-4 border-t bg-slate-50/50 dark:bg-slate-900/40 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
                         <DialogClose asChild>
-                            <Button variant="outline" className="h-9 px-4 rounded-xl text-xs font-semibold">
+                            <Button variant="outline" className="h-9 px-4 rounded-xl text-xs font-semibold w-full sm:w-auto">
                                 Cancel
                             </Button>
                         </DialogClose>
                         <Button
                             onClick={handleDoneSubmit}
                             disabled={submitting}
-                            className="h-9 px-5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-600/25 gap-2"
+                            className="h-9 px-5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-600/25 gap-2 w-full sm:w-auto"
                         >
                             {submitting ? (
                                 <>
@@ -1244,31 +1469,34 @@ export default function DelegationSubmission() {
 
             {/* HIGH-PREMIUM REQUEST EXTENSION MODAL */}
             <Dialog open={modalMode === 'extend'} onOpenChange={(v) => !v && resetAndCloseModal()}>
-                <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-3xl border shadow-2xl bg-card text-left">
+                <DialogContent className="w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 rounded-2xl sm:rounded-3xl border shadow-2xl bg-card text-left gap-0 overflow-hidden">
                     {/* Header Banner */}
-                    <DialogHeader className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-yellow-500/10 p-5 border-b flex flex-row items-center justify-between space-y-0 text-left">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-2.5 rounded-2xl shadow-md shadow-amber-500/25 shrink-0">
+                    <DialogHeader className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-yellow-500/10 p-4 sm:p-5 border-b flex flex-row items-center justify-between space-y-0 text-left shrink-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-2 sm:p-2.5 rounded-2xl shadow-md shadow-amber-500/25 shrink-0">
                                 <TimerReset size={22} />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+                                    <span className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800 shrink-0">
                                         {activeModalTask ? `DL-${activeModalTask.task_id}` : 'Task'}
                                     </span>
-                                    <span className="text-xs font-semibold text-muted-foreground">Target Extension</span>
+                                    <span className="text-xs font-semibold text-muted-foreground truncate">Target Extension</span>
                                 </div>
-                                <DialogTitle className="text-base font-black text-foreground tracking-tight mt-0.5">
+                                <DialogTitle className="text-base font-black text-foreground tracking-tight mt-0.5 truncate">
                                     Request Target Date Extension
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Request extension for target completion date with reason.
+                                </DialogDescription>
                             </div>
                         </div>
                     </DialogHeader>
 
                     {activeModalTask && (
-                        <div className="p-5 space-y-4">
+                        <div className="p-4 sm:p-5 space-y-4 text-left overflow-y-auto max-h-[calc(92vh-130px)]">
                             <div className="bg-slate-50 dark:bg-slate-900/60 border rounded-2xl p-3.5 space-y-1">
-                                <p className="font-extrabold text-xs text-foreground">{activeModalTask.task_description}</p>
+                                <p className="font-extrabold text-xs text-foreground leading-snug">{activeModalTask.task_description}</p>
                                 <p className="text-xs text-muted-foreground">
                                     Current Deadline:{' '}
                                     <strong className="text-foreground">
@@ -1305,16 +1533,16 @@ export default function DelegationSubmission() {
                         </div>
                     )}
 
-                    <div className="p-4 border-t bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-end gap-2.5">
+                    <div className="p-3.5 sm:p-4 border-t bg-slate-50/50 dark:bg-slate-900/40 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
                         <DialogClose asChild>
-                            <Button variant="outline" className="h-9 px-4 rounded-xl text-xs font-semibold">
+                            <Button variant="outline" className="h-9 px-4 rounded-xl text-xs font-semibold w-full sm:w-auto">
                                 Cancel
                             </Button>
                         </DialogClose>
                         <Button
                             onClick={handleExtendSubmit}
                             disabled={submitting}
-                            className="h-9 px-5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/20 gap-1.5"
+                            className="h-9 px-5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/20 gap-1.5 w-full sm:w-auto"
                         >
                             {submitting ? (
                                 <>

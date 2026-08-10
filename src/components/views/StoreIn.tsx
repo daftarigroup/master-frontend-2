@@ -960,13 +960,14 @@ export default () => {
                                         Direct Form
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                                    <DialogHeader>
-                                        <DialogTitle>Direct Material Entry</DialogTitle>
-                                        <DialogDescription>Enter material details manually without an existing PO/Indent</DialogDescription>
+                                <DialogContent className="w-[95vw] sm:w-[90vw] max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden">
+                                    <DialogHeader className="shrink-0 text-left pr-6 mb-2">
+                                        <DialogTitle className="text-lg sm:text-xl font-bold">Direct Material Entry</DialogTitle>
+                                        <DialogDescription className="text-xs sm:text-sm text-muted-foreground leading-normal">Enter material details manually without an existing PO/Indent</DialogDescription>
                                     </DialogHeader>
                                     <Form {...directForm}>
-                                        <form onSubmit={directForm.handleSubmit(onDirectSubmit)} className="space-y-4 pt-4">
+                                        <form onSubmit={directForm.handleSubmit(onDirectSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                                            <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <FormField
                                                     control={directForm.control}
@@ -1245,8 +1246,10 @@ export default () => {
                                                 />
                                             </div>
 
-                                            <DialogFooter className="pt-4">
-                                                <Button type="submit" disabled={directForm.formState.isSubmitting} className="w-full md:w-auto">
+                                            </div>
+
+                                            <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t mt-4 shrink-0">
+                                                <Button type="submit" disabled={directForm.formState.isSubmitting} className="w-full sm:w-auto">
                                                     <Plus className="h-4 w-4 mr-2" />
                                                     Submit Direct Entry
                                                 </Button>
@@ -1326,67 +1329,67 @@ export default () => {
                 </Tabs>
 
                 {selectedIndent && (
-                    <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="w-[95vw] sm:w-[90vw] max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden">
                         <Form {...form}>
                             <form
                                 onSubmit={form.handleSubmit(onSubmit, onError)}
-                                className="space-y-5"
+                                className="flex flex-col flex-1 min-h-0 overflow-hidden"
                             >
-                                <DialogHeader className="space-y-4 pb-4 border-b">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-3 bg-primary/10 rounded-xl">
-                                                <Truck className="h-6 w-6 text-primary" />
-                                            </div>
-                                            <div>
-                                                <DialogTitle className="text-2xl font-bold tracking-tight">Store In Processing</DialogTitle>
-                                                <DialogDescription className="text-muted-foreground">
-                                                    Process reception and verify quality of delivered items
-                                                </DialogDescription>
-                                            </div>
+                                <DialogHeader className="space-y-3 pb-3 border-b shrink-0 text-left pr-6 mb-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-2.5 bg-primary/10 rounded-xl shrink-0">
+                                            <Truck className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <DialogTitle className="text-lg sm:text-2xl font-bold tracking-tight truncate">Store In Processing</DialogTitle>
+                                            <DialogDescription className="text-xs sm:text-sm text-muted-foreground leading-normal">
+                                                Process reception and verify quality of delivered items
+                                            </DialogDescription>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
-                                            <div className="p-2 bg-background rounded-md shadow-sm">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                                        <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-lg bg-muted/50 border border-border/50">
+                                            <div className="p-1.5 bg-background rounded-md shadow-xs shrink-0">
                                                 <Building className="h-4 w-4 text-primary" />
                                             </div>
-                                            <div className="flex flex-col">
+                                            <div className="flex flex-col min-w-0">
                                                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Vendor</span>
-                                                <span className="text-sm font-semibold truncate max-w-[150px]" title={selectedIndent.vendorName}>
+                                                <span className="text-xs sm:text-sm font-semibold truncate" title={selectedIndent.vendorName}>
                                                     {selectedIndent.vendorName}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
-                                            <div className="p-2 bg-background rounded-md shadow-sm">
+                                        <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-lg bg-muted/50 border border-border/50">
+                                            <div className="p-1.5 bg-background rounded-md shadow-xs shrink-0">
                                                 <FileText className="h-4 w-4 text-primary" />
                                             </div>
-                                            <div className="flex flex-col">
+                                            <div className="flex flex-col min-w-0">
                                                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Bill Number</span>
-                                                <span className="text-sm font-semibold">{selectedIndent.billNo || 'N/A'}</span>
+                                                <span className="text-xs sm:text-sm font-semibold truncate">{selectedIndent.billNo || 'N/A'}</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                                            <div className="p-2 bg-primary/10 rounded-md shadow-sm">
+                                        <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-lg bg-primary/5 border border-primary/20">
+                                            <div className="p-1.5 bg-primary/10 rounded-md shadow-xs shrink-0">
                                                 <IndianRupee className="h-4 w-4 text-primary" />
                                             </div>
-                                            <div className="flex flex-col">
+                                            <div className="flex flex-col min-w-0">
                                                 <span className="text-[10px] uppercase font-bold text-primary/70 tracking-wider">Bill Amount</span>
-                                                <span className="text-sm font-bold text-primary">₹{selectedIndent.billAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</span>
+                                                <span className="text-xs sm:text-sm font-bold text-primary truncate">₹{selectedIndent.billAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</span>
                                             </div>
                                         </div>
                                     </div>
                                 </DialogHeader>
 
+                                <div className="flex-1 overflow-y-auto pr-1 space-y-4 sm:space-y-5 py-2">
+
                                 {/* Product list - always show details table even for single products */}
                                 {(selectedIndent.originalItems?.length || 0) > 0 && (
-                                    <div className="border rounded-md overflow-y-auto overflow-x-auto max-h-[400px]">
-                                        <div className="bg-muted px-3 py-2 text-sm font-semibold">Products in this shipment ({selectedIndent.originalItems?.length})</div>
-                                        <table className="w-full min-w-[560px] text-sm">
+                                    <div className="border rounded-xl overflow-x-auto shadow-xs max-h-[300px] sm:max-h-[400px]">
+                                        <div className="bg-muted px-3 py-2 text-xs sm:text-sm font-semibold">Products in this shipment ({selectedIndent.originalItems?.length})</div>
+                                        <table className="w-full min-w-[620px] text-xs sm:text-sm">
                                             <thead className="bg-muted/40 border-b sticky top-0 z-10">
                                                 <tr>
                                                     <th className="px-3 py-2 text-left bg-muted">S.No.</th>
@@ -1433,7 +1436,7 @@ export default () => {
 
 
                                 {/* Standard form fields */}
-                                <div className="grid md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                                     <FormField
                                         control={form.control}
                                         name="receiverName"
@@ -1461,7 +1464,7 @@ export default () => {
                                     />
                                 </div>
 
-                                <div className="grid md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                                     <FormField
                                         control={form.control}
                                         name="status"
@@ -1501,7 +1504,7 @@ export default () => {
 
                                 </div>
 
-                                <div className="grid md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                                     <FormField
                                         control={form.control}
                                         name="challanImage"
@@ -1543,7 +1546,7 @@ export default () => {
                                     />
                                 </div>
 
-                                <div className="grid md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                                     <FormField
                                         control={form.control}
                                         name="damageOrder"
@@ -1635,17 +1638,15 @@ export default () => {
                                         )}
                                     />
                                 </div>
+                                </div>
 
-                                <DialogFooter>
+                                <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t mt-3 shrink-0">
                                     <DialogClose asChild>
-                                        <Button variant="outline">Close</Button>
+                                        <Button variant="outline" className="w-full sm:w-auto">Close</Button>
                                     </DialogClose>
 
-                                    <Button type="submit" disabled={form.formState.isSubmitting}>
-                                        {(selectedIndent.originalItems?.length || 0) > 1
-                                            ? `Store In`
-                                            : 'Store In'
-                                        }
+                                    <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto min-w-[120px]">
+                                        Store In
                                     </Button>
                                 </DialogFooter>
                             </form>
@@ -1656,13 +1657,13 @@ export default () => {
 
             {/* Admin edit dialog for Lifting History */}
             <Dialog open={!!editHistoryRow} onOpenChange={(open) => { if (!open) setEditHistoryRow(null); }}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
+                <DialogContent className="w-[95vw] sm:w-full sm:max-w-md p-4 sm:p-6 rounded-2xl sm:rounded-xl">
+                    <DialogHeader className="text-left pr-6">
+                        <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
                             <Pencil size={18} />
                             Edit Lifting Record
                         </DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription className="text-xs sm:text-sm text-muted-foreground">
                             Update delivery date and photo of bill for lift <span className="font-mono font-semibold">{editHistoryRow?.liftNumber}</span>
                         </DialogDescription>
                     </DialogHeader>
@@ -1699,11 +1700,12 @@ export default () => {
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t">
                         <DialogClose asChild>
-                            <Button variant="outline" disabled={editSubmitting}>Cancel</Button>
+                            <Button variant="outline" className="w-full sm:w-auto" disabled={editSubmitting}>Cancel</Button>
                         </DialogClose>
                         <Button
+                            className="w-full sm:w-auto min-w-[100px]"
                             disabled={editSubmitting}
                             onClick={async () => {
                                 if (!editHistoryRow) return;

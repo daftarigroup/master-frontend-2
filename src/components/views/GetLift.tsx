@@ -1107,27 +1107,26 @@ export default function GetPurchase() {
 
                 {selectedIndent && (
                     <DialogContent
-                        className="max-h-[95vh] overflow-y-auto"
-                        style={{ maxWidth: '95vw', width: '90vw' }}
+                        className="w-[95vw] sm:w-[90vw] max-w-5xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden"
                     >
                         <Form {...form}>
                             <form
                                 onSubmit={form.handleSubmit(onSubmit, onError)}
-                                className="space-y-6"
+                                className="flex flex-col flex-1 min-h-0 overflow-hidden"
                             >
-                                <DialogHeader className="space-y-1">
-                                    <DialogTitle className="text-xl font-bold flex items-center justify-between w-full border-b pb-3 mb-2">
-                                        <div className="flex items-center gap-2 text-primary">
-                                            <ShoppingCart size={22} />
-                                            <span>Update Purchase Details</span>
-                                        </div>
+                                <DialogHeader className="space-y-1 text-left pr-6 shrink-0 mb-3">
+                                    <DialogTitle className="text-lg sm:text-xl font-bold flex items-center gap-2 text-primary border-b pb-2.5 mb-1">
+                                        <ShoppingCart className="size-5 sm:size-6" />
+                                        <span>Update Purchase Details</span>
                                     </DialogTitle>
-                                    <DialogDescription>
+                                    <DialogDescription className="text-xs sm:text-sm text-muted-foreground leading-normal">
                                         Fill in the bill, challan, and lifting quantity details for PO: {selectedIndent?.poNumber}
                                     </DialogDescription>
                                 </DialogHeader>
 
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-muted/50 p-4 rounded-xl border shadow-sm">
+                                <div className="flex-1 overflow-y-auto pr-1 space-y-4 sm:space-y-6">
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 bg-muted/40 p-3 sm:p-4 rounded-xl border shadow-xs">
                                     {[
                                         ["Indent Number", selectedIndent.indentNo],
                                         ["PO Number", selectedIndent.poNumber],
@@ -1147,8 +1146,8 @@ export default function GetPurchase() {
                                         <span>{(form.formState.errors.items as any).message}</span>
                                     </div>
                                 )}
-                                <div className="border rounded-xl overflow-x-auto overflow-y-auto shadow-sm max-h-[400px]">
-                                    <table className="w-full text-sm">
+                                <div className="border rounded-xl overflow-x-auto shadow-xs max-h-[320px] sm:max-h-[400px]">
+                                    <table className="min-w-[720px] w-full text-xs sm:text-sm">
                                         <thead className="bg-muted/50 border-b sticky top-0 z-10">
                                             <tr>
                                                 <th className="px-4 py-3 text-left font-semibold bg-muted">Product</th>
@@ -1269,9 +1268,9 @@ export default function GetPurchase() {
 
 
                                 {/* Main Form - Sections */}
-                                <div className="space-y-8">
+                                <div className="space-y-6 sm:space-y-8">
                                     {/* Section 1: Basic Receipt Info */}
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6">
                                         <FormField
                                             control={form.control}
                                             name="billStatus"
@@ -1375,7 +1374,7 @@ export default function GetPurchase() {
                                                         <Truck size={18} />
                                                         <span>Logistics & Transportation</span>
                                                     </div>
-                                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6">
                                                         <FormField
                                                             control={form.control}
                                                             name="transportationInclude"
@@ -1480,7 +1479,7 @@ export default function GetPurchase() {
                                                     <CreditCard size={18} />
                                                     <span>Financials & Billing</span>
                                                 </div>
-                                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6">
 
 
                                                     {(typeOfBill === "independent" || typeOfBill === "common") && (
@@ -1513,7 +1512,7 @@ export default function GetPurchase() {
 
                                                 </div>
 
-                                                <div className="grid md:grid-cols-2 gap-6 mt-4">
+                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-6 mt-4">
                                                     <FormField
                                                         control={form.control}
                                                         name="billRemark"
@@ -1554,14 +1553,15 @@ export default function GetPurchase() {
                                         </div>
                                     )}
                                 </div>
+                                </div>
 
-                                <DialogFooter className="pt-2">
-                                    <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Close</Button>
+                                <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t mt-4 shrink-0">
+                                    <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => handleOpenChange(false)}>Close</Button>
 
                                     <Button
                                         type="submit"
                                         disabled={form.formState.isSubmitting}
-                                        className="min-w-[120px]"
+                                        className="w-full sm:w-auto min-w-[120px]"
                                     >
                                         {form.formState.isSubmitting && (
                                             <Loader size={18} className="mr-2" />

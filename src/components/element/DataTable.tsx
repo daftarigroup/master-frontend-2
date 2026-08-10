@@ -231,19 +231,19 @@ export default function DataTable<TData, TValue>({
     }, []);
 
     return (
-        <div className="p-5 grid gap-4">
-            <div className="flex justify-between items-center w-full gap-3">
-                <div className="flex items-center gap-2">
+        <div className="p-3 sm:p-5 grid gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center w-full gap-2.5 sm:gap-3">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                     {searchFields.length !== 0 && (
                         <Input
                             placeholder={`Search...`}
                             value={globalFilter}
                             onChange={(e) => setGlobalFilter(e.target.value)}
-                            className="w-64 h-9"
+                            className="w-full sm:w-64 h-9 text-xs sm:text-sm rounded-xl"
                         />
                     )}
                     {isScrollableHorizontally && (
-                        <div className="flex items-center gap-1 border-l pl-2 ml-1">
+                        <div className="flex items-center gap-1 border-l pl-2 ml-1 shrink-0">
                             <Button
                                 variant="outline"
                                 size="icon"
@@ -268,7 +268,7 @@ export default function DataTable<TData, TValue>({
                         </div>
                     )}
                 </div>
-                {extraActions && extraActions}
+                {extraActions && <div className="flex items-center gap-2 overflow-x-auto">{extraActions}</div>}
             </div>
 
             {/* Desktop / tablet (>=768px): standard scrollable data table */}

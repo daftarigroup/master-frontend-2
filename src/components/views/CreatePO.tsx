@@ -1184,7 +1184,7 @@ const CreatePO = () => {
                 </div>
                 <SidebarTrigger />
             </div>
-            <div className="sm:p-4 max-w-6xl">
+            <div className="w-full max-w-6xl px-2 sm:px-4 py-2">
                 <div className="w-full">
                     <Tabs defaultValue="create" onValueChange={(v) => setMode(v === 'create' ? v : 'revise')}>
                         <TabsList className="h-10 w-full rounded-none">
@@ -1194,20 +1194,18 @@ const CreatePO = () => {
                     </Tabs>
                 </div>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="flex flex-col items-center">
-                        <div className="space-y-4 p-4 w-full bg-white shadow-md rounded-sm">
+                    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="flex flex-col items-center w-full">
+                        <div className="space-y-4 p-3 sm:p-6 w-full max-w-full overflow-hidden bg-white shadow-md rounded-sm">
                             {/* Header Section */}
-                            <div className="flex items-center justify-center gap-4 bg-blue-50 p-2 h-25 rounded">
-                                <div className="text-center">
-                                    <h1 className="text-2xl font-bold uppercase">
-                                        {details?.companyName || 'Pooja Constructions'}
-                                    </h1>
-                                    <div>
-                                        <p className="text-sm">
-                                            Address: {details?.companyAddress || ''}
-                                        </p>
-                                        <p className="text-sm">Phone No: {details?.companyPhone || ''} </p>
-                                    </div>
+                            <div className="flex flex-col items-center justify-center gap-1 bg-blue-50/80 p-3 sm:p-4 rounded-md text-center w-full">
+                                <h1 className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-foreground">
+                                    {details?.companyName || 'Pooja Constructions'}
+                                </h1>
+                                <div className="space-y-0.5">
+                                    <p className="text-xs sm:text-sm text-muted-foreground leading-normal max-w-2xl">
+                                        Address: {details?.companyAddress || ''}
+                                    </p>
+                                    <p className="text-xs sm:text-sm text-muted-foreground font-medium">Phone No: {details?.companyPhone || ''} </p>
                                 </div>
                             </div>
                             <hr />
@@ -1215,8 +1213,8 @@ const CreatePO = () => {
                             <hr />
 
                             {/* Form Fields */}
-                            <div className="grid gap-5 px-4 py-2 text-foreground/80">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4 sm:gap-y-0">
+                            <div className="grid gap-4 sm:gap-5 px-1 sm:px-4 py-2 text-foreground/80">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5">
                                     <FormField control={form.control} name="poNumber" render={({ field }) => (
                                         <FormItem>
                                             {mode === 'create' ? (
@@ -1260,7 +1258,7 @@ const CreatePO = () => {
                                     )} />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-4 sm:gap-y-0">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
                                     <FormField control={form.control} name="supplierName" render={({ field }) => (
                                         <FormItem>
                                             {mode === 'create' ? (
@@ -1313,7 +1311,7 @@ const CreatePO = () => {
                                     )} />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-4 sm:gap-y-0">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
                                     {/* Supplier Address - Changed to always be editable */}
                                     <FormField control={form.control} name="supplierAddress" render={({ field }) => (
                                         <FormItem>
@@ -1364,7 +1362,7 @@ const CreatePO = () => {
                                     )} />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5 gap-y-4 sm:gap-y-0">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
                                     <FormField control={form.control} name="deliveryDate" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Delivery Date</FormLabel>
@@ -1678,9 +1676,9 @@ const CreatePO = () => {
                             <hr />
 
                             {/* Items Table */}
-                            <div className="mx-4 grid">
-                                <div className="rounded-[3px] w-full min-w-full overflow-x-auto max-h-[400px] overflow-y-auto">
-                                    <Table>
+                            <div className="w-full px-1 sm:px-4 grid overflow-hidden">
+                                <div className="rounded-[3px] w-full max-w-full overflow-x-auto max-h-[400px] overflow-y-auto border">
+                                    <Table className="min-w-[650px]">
                                         <TableHeader className="bg-muted">
                                             <TableRow>
                                                 <TableHead>S/N</TableHead>
@@ -1766,8 +1764,8 @@ const CreatePO = () => {
                                 </div>
 
                                 {/* Total Calculation */}
-                                <div className="flex justify-end p-4">
-                                    <div className="w-80 rounded-[3px] bg-muted">
+                                <div className="flex justify-stretch sm:justify-end p-2 sm:p-4">
+                                    <div className="w-full sm:w-80 rounded-[3px] bg-muted">
                                         <p className="flex px-7 py-2 justify-between">
                                             <span>Total:</span>
                                             <span className="text-end">
