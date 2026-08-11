@@ -1329,7 +1329,7 @@ export default () => {
                 </Tabs>
 
                 {selectedIndent && (
-                    <DialogContent className="w-[95vw] sm:w-[90vw] max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden">
+                    <DialogContent className="w-[95vw] sm:w-[90vw] sm:max-w-4xl lg:max-w-6xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden">
                         <Form {...form}>
                             <form
                                 onSubmit={form.handleSubmit(onSubmit, onError)}

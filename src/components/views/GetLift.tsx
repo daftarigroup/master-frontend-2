@@ -1107,7 +1107,7 @@ export default function GetPurchase() {
 
                 {selectedIndent && (
                     <DialogContent
-                        className="w-[95vw] sm:w-[90vw] max-w-5xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden"
+                        className="w-[95vw] sm:w-[90vw] sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl max-h-[92vh] flex flex-col p-4 sm:p-6 rounded-2xl sm:rounded-xl overflow-hidden"
                     >
                         <Form {...form}>
                             <form
