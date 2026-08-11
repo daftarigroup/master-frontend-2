@@ -11,11 +11,13 @@ export interface EmailParams {
     html: string;
 }
 
+import { getApiBaseUrl } from '@/lib/utils';
+
 /**
  * Send an email using Resend
  */
 export async function sendEmail({ to, subject, html }: EmailParams) {
-    const backendUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api'}/email/send`;
+    const backendUrl = `${getApiBaseUrl()}/email/send`;
 
     // 1. Try sending via backend Resend service endpoint
     try {

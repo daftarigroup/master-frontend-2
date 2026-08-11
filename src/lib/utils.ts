@@ -175,8 +175,32 @@ export function formatNumber(num: number) {
 }
 
 /**
+ * Dynamically resolves the API base URL using window.location and environment variables
+ * so local and deployed attachment and API calls work automatically without environment mismatches.
+ */
+export function getApiBaseUrl(): string {
+    const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.trim() && !envUrl.includes('undefined')) {
+        return envUrl.trim().replace(/\/$/, '');
+    }
+
+    if (typeof window !== 'undefined' && window.location) {
+        const { hostname, protocol, port } = window.location;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return `http://${hostname}:5001/api`;
+        }
+        if (hostname.endsWith('daftarigroup.com')) {
+            return `https://api.daftarigroup.com/api`;
+        }
+        return `${protocol}//${hostname}${port ? ':' + port : ''}/api`;
+    }
+
+    return 'http://localhost:5001/api';
+}
+
+/**
  * Formats a file or image path/URL into an absolute URL that opens safely in a new tab.
- * Prevents relative paths (like /uploads/...) from triggering SPA fallback (Dashboard).
+ * Dynamically uses window.location via getApiBaseUrl() to resolve proxy and backend paths for local vs deployed servers.
  */
 export function getPublicFileUrl(pathOrUrl?: string | null): string {
     if (!pathOrUrl || typeof pathOrUrl !== 'string') return '';
@@ -188,9 +212,11 @@ export function getPublicFileUrl(pathOrUrl?: string | null): string {
         return cleanUrl;
     }
 
+    const apiBase = getApiBaseUrl();
+
     // 2. Relative upload paths served directly by backend (/uploads/...)
     if (cleanUrl.startsWith('/uploads/') || cleanUrl.startsWith('uploads/')) {
-        const backendOrigin = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:5001/api').replace(/\/api\/?$/, '');
+        const backendOrigin = apiBase.replace(/\/api\/?$/, '');
         const normalizedPath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
         return `${backendOrigin}${normalizedPath}`;
     }
@@ -201,7 +227,6 @@ export function getPublicFileUrl(pathOrUrl?: string | null): string {
     }
 
     // 4. S3 bucket URLs or relative upload paths -> route through backend file-proxy
-    const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:5001/api';
     const proxyEndpoint = `${apiBase.replace(/\/$/, '')}/store/file-proxy`;
 
     return `${proxyEndpoint}?url=${encodeURIComponent(cleanUrl)}`;

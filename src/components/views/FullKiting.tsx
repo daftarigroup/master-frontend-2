@@ -27,7 +27,7 @@ import Heading from '../element/Heading';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { fetchFullkittingRecords, updateFullkittingRecord, uploadBiltyImage, type FullkittingRecord } from '@/services/fullkittingService';
 import { createPaymentEntry } from '@/services/storeInService';
-import { formatDateTime, parseCustomDate } from '@/lib/utils';
+import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 
 // Helper function to format date as "YYYY-MM-DD"
@@ -152,7 +152,7 @@ export default function FullKiting() {
             cell: ({ getValue }) => {
                 const url = getValue() as string;
                 return url ? (
-                    <Button variant="ghost" size="sm" onClick={() => window.open(url, '_blank')}>
+                    <Button variant="ghost" size="sm" onClick={() => window.open(getPublicFileUrl(url), '_blank')}>
                         <ExternalLink className="h-4 w-4 mr-1" /> View
                     </Button>
                 ) : '-';
