@@ -61,6 +61,7 @@ import {
     FileSpreadsheet,
 } from 'lucide-react';
 import type { UserPermissions } from './types/sheets';
+import { hasPageAccess } from './components/element/PermissionGuard';
 import Loading from './components/views/Loading';
 const ManageUsers = React.lazy(() => import('./components/views/ManageUsers'));
 const CreatePO = React.lazy(() => import('./components/views/CreatePO'));
@@ -107,6 +108,30 @@ const AdminApproval = React.lazy(() => import('./components/views/checklist/Admi
 const WorkingCalendar = React.lazy(() => import('./components/views/WorkingCalendar'));
 const Holidays = React.lazy(() => import('./components/views/Holidays'));
 
+// Petty Cash Lazy Components
+import PettyCashSystemLayout from '@/systems/petty-cash/layout/PettyCashSystemLayout';
+const PettyCashDashboard = React.lazy(() => import('@/systems/petty-cash/pages/PettyCashDashboard'));
+const AddCase = React.lazy(() => import('@/systems/petty-cash/pages/AddCase'));
+const Ledger = React.lazy(() => import('@/systems/petty-cash/pages/Ledger'));
+const PettyCashReports = React.lazy(() => import('@/systems/petty-cash/pages/Reports'));
+const PettyCashMasterPage = React.lazy(() => import('@/systems/petty-cash/pages/MasterPage'));
+const PettyCashSettings = React.lazy(() => import('@/systems/petty-cash/pages/Settings'));
+
+// Document Lazy Components
+import DocumentSystemLayout from '@/systems/document/layout/DocumentSystemLayout';
+const DocumentDashboard = React.lazy(() => import('@/systems/document/pages/DocumentDashboard'));
+const ResourceManager = React.lazy(() => import('@/systems/document/pages/ResourceManager'));
+const AllDocuments = React.lazy(() => import('@/systems/document/pages/document/AllDocuments'));
+const DocumentRenewal = React.lazy(() => import('@/systems/document/pages/document/Renewal'));
+const SharedDocuments = React.lazy(() => import('@/systems/document/pages/document/Shared'));
+const AllSubscriptions = React.lazy(() => import('@/systems/document/pages/subscription/AllSubscriptions'));
+const SubscriptionApproval = React.lazy(() => import('@/systems/document/pages/subscription/Approval'));
+const SubscriptionPayment = React.lazy(() => import('@/systems/document/pages/subscription/Payment'));
+const SubscriptionRenewal = React.lazy(() => import('@/systems/document/pages/subscription/Renewal'));
+const AllLoans = React.lazy(() => import('@/systems/document/pages/loan/AllLoans'));
+const Foreclosure = React.lazy(() => import('@/systems/document/pages/loan/Foreclosure'));
+const LoanNOC = React.lazy(() => import('@/systems/document/pages/loan/NOC'));
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
     if (loading) return <Loading />;
@@ -115,29 +140,23 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function GatedRoute({
     children,
+    page,
     identifier,
+    requiredMode = 'VIEW',
 }: {
     children: React.ReactNode;
+    page?: string;
     identifier?: keyof UserPermissions;
+    requiredMode?: 'VIEW' | 'EDIT';
 }) {
     const { user } = useAuth();
-    if (!identifier) return children;
+    if (!page && !identifier) return <>{children}</>;
 
-    // Check if user is admin
-    const isAdmin = user?.administrate === true || (user?.administrate as any) === "true";
-
-    // If admin, allow access regardless of specific permission
-    if (isAdmin) {
-        return children;
-    }
-
-    // Otherwise check specific permission
-    const hasPermission = user && ((user as any)[identifier] === true || (user as any)[identifier] === "true");
-
-    if (!hasPermission) {
+    const isPermitted = hasPageAccess(user, page, requiredMode, identifier);
+    if (!isPermitted) {
         return <Navigate to="/" replace />;
     }
-    return children;
+    return <>{children}</>;
 }
 
 function firmMatchesAccess(record: any, user: any) {
@@ -1029,6 +1048,41 @@ if (rootElement) {
                                     <Route path="submit/delegation" element={<GatedRoute identifier="checklistSubmitDelegation"><DelegationSubmission /></GatedRoute>} />
                                     <Route path="approval" element={<GatedRoute identifier="checklistApproval"><AdminApproval /></GatedRoute>} />
                                 </Route>
+
+                                {/* Layer 2 PETTY CASH SYSTEM MODULE */}
+                                <Route path="petty-cash" element={<PettyCashSystemLayout />}>
+                                    <Route index element={<Navigate to="/petty-cash/dashboard" replace />} />
+                                    <Route path="dashboard" element={<PettyCashDashboard />} />
+                                    <Route path="entries" element={<AddCase />} />
+                                    <Route path="ledger" element={<Ledger />} />
+                                    <Route path="reports" element={<PettyCashReports />} />
+                                    <Route path="master" element={<Navigate to="/store/admin/master-registry" replace />} />
+                                    <Route path="settings" element={<PettyCashSettings />} />
+                                </Route>
+
+                                {/* Layer 2 DOCUMENT & SUBSCRIPTION SYSTEM MODULE */}
+                                <Route path="document" element={<DocumentSystemLayout />}>
+                                    <Route index element={<Navigate to="/document/dashboard" replace />} />
+                                    <Route path="dashboard" element={<DocumentDashboard />} />
+                                    <Route path="resources" element={<ResourceManager />} />
+                                    <Route path="all" element={<AllDocuments />} />
+                                    <Route path="renewal" element={<DocumentRenewal />} />
+                                    <Route path="shared" element={<SharedDocuments />} />
+
+                                    {/* Subscription subroutes */}
+                                    <Route path="subscription/all" element={<AllSubscriptions />} />
+                                    <Route path="subscription/approval" element={<SubscriptionApproval />} />
+                                    <Route path="subscription/payment" element={<SubscriptionPayment />} />
+                                    <Route path="subscription/renewal" element={<SubscriptionRenewal />} />
+
+                                    {/* Loan subroutes */}
+                                    <Route path="loan/all" element={<AllLoans />} />
+                                    <Route path="loan/foreclosure" element={<Foreclosure />} />
+                                    <Route path="loan/noc" element={<LoanNOC />} />
+                                </Route>
+
+                                {/* Doc-submanager backward compatibility aliases */}
+                                <Route path="doc-submanager/*" element={<Navigate to="/document/dashboard" replace />} />
 
                                 {/* LEGACY FLAT ROUTE BACKWARD COMPATIBILITY REDIRECTS */}
                                 <Route path="quotation" element={<Navigate to="/store/procurement/enquiry" replace />} />

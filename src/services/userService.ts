@@ -60,6 +60,14 @@ function mapUserRow(r: any): UserRecord {
             (typeof value === 'string' && value.toLowerCase() === 'true');
     });
 
+    const activePerms: string[] = [];
+    allPermissionKeys.forEach((key) => {
+        if (user[key] === true) {
+            activePerms.push(key);
+        }
+    });
+    user.permissions = activePerms;
+
     return applyDerivedUserAccess(user) as UserRecord;
 }
 

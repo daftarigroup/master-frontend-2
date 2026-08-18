@@ -179,7 +179,7 @@ export const GlobalSearchDialog: React.FC = () => {
       { title: 'Full Kitting', category: 'Receipts', path: '/store/finance/freight-payment', icon: <Boxes className="mr-2 h-4 w-4 text-blue-500" /> },
       { title: 'Inventory Stock', category: 'Inventory', path: '/store/inventory/stock', icon: <Package className="mr-2 h-4 w-4 text-purple-500" /> },
       { title: 'Manage Users & Roles', category: 'Master Settings', path: '/store/admin/manage-users', icon: <Users className="mr-2 h-4 w-4 text-blue-600" /> },
-      { title: 'Master Registry (Vendors & Items)', category: 'Store Admin', path: '/store/admin/master-registry', icon: <Database className="mr-2 h-4 w-4 text-indigo-600" /> },
+      { title: 'Master Registry (Universal Repository)', category: 'Master Settings', path: '/store/admin/master-registry', icon: <Database className="mr-2 h-4 w-4 text-indigo-600" /> },
       { title: 'Working Calendar', category: 'Master Settings', path: '/store/admin/working-calendar', icon: <Clock className="mr-2 h-4 w-4 text-amber-600" /> },
       { title: 'Holidays', category: 'Master Settings', path: '/store/admin/holidays', icon: <CalendarOff className="mr-2 h-4 w-4 text-rose-600" /> },
       { title: 'Checklist Dashboard', category: 'Checklist', path: '/checklist/dashboard', icon: <LayoutDashboard className="mr-2 h-4 w-4 text-purple-500" /> },

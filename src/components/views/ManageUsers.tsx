@@ -5,7 +5,7 @@ import {
     Wrench, Layers, AlertCircle, Edit3, ShieldAlert
 } from 'lucide-react';
 import Heading from '../element/Heading';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { allPermissionKeys, type UserPermissions } from '@/types/sheets';
 import type { ColumnDef } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
@@ -35,7 +35,7 @@ import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Pill } from '../ui/pill';
 import { fetchUsers, createUser, updateUser, deleteUser } from '@/services/userService';
 import { fetchMasterOptions } from '@/services/masterService';
@@ -53,6 +53,8 @@ interface UsersTableData {
     firmNameMatch: string;
     firm_access: string[];
     permissions: string[];
+    page_access?: Record<string, any>;
+    system_access?: string[];
 }
 
 interface SystemPageConfig {
@@ -80,8 +82,15 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
         badgeBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
         badgeText: 'Master Settings',
         icon: <Users className="size-5 text-indigo-500" />,
-        description: 'User access administration, user accounts, roles, and global permissions settings',
+        description: 'Universal master repository, user access administration, roles, and global permissions settings',
         pages: [
+            {
+                id: 'master_registry',
+                name: 'Master Registry',
+                description: 'Universal repository for Vendors, Items, Group Heads, Projects, Companies, Document Types & Categories',
+                viewKeys: ['masterRegistry'],
+                editKeys: ['masterRegistry'],
+            },
             {
                 id: 'manage_users',
                 name: 'Manage Users',
@@ -113,13 +122,6 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
         icon: <Box className="size-5 text-blue-500" />,
         description: 'Inventory control, indent approvals, purchase orders, store check-in/issue, and financial audits',
         pages: [
-            {
-                id: 'master_registry',
-                name: 'Master Registry',
-                description: 'Core master registry settings for Vendors, Items, Departments, and Corporate Profiles',
-                viewKeys: ['masterRegistry'],
-                editKeys: ['masterRegistry'],
-            },
             {
                 id: 'create_indent',
                 name: 'Create Indent',
@@ -283,11 +285,17 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
 
 export default function ManageUsers() {
     const { user: currentUser, refreshUser } = useAuth();
+    // Stable ref for currentUser to avoid re-creating columns on every context update
+    const currentUserRef = useRef(currentUser);
+    currentUserRef.current = currentUser;
 
     const [tableData, setTableData] = useState<UsersTableData[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedUser, setSelectedUser] = useState<UsersTableData | null>(null);
+    // Ref to access selectedUser inside effects without making the full object a dependency
+    const selectedUserRef = useRef<UsersTableData | null>(null);
+    selectedUserRef.current = selectedUser;
     const [showPassword, setShowPassword] = useState(false);
     const [allProjectOptions, setAllProjectOptions] = useState<{ id: number; name: string }[]>([]);
     const [expandedSystems, setExpandedSystems] = useState<Record<string, boolean>>({
@@ -310,12 +318,7 @@ export default function ManageUsers() {
             });
     }, []);
 
-    useEffect(() => {
-        if (!openDialog) {
-            setSelectedUser(null);
-            setShowPassword(false);
-        }
-    }, [openDialog]);
+
 
     async function fetchUser() {
         setDataLoading(true);
@@ -343,6 +346,8 @@ export default function ManageUsers() {
                         firmNameMatch: user.firmNameMatch,
                         firm_access: (user.firm_access || []).map(String),
                         permissions: permissionKeys,
+                        page_access: user.page_access || {},
+                        system_access: user.system_access || [],
                     };
                 })
             );
@@ -358,7 +363,7 @@ export default function ManageUsers() {
         fetchUser();
     }, []);
 
-    const columns: ColumnDef<UsersTableData>[] = [
+    const columns = useMemo<ColumnDef<UsersTableData>[]>(() => [
         {
             accessorKey: 'name',
             header: 'User Profile',
@@ -451,13 +456,13 @@ export default function ManageUsers() {
                                 {permissions.length} Page Permission(s)
                             </Pill>
                             {permissions.length > 0 && (
-                                <HoverCard openDelay={100}>
-                                    <HoverCardTrigger asChild>
-                                        <div className="cursor-pointer">
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <button type="button" className="cursor-pointer focus:outline-hidden">
                                             <Pill variant="default" className="text-[10px] bg-muted hover:bg-muted/80">View Details</Pill>
-                                        </div>
-                                    </HoverCardTrigger>
-                                    <HoverCardContent className="w-80 p-4 shadow-xl border-primary/10 bg-background/95 backdrop-blur-md">
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent align="start" className="w-80 p-4 shadow-xl border-primary/10 bg-background/95 backdrop-blur-md z-50">
                                         <div className="space-y-3">
                                             <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Enabled System Permissions</h4>
                                             <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto custom-scrollbar">
@@ -466,8 +471,8 @@ export default function ManageUsers() {
                                                 ))}
                                             </div>
                                         </div>
-                                    </HoverCardContent>
-                                </HoverCard>
+                                    </PopoverContent>
+                                </Popover>
                             )}
                         </div>
                     </div>
@@ -495,7 +500,7 @@ export default function ManageUsers() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            disabled={user.username === 'admin' || user.username === currentUser.username}
+                            disabled={user.username === 'admin' || (currentUserRef.current ? user.username === currentUserRef.current.username : false)}
                             onClick={async () => {
                                 if (confirm(`Are you sure you want to permanently delete user "${user.name}"?`)) {
                                     try {
@@ -514,7 +519,7 @@ export default function ManageUsers() {
                             <DropdownMenuTrigger
                                 asChild
                                 disabled={
-                                    user.username === 'admin' || user.username === currentUser.username
+                                    user.username === 'admin' || (currentUserRef.current ? user.username === currentUserRef.current.username : false)
                                 }
                             >
                                 <Button variant="ghost" className="h-8 w-8 p-0 mr-4 hover:bg-primary/10 hover:text-primary transition-colors">
@@ -558,7 +563,7 @@ export default function ManageUsers() {
                 );
             },
         },
-    ];
+    ], [currentUser?.username]);
 
     const schema = z.object({
         name: z.string().min(1, 'Full name is required'),
@@ -583,10 +588,25 @@ export default function ManageUsers() {
         },
     });
 
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            setOpenDialog(false);
+            setShowPassword(false);
+            requestAnimationFrame(() => {
+                setSelectedUser(null);
+            });
+        } else {
+            setOpenDialog(true);
+        }
+    };
+
     useEffect(() => {
+        if (!openDialog) return;
+
+        const user = selectedUserRef.current;
         const initialModes: Record<string, 'VIEW' | 'EDIT'> = {};
-        const userPerms = selectedUser?.permissions || [];
-        const isUserViewOnly = selectedUser?.modify_access === 'VIEW';
+        const userPerms = user?.permissions || [];
+        const isUserViewOnly = user?.modify_access === 'VIEW';
 
         SYSTEM_HIERARCHY.forEach((system) => {
             system.pages.forEach((page) => {
@@ -602,28 +622,29 @@ export default function ManageUsers() {
         });
         setPageAccessModes(initialModes);
 
-        if (selectedUser) {
+        if (user) {
             form.reset({
-                username: selectedUser.username,
-                name: selectedUser.name,
-                password: selectedUser.password,
-                role: selectedUser.role || 'USER',
-                firmNameMatch: selectedUser.firmNameMatch,
-                firm_access: (selectedUser.firm_access || []).map(String),
-                permissions: selectedUser.permissions || [],
+                username: user.username,
+                name: user.name,
+                password: user.password,
+                role: user.role || 'USER',
+                firmNameMatch: user.firmNameMatch,
+                firm_access: (user.firm_access || []).map(String),
+                permissions: user.permissions || [],
             });
-            return;
+        } else {
+            form.reset({
+                name: '',
+                username: '',
+                password: '',
+                role: 'USER',
+                firmNameMatch: '',
+                firm_access: [],
+                permissions: [],
+            });
         }
-        form.reset({
-            name: '',
-            username: '',
-            password: '',
-            role: 'USER',
-            firmNameMatch: '',
-            firm_access: [],
-            permissions: [],
-        });
-    }, [selectedUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openDialog]);
 
     async function onSubmit(value: z.infer<typeof schema>) {
         if (
@@ -652,7 +673,7 @@ export default function ManageUsers() {
 
         // Calculate system_access and page_access JSON structures
         const activeSystemAccess: string[] = value.role === 'SUPER_ADMIN' ? ['ALL'] : [];
-        const activePageAccess: Record<string, 'VIEW' | 'EDIT'> = value.role === 'SUPER_ADMIN' ? { ALL: 'EDIT' } : {};
+        const activePageAccess: Record<string, any> = value.role === 'SUPER_ADMIN' ? { ALL: 'EDIT' } : {};
 
         if (value.role !== 'SUPER_ADMIN') {
             SYSTEM_HIERARCHY.forEach((system) => {
@@ -693,7 +714,7 @@ export default function ManageUsers() {
         try {
             if (selectedUser) {
                 await updateUser(selectedUser.id, userData);
-                if (selectedUser.username === currentUser.username) {
+                if (selectedUser.username === currentUser?.username) {
                     await refreshUser();
                 }
                 toast.success('User updated successfully');
@@ -730,90 +751,97 @@ export default function ManageUsers() {
     };
 
     const handleTogglePageAccess = (page: SystemPageConfig, checked: boolean) => {
-        const set = new Set(currentPermissions);
+        const nextPermsSet = new Set(currentPermissions);
         if (checked) {
-            // Default to current page access mode when checked
             const mode = pageAccessModes[page.id] || 'EDIT';
-            page.viewKeys.forEach((k) => set.add(k));
+            page.viewKeys.forEach((k) => nextPermsSet.add(k));
             if (mode === 'EDIT') {
-                page.editKeys.forEach((k) => set.add(k));
+                page.editKeys.forEach((k) => nextPermsSet.add(k));
+            } else {
+                const actionKeys = page.editKeys.filter((k) => !page.viewKeys.includes(k));
+                actionKeys.forEach((k) => nextPermsSet.delete(k));
             }
         } else {
-            // Remove all keys for this page
-            page.viewKeys.forEach((k) => set.delete(k));
-            page.editKeys.forEach((k) => set.delete(k));
+            page.viewKeys.forEach((k) => nextPermsSet.delete(k));
+            page.editKeys.forEach((k) => nextPermsSet.delete(k));
         }
-        form.setValue('permissions', Array.from(set));
+        form.setValue('permissions', Array.from(nextPermsSet));
     };
 
     const handleSetPageAccessMode = (page: SystemPageConfig, mode: 'VIEW' | 'EDIT') => {
         setPageAccessModes((prev) => ({ ...prev, [page.id]: mode }));
 
-        const set = new Set(currentPermissions);
-        page.viewKeys.forEach((k) => set.add(k));
-        
+        const nextPermsSet = new Set(currentPermissions);
+        page.viewKeys.forEach((k) => nextPermsSet.add(k));
         if (mode === 'EDIT') {
-            page.editKeys.forEach((k) => set.add(k));
+            page.editKeys.forEach((k) => nextPermsSet.add(k));
         } else {
-            // For VIEW mode, remove action keys that differentiate edit from view
             const actionKeys = page.editKeys.filter((k) => !page.viewKeys.includes(k));
-            actionKeys.forEach((k) => set.delete(k));
+            actionKeys.forEach((k) => nextPermsSet.delete(k));
         }
-        form.setValue('permissions', Array.from(set));
+        form.setValue('permissions', Array.from(nextPermsSet));
     };
 
     const handleToggleSystemAllPages = (system: SystemConfig, checked: boolean) => {
-        const set = new Set(currentPermissions);
+        const nextPermsSet = new Set(currentPermissions);
+
         system.pages.forEach((page) => {
             if (checked) {
-                page.viewKeys.forEach((k) => set.add(k));
-                page.editKeys.forEach((k) => set.add(k));
+                const mode = pageAccessModes[page.id] || 'EDIT';
+                page.viewKeys.forEach((k) => nextPermsSet.add(k));
+                if (mode === 'EDIT') {
+                    page.editKeys.forEach((k) => nextPermsSet.add(k));
+                } else {
+                    const actionKeys = page.editKeys.filter((k) => !page.viewKeys.includes(k));
+                    actionKeys.forEach((k) => nextPermsSet.delete(k));
+                }
             } else {
-                page.viewKeys.forEach((k) => set.delete(k));
-                page.editKeys.forEach((k) => set.delete(k));
+                page.viewKeys.forEach((k) => nextPermsSet.delete(k));
+                page.editKeys.forEach((k) => nextPermsSet.delete(k));
             }
         });
-        form.setValue('permissions', Array.from(set));
+
+        form.setValue('permissions', Array.from(nextPermsSet));
     };
 
     return (
         <div className="h-full space-y-6">
-            <Dialog open={openDialog} onOpenChange={(open) => setOpenDialog(open)}>
-                <div className="relative">
-                    <Heading
-                        heading="Manage Users & Permissions"
-                        subtext="Create users, assign system roles, and configure granular multi-system page access"
-                    >
-                        <div className="flex -space-x-2">
-                             <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-2xl shadow-lg shadow-blue-500/20 text-white transform -rotate-12">
-                                <ShieldUser size={40} />
-                            </div>
+            <div className="relative">
+                <Heading
+                    heading="Manage Users & Permissions"
+                    subtext="Create users, assign system roles, and configure granular multi-system page access"
+                >
+                    <div className="flex -space-x-2">
+                         <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-2xl shadow-lg shadow-blue-500/20 text-white transform -rotate-12">
+                            <ShieldUser size={40} />
                         </div>
-                    </Heading>
-
-                    <div className="mt-8">
-                        <DataTable
-                            data={tableData}
-                            columns={columns}
-                            searchFields={['name', 'username', 'role', 'firmNameMatch']}
-                            dataLoading={dataLoading}
-                            className="h-[calc(100dvh-200px)] overflow-hidden rounded-xl border-primary/5 bg-card shadow-xl shadow-black/5"
-                            extraActions={
-                                <Button
-                                    className="h-10 px-6 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 transition-all active:scale-95"
-                                    onClick={() => {
-                                        setOpenDialog(true);
-                                        setSelectedUser(null);
-                                    }}
-                                >
-                                    <UserPlus size={18} />
-                                    <span className="hidden sm:inline">Add New User</span>
-                                </Button>
-                            }
-                        />
                     </div>
-                </div>
+                </Heading>
 
+                <div className="mt-8">
+                    <DataTable
+                        data={tableData}
+                        columns={columns}
+                        searchFields={['name', 'username', 'role', 'firmNameMatch']}
+                        dataLoading={dataLoading}
+                        className="h-[calc(100dvh-200px)] overflow-hidden rounded-xl border-primary/5 bg-card shadow-xl shadow-black/5"
+                        extraActions={
+                            <Button
+                                className="h-10 px-6 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 transition-all active:scale-95"
+                                onClick={() => {
+                                    setSelectedUser(null);
+                                    setOpenDialog(true);
+                                }}
+                            >
+                                <UserPlus size={18} />
+                                <span className="hidden sm:inline">Add New User</span>
+                            </Button>
+                        }
+                    />
+                </div>
+            </div>
+
+            <Dialog open={openDialog} onOpenChange={handleOpenChange}>
                 <DialogContent className="w-[95vw] sm:w-full sm:max-w-4xl max-h-[92vh] flex flex-col p-0 rounded-2xl sm:rounded-3xl border shadow-2xl bg-card text-left gap-0 overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit, onError)} className="flex flex-col h-full overflow-hidden">
@@ -1125,56 +1153,58 @@ export default function ManageUsers() {
                                                                             <div
                                                                                 key={page.id}
                                                                                 className={cn(
-                                                                                    "p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+                                                                                    "p-3 rounded-xl border transition-all flex flex-col gap-2.5",
                                                                                     enabled
                                                                                         ? "bg-muted/20 border-primary/20 shadow-2xs"
                                                                                         : "bg-background border-border/40 opacity-75 hover:opacity-100"
                                                                                 )}
                                                                             >
-                                                                                <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-                                                                                    <Checkbox
-                                                                                        id={`page-enable-${page.id}`}
-                                                                                        checked={enabled}
-                                                                                        className="mt-0.5 shrink-0"
-                                                                                        onCheckedChange={(chk) => handleTogglePageAccess(page, !!chk)}
-                                                                                    />
-                                                                                    <div className="min-w-0">
-                                                                                        <label htmlFor={`page-enable-${page.id}`} className="text-xs font-bold text-foreground cursor-pointer hover:text-primary transition-colors block leading-tight">
-                                                                                            {page.name}
-                                                                                        </label>
-                                                                                        <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-snug mt-0.5">{page.description}</p>
+                                                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                                                    <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                                                                                        <Checkbox
+                                                                                            id={`page-enable-${page.id}`}
+                                                                                            checked={enabled}
+                                                                                            className="mt-0.5 shrink-0"
+                                                                                            onCheckedChange={(chk) => handleTogglePageAccess(page, !!chk)}
+                                                                                        />
+                                                                                        <div className="min-w-0">
+                                                                                            <label htmlFor={`page-enable-${page.id}`} className="text-xs font-bold text-foreground cursor-pointer hover:text-primary transition-colors block leading-tight">
+                                                                                                {page.name}
+                                                                                            </label>
+                                                                                            <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-snug mt-0.5">{page.description}</p>
+                                                                                        </div>
                                                                                     </div>
+
+                                                                                    {enabled && (
+                                                                                        <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-center bg-background p-1 rounded-lg border border-border/60 shrink-0">
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                className={cn(
+                                                                                                    "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
+                                                                                                    accessMode === 'VIEW'
+                                                                                                        ? "bg-blue-600 text-white shadow-2xs font-bold"
+                                                                                                        : "text-muted-foreground hover:bg-muted"
+                                                                                                )}
+                                                                                                onClick={() => handleSetPageAccessMode(page, 'VIEW')}
+                                                                                            >
+                                                                                                <Eye size={12} className="shrink-0" /> View Only
+                                                                                            </button>
+
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                className={cn(
+                                                                                                    "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
+                                                                                                    accessMode === 'EDIT'
+                                                                                                        ? "bg-purple-600 text-white shadow-2xs"
+                                                                                                        : "text-muted-foreground hover:bg-muted"
+                                                                                                )}
+                                                                                                onClick={() => handleSetPageAccessMode(page, 'EDIT')}
+                                                                                            >
+                                                                                                <Edit3 size={12} className="shrink-0" /> Edit (View & Edit)
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
-
-                                                                                {enabled && (
-                                                                                    <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-center bg-background p-1 rounded-lg border border-border/60 shrink-0">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            className={cn(
-                                                                                                "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
-                                                                                                accessMode === 'VIEW'
-                                                                                                    ? "bg-blue-600 text-white shadow-2xs font-bold"
-                                                                                                    : "text-muted-foreground hover:bg-muted"
-                                                                                            )}
-                                                                                            onClick={() => handleSetPageAccessMode(page, 'VIEW')}
-                                                                                        >
-                                                                                            <Eye size={12} className="shrink-0" /> View Only
-                                                                                        </button>
-
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            className={cn(
-                                                                                                "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
-                                                                                                accessMode === 'EDIT'
-                                                                                                    ? "bg-purple-600 text-white shadow-2xs"
-                                                                                                    : "text-muted-foreground hover:bg-muted"
-                                                                                            )}
-                                                                                            onClick={() => handleSetPageAccessMode(page, 'EDIT')}
-                                                                                        >
-                                                                                            <Edit3 size={12} className="shrink-0" /> Edit (View & Edit)
-                                                                                        </button>
-                                                                                    </div>
-                                                                                )}
                                                                             </div>
                                                                         );
                                                                     })}

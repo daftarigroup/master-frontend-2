@@ -911,11 +911,13 @@ export default function ChecklistDashboard() {
                                             <td className="py-3 px-4 text-center font-bold text-muted-foreground">
                                                 #{idx + 1}
                                             </td>
-                                            <td className="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
-                                                <div className="size-7 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-bold flex items-center justify-center text-xs">
-                                                    {doer.name.charAt(0).toUpperCase()}
+                                            <td className="py-3 px-4 font-semibold text-foreground">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="size-7 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-bold flex items-center justify-center text-xs">
+                                                        {doer.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span>{doer.name}</span>
                                                 </div>
-                                                <span>{doer.name}</span>
                                             </td>
                                             <td className="py-3 px-4 text-center font-semibold">{doer.total}</td>
                                             <td className="py-3 px-4 text-center text-emerald-600 font-bold">{doer.completed}</td>

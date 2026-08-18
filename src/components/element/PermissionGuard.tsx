@@ -15,41 +15,83 @@ export interface PermissionGuardProps {
  * Mapping between legacy boolean property names (gateKey) and unified JSON page IDs
  */
 export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
+    // Master Settings
     administrate: 'manage_users',
     manageUsers: 'manage_users',
+    manage_users: 'manage_users',
     masterRegistry: 'master_registry',
+    master_registry: 'master_registry',
     workingCalendar: 'working_calendar',
+    working_calendar: 'working_calendar',
     holidays: 'holidays',
+
+    // Store & Procurement
     createIndent: 'create_indent',
+    create_indent: 'create_indent',
     indentApprovalView: 'indent_approval',
     indentApprovalAction: 'indent_approval',
-    updateVendorView: 'vendor_update',
-    updateVendorAction: 'vendor_update',
-    threePartyApprovalView: 'technical_approval',
-    threePartyApprovalAction: 'management_approval',
+    indent_approval: 'indent_approval',
+    pendingIndentsView: 'pending_indents',
+    pending_indents: 'pending_indents',
     createPo: 'create_po',
-    pendingPo: 'pending_indents',
+    create_po: 'create_po',
     ordersView: 'orders_view',
-    storeIn: 'store_in',
-    hodStoreApproval: 'hod_store_approval',
-    insteadOfQualityCheckInReceivedItem: 'grn_rejection',
-    billNotReceived: 'bill_pending',
-    makePayment: 'make_payment',
-    fullkiting: 'freight_payment',
-    sendDebitNote: 'debit_note',
-    auditData: 'audit_data',
-    takeEntryByTelly: 'tally_entry',
-    dbForPc: 'pc_report',
-    inventory: 'inventory_stock',
+    orders_view: 'orders_view',
+    poHistory: 'orders_view',
+    updateVendorView: 'vendor_rates',
+    updateVendorAction: 'vendor_rates',
+    vendor_rates: 'vendor_rates',
+    threePartyApprovalView: 'technical_approval',
+    threePartyApprovalAction: 'technical_approval',
+    technical_approval: 'technical_approval',
+    pendingPo: 'pending_po',
+    pending_po: 'pending_po',
     storeIssue: 'store_issue',
-    storeIssueReturn: 'store_issue_return',
-    issueData: 'issue_data',
+    storeIssueReturn: 'store_issue',
+    issueData: 'store_issue',
+    store_issue: 'store_issue',
+    inventory: 'inventory',
+    storeIn: 'store_in',
+    hodStoreApproval: 'store_in',
+    store_in: 'store_in',
+    receiveItemView: 'grn_rejection',
+    receiveItemAction: 'grn_rejection',
+    insteadOfQualityCheckInReceivedItem: 'grn_rejection',
+    grn_rejection: 'grn_rejection',
+    storeOutApprovalView: 'store_out',
+    storeOutApprovalAction: 'store_out',
+    store_out: 'store_out',
+
+    // Audits & Finance
+    auditData: 'audits',
+    reauditData: 'audits',
+    againAuditing: 'audits',
+    rectifyTheMistake: 'audits',
+    takeEntryByTelly: 'audits',
+    dbForPc: 'audits',
+    audits: 'audits',
+    sendDebitNote: 'finance_logistics',
+    billNotReceived: 'finance_logistics',
+    returnMaterialToParty: 'finance_logistics',
+    exchangeMaterials: 'finance_logistics',
+    fullKiting: 'finance_logistics',
+    fullkiting: 'finance_logistics',
+    makePayment: 'finance_logistics',
+    finance_logistics: 'finance_logistics',
+
+    // Checklist & Delegation
     checklistDash: 'checklist_dash',
-    checklistQuickTask: 'checklist_quick_task',
+    checklist_dash: 'checklist_dash',
+    checklistQuickTask: 'checklist_quick',
+    checklist_quick: 'checklist_quick',
     checklistAssign: 'checklist_assign',
-    checklistSubmitChecklist: 'checklist_submit_checklist',
-    checklistSubmitDelegation: 'checklist_submit_delegation',
+    checklist_assign: 'checklist_assign',
+    checklistSubmitChecklist: 'checklist_submit_check',
+    checklist_submit_check: 'checklist_submit_check',
+    checklistSubmitDelegation: 'checklist_submit_del',
+    checklist_submit_del: 'checklist_submit_del',
     checklistApproval: 'checklist_approval',
+    checklist_approval: 'checklist_approval',
 };
 
 /**
@@ -125,14 +167,18 @@ export function hasPageAccess(
     if (isAdmin) return true;
 
     // Resolve target pageId using mapping if not directly passed
-    const resolvedPageId = pageId || (legacyIdentifier ? GATEKEY_TO_PAGE_ID[legacyIdentifier] : undefined);
+    const resolvedPageId = pageId || (legacyIdentifier ? (GATEKEY_TO_PAGE_ID[legacyIdentifier] || legacyIdentifier) : undefined);
 
     // 1. Check page_access JSON dictionary or string if available
     if (user.page_access) {
         if (typeof user.page_access === 'string' && (user.page_access === 'ALL' || user.page_access === 'all')) return true;
         if (typeof user.page_access === 'object') {
             const allMode = (user.page_access as any)['ALL'] || (user.page_access as any)['all'];
-            const mode = resolvedPageId ? user.page_access[resolvedPageId] || allMode : allMode;
+            const directMode = legacyIdentifier ? (user.page_access as any)[legacyIdentifier] : undefined;
+            const mode = resolvedPageId 
+                ? (user.page_access[resolvedPageId] || directMode || allMode) 
+                : (directMode || allMode);
+
             if (mode) {
                 if (requiredMode === 'VIEW') return mode === 'VIEW' || mode === 'EDIT';
                 if (requiredMode === 'EDIT') return mode === 'EDIT';
@@ -143,10 +189,10 @@ export function hasPageAccess(
     // 2. Fallback to legacy boolean identifier if provided
     if (legacyIdentifier && user[legacyIdentifier] !== undefined) {
         const val = user[legacyIdentifier];
-        const isGranted = val === true || val === 'true';
+        const isGranted = val === true || val === 'true' || val === 'TRUE';
         
         if (isGranted) {
-            if (requiredMode === 'EDIT' && user.modify_access === 'VIEW') {
+            if (requiredMode === 'EDIT' && String(user.modify_access).toUpperCase() === 'VIEW') {
                 return false;
             }
             return true;

@@ -12,7 +12,19 @@ export const GlobalDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const activeSystems = [
+  interface SystemItem {
+    id: string;
+    name: string;
+    description: string;
+    icon: React.ReactNode;
+    color: string;
+    badge: string;
+    path: string;
+    stats: string;
+    disabled?: boolean;
+  }
+
+  const activeSystems: SystemItem[] = [
     {
       id: 'store',
       name: 'Store & Inventory System',
@@ -37,23 +49,21 @@ export const GlobalDashboard: React.FC = () => {
       id: 'document',
       name: 'Document & Subscription System',
       description: 'Document repository, contract tracking, license management, and recurring subscriptions.',
-      icon: <FileText className="size-6 text-muted-foreground" />,
-      color: 'bg-muted/30 border-dashed',
-      badge: 'Coming Soon',
-      path: '#',
-      disabled: true,
-      stats: 'Upcoming Update',
+      icon: <FileText className="size-6 text-emerald-600" />,
+      color: 'bg-emerald-500/10 border-emerald-200',
+      badge: 'Active System',
+      path: '/document/dashboard',
+      stats: '14 Views Active',
     },
     {
       id: 'petty_cash',
       name: 'Petty Cash System',
       description: 'Small expense logging, voucher approvals, cash float balances, and audit reports.',
-      icon: <Wallet className="size-6 text-muted-foreground" />,
-      color: 'bg-muted/30 border-dashed',
-      badge: 'Coming Soon',
-      path: '#',
-      disabled: true,
-      stats: 'Upcoming Update',
+      icon: <Wallet className="size-6 text-amber-600" />,
+      color: 'bg-amber-500/10 border-amber-200',
+      badge: 'Active System',
+      path: '/petty-cash/dashboard',
+      stats: '6 Views Active',
     },
   ];
 

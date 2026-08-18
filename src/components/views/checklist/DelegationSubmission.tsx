@@ -153,7 +153,7 @@ export default function DelegationSubmission() {
     const [mainTab, setMainTab] = useState<'active' | 'history'>('active');
     const [tabView, setTabView] = useState<'inbox' | 'outbox'>('inbox');
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'completed' | 'extended'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'extended'>('all');
     const [dateHorizon, setDateHorizon] = useState<'today_plus_1' | 'all'>('today_plus_1');
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -210,7 +210,7 @@ export default function DelegationSubmission() {
 
     // History Tab Filter State
     const [historySearchQuery, setHistorySearchQuery] = useState('');
-    const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'done' | 'approved' | 'extend' | 'rejected'>('all');
+    const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'done' | 'approved' | 'rejected'>('all');
 
     // Batch infinite scroll state
     const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
@@ -234,7 +234,10 @@ export default function DelegationSubmission() {
 
     // Filter tasks based on Tab (Inbox/Outbox), Date Horizon (Today + 1), Status, Search, and 4 Dynamic Dropdowns
     const filteredTasks = useMemo(() => {
-        let tasks = delegationTasks;
+        // Only include active / uncompleted delegations in the Active tab
+        let tasks = delegationTasks.filter(
+            (t) => (!t.status || t.status === 'pending' || t.status === 'extend' || t.status === 'extended' || t.status === 'rejected') && !t.submission_date
+        );
 
         if (tabView === 'inbox') {
             tasks = tasks.filter(
@@ -285,11 +288,10 @@ export default function DelegationSubmission() {
             today.setHours(0, 0, 0, 0);
             tasks = tasks.filter((t) => {
                 const s = (t.status || '').toLowerCase();
-                if (statusFilter === 'completed') return s === 'done' || s === 'approved';
                 if (statusFilter === 'extended') return s === 'extend' || s === 'extended';
                 const planned = toDateOnly(t.planned_date || t.task_start_date);
                 const isOverdue = getTimeBucket(planned, today) === 'Overdue';
-                if (statusFilter === 'overdue') return isOverdue && s !== 'done' && s !== 'approved';
+                if (statusFilter === 'overdue') return isOverdue;
                 if (statusFilter === 'pending') return s === 'pending' || s === 'rejected';
                 return true;
             });
@@ -334,7 +336,7 @@ export default function DelegationSubmission() {
     // Submitted / Completed Delegation Tasks History
     const historyTasks = useMemo(() => {
         let tasks = delegationTasks.filter(
-            (t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)
+            (t) => t.status === 'done' || t.status === 'approved' || t.status === 'rejected' || Boolean(t.submission_date)
         );
 
         if (historyStatusFilter !== 'all') {
@@ -586,14 +588,14 @@ export default function DelegationSubmission() {
                             <ClipboardCheck size={15} className="text-purple-600 shrink-0" />
                             <span className="truncate">Active Delegations</span>
                             <span className="ml-0.5 sm:ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                                {delegationTasks.filter((t) => !t.status || t.status === 'pending').length}
+                                {filteredTasks.length}
                             </span>
                         </TabsTrigger>
                         <TabsTrigger value="history" className="gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
                             <History size={15} className="text-indigo-600 shrink-0" />
                             <span className="truncate">Submission History</span>
                             <span className="ml-0.5 sm:ml-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                                {delegationTasks.filter((t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)).length}
+                                {historyTasks.length}
                             </span>
                         </TabsTrigger>
                     </TabsList>
@@ -680,10 +682,9 @@ export default function DelegationSubmission() {
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                                <SelectItem value="all" className="text-xs">All Active</SelectItem>
                                 <SelectItem value="pending" className="text-xs">Pending</SelectItem>
                                 <SelectItem value="overdue" className="text-xs">Overdue</SelectItem>
-                                <SelectItem value="completed" className="text-xs font-semibold text-emerald-600">Completed</SelectItem>
                                 <SelectItem value="extended" className="text-xs font-semibold text-amber-600">Extended</SelectItem>
                             </SelectContent>
                         </Select>

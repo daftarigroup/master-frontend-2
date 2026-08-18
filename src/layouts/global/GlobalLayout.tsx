@@ -6,11 +6,13 @@ import { GlobalSidebar } from './components/GlobalSidebar';
 import { RouteTransition } from './components/RouteTransition';
 import ViewOnlyGuard from '@/components/element/ViewOnlyGuard';
 import { PlatformProvider } from './context/PlatformContext';
+import { Toaster } from 'react-hot-toast';
 
 export const GlobalLayout: React.FC = () => {
   return (
     <PlatformProvider>
       <SidebarProvider>
+        <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
         <div className="min-h-screen w-full flex flex-col bg-background text-foreground antialiased">
           {/* Layer 1 TopBar Header */}
           <TopBar />

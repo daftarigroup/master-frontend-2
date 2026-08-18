@@ -1,8 +1,24 @@
-import { Plus, Building2, Package, FileSpreadsheet, Boxes, LayoutGrid, Building, Trash, Pencil, X, Search, MapPin, UserCog, Mail, Phone, Users, Map, Loader2, FileText } from 'lucide-react';
+import { Plus, Building2, Package, FileSpreadsheet, Boxes, LayoutGrid, Building, Trash, Pencil, X, Search, MapPin, UserCog, Mail, Phone, Users, Map, Loader2, FileText, FileCode2, FolderTree } from 'lucide-react';
 import Heading from '../element/Heading';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
+import MasterListTab from '@/systems/petty-cash/pages/MasterListTab';
+import { useAuth } from '@/context/AuthContext';
+
+export const ALL_REGISTRY_SECTIONS = [
+    { id: 'vendors', label: 'Vendors', icon: Building2, color: 'text-indigo-500' },
+    { id: 'items', label: 'Items', icon: Boxes, color: 'text-blue-500' },
+    { id: 'group-heads', label: 'Group Head & UOM', icon: LayoutGrid, color: 'text-orange-500' },
+    { id: 'companies', label: 'Companies', icon: Building, color: 'text-emerald-500' },
+    { id: 'contractors', label: 'Contractors', icon: Users, color: 'text-indigo-500' },
+    { id: 'site_locations', label: 'Site Locations', icon: Map, color: 'text-rose-500' },
+    { id: 'projects', label: 'Projects', icon: Building, color: 'text-purple-500' },
+    { id: 'site_engineers', label: 'Site Engineers', icon: UserCog, color: 'text-amber-500' },
+    { id: 'terms_conditions', label: 'Terms & Conditions', icon: FileText, color: 'text-teal-500' },
+    { id: 'doc_types', label: 'Document Types', icon: FileCode2, color: 'text-violet-500' },
+    { id: 'doc_categories', label: 'Document Categories', icon: FolderTree, color: 'text-pink-500' },
+];
 import { Button } from '../ui/button';
 import {
     Dialog,
@@ -202,7 +218,32 @@ export default function MasterManagement() {
     const [currentOpeningQty, setCurrentOpeningQty] = useState<number | null>(null);
     const [searchTermDept, setSearchTermDept] = useState('');
     const [isAddingDept, setIsAddingDept] = useState(false);
-    const [activeTab, setActiveTab] = useState('vendors');
+    const { user } = useAuth();
+
+    const allowedSections = useMemo(() => {
+        if (!user) return ALL_REGISTRY_SECTIONS;
+        if (user.role === 'SUPER_ADMIN' || user.administrate) {
+            return ALL_REGISTRY_SECTIONS;
+        }
+        const perms = (user.page_access as any)?.['master_sections'] || (user.page_access as any)?.['master_registry_sections'];
+        if (Array.isArray(perms) && perms.length > 0) {
+            const filtered = ALL_REGISTRY_SECTIONS.filter((s) => perms.includes(s.id));
+            return filtered.length > 0 ? filtered : ALL_REGISTRY_SECTIONS;
+        }
+        // Fallback: If user has masterRegistry permission and no granular filter, allow all
+        if (user.masterRegistry || (user.page_access as any)?.['master_registry']) {
+            return ALL_REGISTRY_SECTIONS;
+        }
+        return [];
+    }, [user]);
+
+    const [activeTab, setActiveTab] = useState<string>(() => allowedSections[0]?.id || 'vendors');
+
+    useEffect(() => {
+        if (allowedSections.length > 0 && !allowedSections.some((s) => s.id === activeTab)) {
+            setActiveTab(allowedSections[0].id);
+        }
+    }, [allowedSections, activeTab]);
 
     const vForm = useForm<VendorFormValues>({
         resolver: zodResolver(vendorSchema) as any,
@@ -816,25 +857,37 @@ export default function MasterManagement() {
         <div className="h-full space-y-4 md:space-y-6 flex flex-col px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
             <Heading heading="Master Registry" subtext="Universal repository for Vendors, Items, Departments, and Corporate Profiles"><div className="bg-gradient-to-br from-indigo-500 to-cyan-500 p-2 sm:p-3 rounded-2xl text-white"><FileSpreadsheet size={32} className="sm:w-10 sm:h-10" /></div></Heading>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-                <div className="mb-4">
-                    <Select value={activeTab} onValueChange={setActiveTab}>
-                        <SelectTrigger className="w-full sm:w-[300px] bg-background border-border/50 rounded-xl h-10 sm:h-12 shadow-sm font-medium">
-                            <SelectValue placeholder="Select Registry" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                            <SelectItem value="vendors" className="cursor-pointer"><div className="flex items-center gap-2"><Building2 size={16} className="text-indigo-500" /> Vendors</div></SelectItem>
-                            <SelectItem value="items" className="cursor-pointer"><div className="flex items-center gap-2"><Boxes size={16} className="text-blue-500" /> Items</div></SelectItem>
-                            <SelectItem value="group-heads" className="cursor-pointer"><div className="flex items-center gap-2"><LayoutGrid size={16} className="text-orange-500" /> Group Head & UOM</div></SelectItem>
-                            <SelectItem value="companies" className="cursor-pointer"><div className="flex items-center gap-2"><Building size={16} className="text-emerald-500" /> Companies</div></SelectItem>
-                            <SelectItem value="contractors" className="cursor-pointer"><div className="flex items-center gap-2"><Users size={16} className="text-indigo-500" /> Contractors</div></SelectItem>
-                            <SelectItem value="site_locations" className="cursor-pointer"><div className="flex items-center gap-2"><Map size={16} className="text-rose-500" /> Site Locations</div></SelectItem>
-                            <SelectItem value="projects" className="cursor-pointer"><div className="flex items-center gap-2"><Building size={16} className="text-purple-500" /> Projects</div></SelectItem>
-                            <SelectItem value="site_engineers" className="cursor-pointer"><div className="flex items-center gap-2"><UserCog size={16} className="text-amber-500" /> Site Engineers</div></SelectItem>
-                            <SelectItem value="terms_conditions" className="cursor-pointer"><div className="flex items-center gap-2"><FileText size={16} className="text-teal-500" /> Terms &amp; Conditions</div></SelectItem>
-                        </SelectContent>
-                    </Select>
+            {allowedSections.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-card border rounded-2xl text-center space-y-3">
+                    <div className="p-3 bg-muted rounded-full text-muted-foreground">
+                        <FileSpreadsheet size={32} />
+                    </div>
+                    <h3 className="text-base font-bold text-foreground">Access Restricted</h3>
+                    <p className="text-xs text-muted-foreground max-w-md">
+                        You do not currently have permission to view any Master Registry sections. Please contact your system administrator to assign registry permissions.
+                    </p>
                 </div>
+            ) : (
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                    <div className="mb-4">
+                        <Select value={activeTab} onValueChange={setActiveTab}>
+                            <SelectTrigger className="w-full sm:w-[300px] bg-background border-border/50 rounded-xl h-10 sm:h-12 shadow-sm font-medium">
+                                <SelectValue placeholder="Select Registry" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                {allowedSections.map((sec) => {
+                                    const IconComponent = sec.icon;
+                                    return (
+                                        <SelectItem key={sec.id} value={sec.id} className="cursor-pointer">
+                                            <div className="flex items-center gap-2">
+                                                <IconComponent size={16} className={sec.color} /> {sec.label}
+                                            </div>
+                                        </SelectItem>
+                                    );
+                                })}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
                 <TabsContent value="vendors" className="flex-1 outline-none"><DataTable data={vendorsData} columns={vendorColumns} searchFields={['vendor_name']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { vForm.reset(); setEditingRecord(null); setOpenDialog('vendor'); }}><Plus size={18} /> Add Vendor</Button>} /></TabsContent>
                 <TabsContent value="items" className="flex-1 outline-none"><DataTable data={itemsData} columns={itemColumns} searchFields={['item_name']} dataLoading={dataLoading} extraActions={<Button className="bg-blue-600" onClick={() => { iForm.reset(); setEditingRecord(null); setOpenDialog('item'); }}><Plus size={18} /> Add Item</Button>} /></TabsContent>
@@ -935,7 +988,14 @@ export default function MasterManagement() {
                 <TabsContent value="site_locations" className="flex-1 outline-none"><DataTable data={siteLocations} columns={siteLocationColumns} searchFields={['location']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { slForm.reset(); setEditingRecord(null); setOpenDialog('site_location'); }}><Plus size={18} /> Add Location</Button>} /></TabsContent>
                 <TabsContent value="site_engineers" className="flex-1 outline-none"><DataTable data={siteEngineers} columns={siteEngineerColumns} searchFields={['name', 'email']} dataLoading={dataLoading} extraActions={<Button className="bg-orange-600" onClick={() => { seForm.reset(); setEditingRecord(null); setOpenDialog('site_engineer'); }}><Plus size={18} /> Add Engineer</Button>} /></TabsContent>
                 <TabsContent value="terms_conditions" className="flex-1 outline-none"><DataTable data={termsAndConditions} columns={termsColumns} searchFields={['title', 'name']} dataLoading={dataLoading} extraActions={<Button className="bg-teal-600" onClick={() => { tcForm.reset(); setEditingRecord(null); setOpenDialog('terms_condition'); }}><Plus size={18} /> Add Condition</Button>} /></TabsContent>
+                <TabsContent value="doc_types" className="flex-1 outline-none">
+                    <MasterListTab type="docDocumentType" title="Document Types" placeholder="Enter document type (e.g. Agreement, License, Certificate, Policy)" />
+                </TabsContent>
+                <TabsContent value="doc_categories" className="flex-1 outline-none">
+                    <MasterListTab type="docCategory" title="Document Categories" placeholder="Enter category (e.g. Company, Personal, Director, Operations)" />
+                </TabsContent>
             </Tabs>
+            )}
 
             <Dialog open={!!openDialog} onOpenChange={(o) => {
                 if (!o) {
@@ -1181,7 +1241,7 @@ export default function MasterManagement() {
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                {masterSheet?.allGroupHeads?.map((gh) => (
+                                                                {Array.from(new Set(masterSheet?.allGroupHeads || [])).map((gh) => (
                                                                     <SelectItem key={gh} value={gh}>{gh}</SelectItem>
                                                                 ))}
                                                             </SelectContent>
@@ -1199,7 +1259,7 @@ export default function MasterManagement() {
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                {masterSheet?.uoms?.map((uom) => (
+                                                                {Array.from(new Set(masterSheet?.uoms || [])).map((uom) => (
                                                                     <SelectItem key={uom} value={uom}>{uom}</SelectItem>
                                                                 ))}
                                                             </SelectContent>

@@ -206,11 +206,11 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         firmObjects.sort((a, b) => a.name.localeCompare(b.name));
 
 
-        const uoms = (uomData || []).map((u: any) => u.name).filter(Boolean);
-        const areaOfUses = (aouData || []).map((a: any) => a.name).filter(Boolean);
-        const allGroupHeads = (ghData || []).map((g: any) => g.name).filter(Boolean);
-        const departments = (departmentData || []).map((d: any) => d.name).filter(Boolean);
-        const defaultTerms = (defaultTermsData || []).map((t: any) => t.term_text).filter(Boolean);
+        const uoms: string[] = Array.from(new Set<string>((uomData || []).map((u: any) => String(u.name || '').trim()).filter(Boolean)));
+        const areaOfUses: string[] = Array.from(new Set<string>((aouData || []).map((a: any) => String(a.name || '').trim()).filter(Boolean)));
+        const allGroupHeads: string[] = Array.from(new Set<string>((ghData || []).map((g: any) => String(g.name || '').trim()).filter(Boolean)));
+        const departments: string[] = Array.from(new Set<string>((departmentData || []).map((d: any) => String(d.name || '').trim()).filter(Boolean)));
+        const defaultTerms: string[] = Array.from(new Set<string>((defaultTermsData || []).map((t: any) => String(t.term_text || '').trim()).filter(Boolean)));
 
         // Group Heads and Products mapping
         const groupHeadsMap: Record<string, string[]> = {};
@@ -255,7 +255,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             firmsnames: firms,
 
             fmsNames: [],
-            paymentTerms: Array.from(new Set(vendors.map((v: any) => v.paymentTerm).filter(Boolean))),
+            paymentTerms: Array.from(new Set<string>(vendors.map((v: any) => String(v.paymentTerm || '').trim()).filter(Boolean))),
             departments,
             locations: [],
             vendors,

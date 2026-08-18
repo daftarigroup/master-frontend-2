@@ -151,7 +151,7 @@ export default function ChecklistSubmission() {
     const { checklistTasks, loading, refresh } = useChecklistData();
     const [mainTab, setMainTab] = useState<'pending' | 'history'>('pending');
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'done'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue'>('all');
     const [dateHorizon, setDateHorizon] = useState<'today_plus_1' | 'all'>('today_plus_1');
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -230,11 +230,10 @@ export default function ChecklistSubmission() {
     const containerRef = useRef<HTMLDivElement>(null);
     const progressRef = useRef<HTMLDivElement>(null);
 
-    // Filter tasks based on Date Horizon (Today + 1 Upcoming), Status, Search, and 4 Dynamic Dropdowns
-    const filteredTasks = useMemo(() => {
+    // Base tasks filtered by horizon & metadata (used for Shift Progress Compliance)
+    const baseHorizonTasks = useMemo(() => {
         let tasks = checklistTasks;
 
-        // Date Horizon Filter: Show all Today/Overdue tasks, plus AT MOST 1 next upcoming task per recurring task
         if (dateHorizon === 'today_plus_1') {
             const todayEnd = new Date();
             todayEnd.setHours(23, 59, 59, 999);
@@ -242,7 +241,6 @@ export default function ChecklistSubmission() {
             const todayAndOverdue: typeof tasks = [];
             const upcomingMap = new Map<string, (typeof tasks)[0]>();
 
-            // Sort by date ascending to ensure we encounter the earliest upcoming date first
             const sortedTasks = [...tasks].sort((a, b) => {
                 const dA = new Date(a.planned_date || a.task_start_date || a.created_at || 0).getTime();
                 const dB = new Date(b.planned_date || b.task_start_date || b.created_at || 0).getTime();
@@ -268,14 +266,6 @@ export default function ChecklistSubmission() {
             });
         }
 
-        if (statusFilter !== 'all') {
-            if (statusFilter === 'pending') {
-                tasks = tasks.filter((t) => (t.status || 'pending').toLowerCase() === 'pending' || (t.status || '').toLowerCase() === 'rejected');
-            } else if (statusFilter === 'done') {
-                tasks = tasks.filter((t) => (t.status || '').toLowerCase() === 'done' || (t.status || '').toLowerCase() === 'approved');
-            }
-        }
-
         if (doerFilter !== 'all') {
             tasks = tasks.filter((t) => (t.doer_name || '').trim().toLowerCase() === doerFilter.trim().toLowerCase());
         }
@@ -297,6 +287,33 @@ export default function ChecklistSubmission() {
             tasks = tasks.filter((t) => (t.given_by_name || '').trim().toLowerCase() === assignedByFilter.trim().toLowerCase());
         }
 
+        return tasks;
+    }, [checklistTasks, dateHorizon, doerFilter, projectFilter, priorityFilter, assignedByFilter]);
+
+    // Compliance statistics across all scheduled horizon tasks
+    const totalAllToday = baseHorizonTasks.length;
+    const completedToday = baseHorizonTasks.filter((t) => t.status === 'done' || t.status === 'approved' || Boolean(t.submission_date)).length;
+    const completionPercent = totalAllToday > 0 ? Math.round((completedToday / totalAllToday) * 100) : 0;
+
+    // Filter tasks strictly for Pending Execution (excludes completed/submitted tasks)
+    const filteredTasks = useMemo(() => {
+        let tasks = baseHorizonTasks.filter(
+            (t) => (!t.status || t.status === 'pending' || t.status === 'rejected') && !t.submission_date
+        );
+
+        if (statusFilter !== 'all') {
+            if (statusFilter === 'pending') {
+                tasks = tasks.filter((t) => (t.status || 'pending').toLowerCase() === 'pending');
+            } else if (statusFilter === 'overdue') {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                tasks = tasks.filter((t) => {
+                    const pDate = new Date(t.planned_date || t.task_start_date || t.created_at || Date.now());
+                    return pDate.getTime() < today.getTime();
+                });
+            }
+        }
+
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase().trim();
             tasks = tasks.filter(
@@ -310,12 +327,12 @@ export default function ChecklistSubmission() {
             );
         }
         return tasks;
-    }, [checklistTasks, dateHorizon, searchQuery, statusFilter, doerFilter, projectFilter, priorityFilter, assignedByFilter]);
+    }, [baseHorizonTasks, searchQuery, statusFilter]);
 
     // Submitted / Completed Tasks History
     const historyTasks = useMemo(() => {
         let tasks = checklistTasks.filter(
-            (t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)
+            (t) => t.status === 'done' || t.status === 'approved' || t.status === 'rejected' || Boolean(t.submission_date)
         );
 
         if (historyStatusFilter !== 'all') {
@@ -393,11 +410,6 @@ export default function ChecklistSubmission() {
         observer.observe(loadMoreRef.current);
         return () => observer.disconnect();
     }, [visibleCount, filteredTasks.length]);
-
-    // Compliance statistics
-    const totalAllToday = filteredTasks.length;
-    const completedToday = filteredTasks.filter((t) => t.status === 'done' || t.status === 'approved').length;
-    const completionPercent = totalAllToday > 0 ? Math.round((completedToday / totalAllToday) * 100) : 0;
 
     // GSAP Animation for Table Rows Stagger
     useGSAP(
@@ -563,14 +575,14 @@ export default function ChecklistSubmission() {
                             <CheckSquare size={15} className="text-sky-600 shrink-0" />
                             <span className="truncate">Pending Execution</span>
                             <span className="ml-0.5 sm:ml-1 bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                                {checklistTasks.filter((t) => !t.status || t.status === 'pending').length}
+                                {filteredTasks.length}
                             </span>
                         </TabsTrigger>
                         <TabsTrigger value="history" className="gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs font-bold rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-xs">
                             <History size={15} className="text-purple-600 shrink-0" />
                             <span className="truncate">Submission History</span>
                             <span className="ml-0.5 sm:ml-1 bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                                {checklistTasks.filter((t) => (t.status && t.status !== 'pending') || Boolean(t.submission_date)).length}
+                                {historyTasks.length}
                             </span>
                         </TabsTrigger>
                     </TabsList>
@@ -671,9 +683,8 @@ export default function ChecklistSubmission() {
                                 <SelectValue placeholder="Filter status" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                                <SelectItem value="pending" className="text-xs">Pending</SelectItem>
-                                <SelectItem value="done" className="text-xs">Completed</SelectItem>
+                                <SelectItem value="all" className="text-xs">All Pending</SelectItem>
+                                <SelectItem value="overdue" className="text-xs">Overdue</SelectItem>
                             </SelectContent>
                         </Select>
 

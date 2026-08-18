@@ -155,7 +155,6 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         key: 'store_admin',
         title: 'Store Administration',
         items: [
-          { name: 'Master Registry', path: '/store/admin/master-registry', icon: FileSpreadsheet, gateKey: 'masterRegistry' },
           { name: 'License', path: '/store/admin/license', icon: KeyRound },
         ],
       },
@@ -187,8 +186,15 @@ export const NAV_CONFIG: SystemNavConfig[] = [
     name: 'Master Settings',
     icon: Settings,
     accentClassName: 'indigo',
-    dashboardPath: '/store/admin/manage-users',
+    dashboardPath: '/store/admin/master-registry',
     groups: [
+      {
+        key: 'global_master_registry',
+        title: 'Master Management',
+        items: [
+          { name: 'Master Registry', path: '/store/admin/master-registry', icon: FileSpreadsheet, gateKey: 'masterRegistry' },
+        ],
+      },
       {
         key: 'global_user_management',
         title: 'User Management',
@@ -232,8 +238,44 @@ export const NAV_CONFIG: SystemNavConfig[] = [
     icon: FileText,
     accentClassName: 'emerald',
     dashboardPath: '/document/dashboard',
-    disabled: true,
-    groups: [],
+    groups: [
+      {
+        key: 'document_overview',
+        title: 'Document Overview',
+        items: [
+          { name: 'Dashboard', path: '/document/dashboard', icon: LayoutDashboard },
+          { name: 'Resource Manager', path: '/document/resources', icon: Users },
+        ],
+      },
+      {
+        key: 'document_vault',
+        title: 'Document Vault',
+        items: [
+          { name: 'All Documents', path: '/document/all', icon: FileText },
+          { name: 'Document Renewal', path: '/document/renewal', icon: RotateCcw },
+          { name: 'Shared Documents', path: '/document/shared', icon: Send },
+        ],
+      },
+      {
+        key: 'document_subscriptions',
+        title: 'Subscriptions',
+        items: [
+          { name: 'All Subscriptions', path: '/document/subscription/all', icon: CreditCard },
+          { name: 'Subscription Approval', path: '/document/subscription/approval', icon: ShieldCheck },
+          { name: 'Subscription Payment', path: '/document/subscription/payment', icon: CreditCard },
+          { name: 'Subscription Renewal', path: '/document/subscription/renewal', icon: RotateCcw },
+        ],
+      },
+      {
+        key: 'document_loans',
+        title: 'Loans & NOC',
+        items: [
+          { name: 'All Loans', path: '/document/loan/all', icon: Building2 },
+          { name: 'Foreclosure Request', path: '/document/loan/foreclosure', icon: Clock },
+          { name: 'Collect NOC', path: '/document/loan/noc', icon: CheckCircle2 },
+        ],
+      },
+    ],
   },
   {
     id: 'petty_cash',
@@ -241,8 +283,19 @@ export const NAV_CONFIG: SystemNavConfig[] = [
     icon: Wallet,
     accentClassName: 'amber',
     dashboardPath: '/petty-cash/dashboard',
-    disabled: true,
-    groups: [],
+    groups: [
+      {
+        key: 'petty_cash_ops',
+        title: 'Cash Operations',
+        items: [
+          { name: 'Dashboard', path: '/petty-cash/dashboard', icon: LayoutDashboard },
+          { name: 'Cash Entries (Add Case)', path: '/petty-cash/entries', icon: PlusCircle },
+          { name: 'Ledger', path: '/petty-cash/ledger', icon: ClipboardList },
+          { name: 'Spend Reports', path: '/petty-cash/reports', icon: BarChart },
+          { name: 'Settings', path: '/petty-cash/settings', icon: Settings },
+        ],
+      },
+    ],
   },
 ];
 
