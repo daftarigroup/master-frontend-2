@@ -1052,33 +1052,33 @@ if (rootElement) {
                                 {/* Layer 2 PETTY CASH SYSTEM MODULE */}
                                 <Route path="petty-cash" element={<PettyCashSystemLayout />}>
                                     <Route index element={<Navigate to="/petty-cash/dashboard" replace />} />
-                                    <Route path="dashboard" element={<PettyCashDashboard />} />
-                                    <Route path="entries" element={<AddCase />} />
-                                    <Route path="ledger" element={<Ledger />} />
-                                    <Route path="reports" element={<PettyCashReports />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="pettyCashDash"><PettyCashDashboard /></GatedRoute>} />
+                                    <Route path="entries" element={<GatedRoute identifier="pettyCashEntries"><AddCase /></GatedRoute>} />
+                                    <Route path="ledger" element={<GatedRoute identifier="pettyCashLedger"><Ledger /></GatedRoute>} />
+                                    <Route path="reports" element={<GatedRoute identifier="pettyCashReports"><PettyCashReports /></GatedRoute>} />
                                     <Route path="master" element={<Navigate to="/store/admin/master-registry" replace />} />
-                                    <Route path="settings" element={<PettyCashSettings />} />
+                                    <Route path="settings" element={<GatedRoute identifier="pettyCashSettings"><PettyCashSettings /></GatedRoute>} />
                                 </Route>
 
                                 {/* Layer 2 DOCUMENT & SUBSCRIPTION SYSTEM MODULE */}
                                 <Route path="document" element={<DocumentSystemLayout />}>
                                     <Route index element={<Navigate to="/document/dashboard" replace />} />
-                                    <Route path="dashboard" element={<DocumentDashboard />} />
-                                    <Route path="resources" element={<ResourceManager />} />
-                                    <Route path="all" element={<AllDocuments />} />
-                                    <Route path="renewal" element={<DocumentRenewal />} />
-                                    <Route path="shared" element={<SharedDocuments />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="docDash"><DocumentDashboard /></GatedRoute>} />
+                                    <Route path="resources" element={<GatedRoute identifier="docResourceManager"><ResourceManager /></GatedRoute>} />
+                                    <Route path="all" element={<GatedRoute identifier="docAllDocuments"><AllDocuments /></GatedRoute>} />
+                                    <Route path="renewal" element={<GatedRoute identifier="docRenewal"><DocumentRenewal /></GatedRoute>} />
+                                    <Route path="shared" element={<GatedRoute identifier="docShared"><SharedDocuments /></GatedRoute>} />
 
                                     {/* Subscription subroutes */}
-                                    <Route path="subscription/all" element={<AllSubscriptions />} />
-                                    <Route path="subscription/approval" element={<SubscriptionApproval />} />
-                                    <Route path="subscription/payment" element={<SubscriptionPayment />} />
-                                    <Route path="subscription/renewal" element={<SubscriptionRenewal />} />
+                                    <Route path="subscription/all" element={<GatedRoute identifier="docAllSubscriptions"><AllSubscriptions /></GatedRoute>} />
+                                    <Route path="subscription/approval" element={<GatedRoute identifier="docSubApproval"><SubscriptionApproval /></GatedRoute>} />
+                                    <Route path="subscription/payment" element={<GatedRoute identifier="docSubPayment"><SubscriptionPayment /></GatedRoute>} />
+                                    <Route path="subscription/renewal" element={<GatedRoute identifier="docSubRenewal"><SubscriptionRenewal /></GatedRoute>} />
 
                                     {/* Loan subroutes */}
-                                    <Route path="loan/all" element={<AllLoans />} />
-                                    <Route path="loan/foreclosure" element={<Foreclosure />} />
-                                    <Route path="loan/noc" element={<LoanNOC />} />
+                                    <Route path="loan/all" element={<GatedRoute identifier="docAllLoans"><AllLoans /></GatedRoute>} />
+                                    <Route path="loan/foreclosure" element={<GatedRoute identifier="docLoanForeclosure"><Foreclosure /></GatedRoute>} />
+                                    <Route path="loan/noc" element={<GatedRoute identifier="docLoanNoc"><LoanNOC /></GatedRoute>} />
                                 </Route>
 
                                 {/* Doc-submanager backward compatibility aliases */}

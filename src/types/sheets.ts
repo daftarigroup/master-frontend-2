@@ -349,6 +349,27 @@ export type UserPermissions = {
     checklistSubmitDelegation?: boolean;
     checklistApproval?: boolean;
 
+    // Document & Subscription System Permissions
+    docDash?: boolean;
+    docResourceManager?: boolean;
+    docAllDocuments?: boolean;
+    docRenewal?: boolean;
+    docShared?: boolean;
+    docAllSubscriptions?: boolean;
+    docSubApproval?: boolean;
+    docSubPayment?: boolean;
+    docSubRenewal?: boolean;
+    docAllLoans?: boolean;
+    docLoanForeclosure?: boolean;
+    docLoanNoc?: boolean;
+
+    // Petty Cash System Permissions
+    pettyCashDash?: boolean;
+    pettyCashEntries?: boolean;
+    pettyCashLedger?: boolean;
+    pettyCashReports?: boolean;
+    pettyCashSettings?: boolean;
+
     // Maintenance System Permissions
     maintDash?: boolean;
     maintMachines?: boolean;
@@ -433,6 +454,23 @@ export const allPermissionKeys = [
     "checklistSubmitChecklist",
     "checklistSubmitDelegation",
     "checklistApproval",
+    "docDash",
+    "docResourceManager",
+    "docAllDocuments",
+    "docRenewal",
+    "docShared",
+    "docAllSubscriptions",
+    "docSubApproval",
+    "docSubPayment",
+    "docSubRenewal",
+    "docAllLoans",
+    "docLoanForeclosure",
+    "docLoanNoc",
+    "pettyCashDash",
+    "pettyCashEntries",
+    "pettyCashLedger",
+    "pettyCashReports",
+    "pettyCashSettings",
     "maintDash",
     "maintMachines",
     "maintBreakdowns",

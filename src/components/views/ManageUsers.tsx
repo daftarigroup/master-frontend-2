@@ -2,7 +2,7 @@ import {
     Building, ShieldCheck, User as UserIcon, Users, Eye, EyeClosed, MoreHorizontal, Pencil, 
     ShieldUser, Trash, UserPlus, Fingerprint, Lock, Shield, Settings, CheckSquare, 
     ListTodo, ClipboardCheck, Truck, BarChart3, Box, Crown, ChevronDown, ChevronRight,
-    Wrench, Layers, AlertCircle, Edit3, ShieldAlert
+    Wrench, Layers, AlertCircle, Edit3, ShieldAlert, Wallet, FileText, Files
 } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -280,7 +280,179 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
                 editKeys: ['checklistApproval'],
             },
         ]
+    },
+    {
+        id: 'document',
+        name: 'Document & Subscription System',
+        badgeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+        badgeText: 'Document Module',
+        icon: <FileText className="size-5 text-emerald-500" />,
+        description: 'Document vault, agreements, resource directory, recurring subscriptions, and loan/NOC portfolio',
+        pages: [
+            {
+                id: 'doc_dashboard',
+                name: 'Document Dashboard',
+                description: 'Overview metrics, renewal calendars, alerts, and compliance summaries',
+                viewKeys: ['docDash'],
+                editKeys: ['docDash'],
+            },
+            {
+                id: 'doc_resources',
+                name: 'Resource Manager',
+                description: 'Personnel, vendor contacts, and corporate resource registry',
+                viewKeys: ['docResourceManager'],
+                editKeys: ['docResourceManager'],
+            },
+            {
+                id: 'doc_all',
+                name: 'All Documents',
+                description: 'Central digital vault and master file repository with metadata and categorization',
+                viewKeys: ['docAllDocuments'],
+                editKeys: ['docAllDocuments'],
+            },
+            {
+                id: 'doc_renewal',
+                name: 'Document Renewal',
+                description: 'Track expiring documents, renewal approvals, and reminder alerts',
+                viewKeys: ['docRenewal'],
+                editKeys: ['docRenewal'],
+            },
+            {
+                id: 'doc_shared',
+                name: 'Shared Documents',
+                description: 'Manage public/shared document links, access history, and downloads',
+                viewKeys: ['docShared'],
+                editKeys: ['docShared'],
+            },
+            {
+                id: 'doc_sub_all',
+                name: 'All Subscriptions',
+                description: 'Software licenses, AMC agreements, and active recurring services',
+                viewKeys: ['docAllSubscriptions'],
+                editKeys: ['docAllSubscriptions'],
+            },
+            {
+                id: 'doc_sub_approval',
+                name: 'Subscription Approval',
+                description: 'Review, authorize, and approve renewal or new subscription requisitions',
+                viewKeys: ['docSubApproval'],
+                editKeys: ['docSubApproval'],
+            },
+            {
+                id: 'doc_sub_payment',
+                name: 'Subscription Payment',
+                description: 'Record payments, upload transaction receipts, and track payment schedules',
+                viewKeys: ['docSubPayment'],
+                editKeys: ['docSubPayment'],
+            },
+            {
+                id: 'doc_sub_renewal',
+                name: 'Subscription Renewal',
+                description: 'Process upcoming service renewals, terms, and cost adjustments',
+                viewKeys: ['docSubRenewal'],
+                editKeys: ['docSubRenewal'],
+            },
+            {
+                id: 'doc_loan_all',
+                name: 'All Loans',
+                description: 'Commercial loans, equipment financing portfolio, and EMI schedules',
+                viewKeys: ['docAllLoans'],
+                editKeys: ['docAllLoans'],
+            },
+            {
+                id: 'doc_loan_foreclosure',
+                name: 'Foreclosure Request',
+                description: 'Request and track early loan closures, settlements, and calculations',
+                viewKeys: ['docLoanForeclosure'],
+                editKeys: ['docLoanForeclosure'],
+            },
+            {
+                id: 'doc_loan_noc',
+                name: 'Collect NOC',
+                description: 'Track, verify, and store No Objection Certificates from banking institutions',
+                viewKeys: ['docLoanNoc'],
+                editKeys: ['docLoanNoc'],
+            },
+        ]
+    },
+    {
+        id: 'petty_cash',
+        name: 'Petty Cash Management System',
+        badgeBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+        badgeText: 'Petty Cash Module',
+        icon: <Wallet className="size-5 text-amber-500" />,
+        description: 'Cash disbursements, daily voucher logs, credit/debit transaction ledger, and expense analytics',
+        pages: [
+            {
+                id: 'petty_cash_dash',
+                name: 'Petty Cash Dashboard',
+                description: 'Real-time balance monitor, total disbursements, and monthly expense overview',
+                viewKeys: ['pettyCashDash'],
+                editKeys: ['pettyCashDash'],
+            },
+            {
+                id: 'petty_cash_entries',
+                name: 'Cash Entries (Add Case)',
+                description: 'Record daily cash disbursements, voucher entries, and bill uploads',
+                viewKeys: ['pettyCashEntries'],
+                editKeys: ['pettyCashEntries'],
+            },
+            {
+                id: 'petty_cash_ledger',
+                name: 'Cash Ledger',
+                description: 'Complete double-entry ledger history of all credit and debit cash flows',
+                viewKeys: ['pettyCashLedger'],
+                editKeys: ['pettyCashLedger'],
+            },
+            {
+                id: 'petty_cash_reports',
+                name: 'Spend Reports',
+                description: 'Project-wise and category-wise spend analytics and visual summaries',
+                viewKeys: ['pettyCashReports'],
+                editKeys: ['pettyCashReports'],
+            },
+            {
+                id: 'petty_cash_settings',
+                name: 'Petty Cash Settings',
+                description: 'Configure payment modes, expense categories, and system thresholds',
+                viewKeys: ['pettyCashSettings'],
+                editKeys: ['pettyCashSettings'],
+            },
+        ]
     }
+    /*
+    {
+        id: 'maintenance',
+        name: 'Maintenance & Machinery System',
+        badgeBg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+        badgeText: 'Maintenance Module',
+        icon: <Wrench className="size-5 text-orange-500" />,
+        description: 'Preventive maintenance schedules, machine breakdown logs, work orders, and spare parts',
+        pages: [
+            {
+                id: 'maint_dash',
+                name: 'Maintenance Overview',
+                description: 'Asset health dashboards, pending service alerts, and uptime tracking',
+                viewKeys: ['maintDash'],
+                editKeys: ['maintDash'],
+            },
+            {
+                id: 'maint_machines',
+                name: 'Machine Registry',
+                description: 'Equipment assets, serial numbers, specifications, and warranty logs',
+                viewKeys: ['maintMachines'],
+                editKeys: ['maintMachines'],
+            },
+            {
+                id: 'maint_breakdowns',
+                name: 'Breakdown Requests',
+                description: 'Urgent breakdown tickets, downtime tracking, and repair work orders',
+                viewKeys: ['maintBreakdowns'],
+                editKeys: ['maintBreakdowns'],
+            },
+        ]
+    }
+    */
 ];
 
 export default function ManageUsers() {
@@ -302,6 +474,8 @@ export default function ManageUsers() {
         master_settings: true,
         store: true,
         checklist: true,
+        document: true,
+        petty_cash: true,
     });
     const [pageAccessModes, setPageAccessModes] = useState<Record<string, 'VIEW' | 'EDIT'>>({});
 

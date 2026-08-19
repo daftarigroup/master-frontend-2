@@ -92,6 +92,52 @@ export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
     checklist_submit_del: 'checklist_submit_del',
     checklistApproval: 'checklist_approval',
     checklist_approval: 'checklist_approval',
+
+    // Document & Subscription
+    docDash: 'doc_dashboard',
+    doc_dashboard: 'doc_dashboard',
+    docResourceManager: 'doc_resources',
+    doc_resources: 'doc_resources',
+    docAllDocuments: 'doc_all',
+    doc_all: 'doc_all',
+    docRenewal: 'doc_renewal',
+    doc_renewal: 'doc_renewal',
+    docShared: 'doc_shared',
+    doc_shared: 'doc_shared',
+    docAllSubscriptions: 'doc_sub_all',
+    doc_sub_all: 'doc_sub_all',
+    docSubApproval: 'doc_sub_approval',
+    doc_sub_approval: 'doc_sub_approval',
+    docSubPayment: 'doc_sub_payment',
+    doc_sub_payment: 'doc_sub_payment',
+    docSubRenewal: 'doc_sub_renewal',
+    doc_sub_renewal: 'doc_sub_renewal',
+    docAllLoans: 'doc_loan_all',
+    doc_loan_all: 'doc_loan_all',
+    docLoanForeclosure: 'doc_loan_foreclosure',
+    doc_loan_foreclosure: 'doc_loan_foreclosure',
+    docLoanNoc: 'doc_loan_noc',
+    doc_loan_noc: 'doc_loan_noc',
+
+    // Petty Cash
+    pettyCashDash: 'petty_cash_dash',
+    petty_cash_dash: 'petty_cash_dash',
+    pettyCashEntries: 'petty_cash_entries',
+    petty_cash_entries: 'petty_cash_entries',
+    pettyCashLedger: 'petty_cash_ledger',
+    petty_cash_ledger: 'petty_cash_ledger',
+    pettyCashReports: 'petty_cash_reports',
+    petty_cash_reports: 'petty_cash_reports',
+    pettyCashSettings: 'petty_cash_settings',
+    petty_cash_settings: 'petty_cash_settings',
+
+    // Maintenance
+    maintDash: 'maint_dash',
+    maint_dash: 'maint_dash',
+    maintMachines: 'maint_machines',
+    maint_machines: 'maint_machines',
+    maintBreakdowns: 'maint_breakdowns',
+    maint_breakdowns: 'maint_breakdowns',
 };
 
 /**
@@ -111,7 +157,15 @@ export function hasSystemAccess(
     if (user.system_access) {
         if (typeof user.system_access === 'string' && (user.system_access === 'ALL' || user.system_access === 'all')) return true;
         if (Array.isArray(user.system_access)) {
-            if (user.system_access.includes('ALL') || user.system_access.includes('all') || user.system_access.includes(systemId)) return true;
+            const normalizedTarget = systemId.toLowerCase().replace(/[-_]/g, '');
+            if (
+                user.system_access.includes('ALL') ||
+                user.system_access.includes('all') ||
+                user.system_access.includes(systemId) ||
+                user.system_access.some((s) => typeof s === 'string' && s.toLowerCase().replace(/[-_]/g, '') === normalizedTarget)
+            ) {
+                return true;
+            }
         }
     }
 
