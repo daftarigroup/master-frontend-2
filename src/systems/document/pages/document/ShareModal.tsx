@@ -9,6 +9,7 @@ interface ShareModalProps {
   onClose: () => void;
   type: 'email' | 'whatsapp' | 'both' | null;
   documentId: string | null;
+  documentIds?: string[];
   documentName: string;
   onSaved?: () => void;
 }
@@ -18,6 +19,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   type,
   documentId,
+  documentIds,
   documentName,
   onSaved,
 }) => {
@@ -39,33 +41,61 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!documentId || documentId === 'batch') {
-      toast.error('Select a single document to share.');
+    if (!documentId && (!documentIds || documentIds.length === 0)) {
+      toast.error('Select document to share.');
       return;
     }
+
+    const effectiveTargetId = documentId || 'batch';
+    const effectiveDocIds = documentIds && documentIds.length > 0 ? documentIds : (documentId !== 'batch' && documentId ? [documentId] : []);
 
     setSubmitting(true);
     try {
       if (type === 'both') {
-        await documentsApi.recordShare(documentId, {
+        const emailRes: any = await documentsApi.recordShare(effectiveTargetId, {
           sharedVia: 'Email',
           recipientName: recipientName || 'Multiple',
           contactInfo: email,
+          subject: subject || `Sharing Document: ${documentName}`,
+          message: message || `Please find attached the document: ${documentName}`,
+          documentIds: effectiveDocIds,
         });
-        await documentsApi.recordShare(documentId, {
+
+        await documentsApi.recordShare(effectiveTargetId, {
           sharedVia: 'WhatsApp',
           recipientName: recipientName || 'Multiple',
           contactInfo: whatsapp,
+          documentIds: effectiveDocIds,
         });
+
+        const emailData = emailRes?.data || emailRes;
+        if (emailData?.emailSent === false) {
+          toast.error(`WhatsApp recorded, but email failed: ${emailData?.emailError || 'Failed to send via Resend'}`);
+        } else {
+          toast.success('Document shared via Email (Resend) and WhatsApp successfully!');
+        }
       } else {
-        await documentsApi.recordShare(documentId, {
+        const res: any = await documentsApi.recordShare(effectiveTargetId, {
           sharedVia: type === 'whatsapp' ? 'WhatsApp' : 'Email',
           recipientName: recipientName || 'Multiple',
           contactInfo: type === 'email' ? email : whatsapp,
+          subject: subject || `Sharing Document: ${documentName}`,
+          message: message || `Please find attached the document: ${documentName}`,
+          documentIds: effectiveDocIds,
         });
+
+        const data = res?.data || res;
+        if (type === 'email') {
+          if (data?.emailSent === false) {
+            toast.error(`Share recorded, but email failed: ${data?.emailError || 'Failed to send via Resend'}`);
+          } else {
+            toast.success(`Email successfully sent to ${email} via Resend!`);
+          }
+        } else {
+          toast.success(`Document shared via ${type} successfully!`);
+        }
       }
 
-      toast.success(`Document shared via ${type} successfully!`);
       onSaved?.();
       onClose();
     } catch (err: any) {

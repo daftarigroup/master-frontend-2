@@ -350,6 +350,7 @@ export const AllDocuments: React.FC = () => {
         onClose={() => setIsShareModalOpen(false)}
         type={shareType}
         documentId={shareDoc?.id || ''}
+        documentIds={shareDoc?.id === 'batch' ? Array.from(selectedIds) : undefined}
         documentName={shareDoc?.name || ''}
         onSaved={loadData}
       />
