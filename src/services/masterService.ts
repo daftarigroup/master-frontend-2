@@ -261,21 +261,13 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             )
         );
 
-        const defaultPaymentTerms = [
-            '100% Advance Against PI',
-            '100% Against PI',
-            'Partly Advance/ Partly PI',
-            'Immediate After Delivery',
-            'Against Delivery',
-            'Within 7 Days After Delivery',
-            'Within 15 Days After Delivery',
-            'Within 30 Days After Delivery',
-            'Within 45 Days After Delivery',
-            'Within 60 Days After Delivery',
-            'Within 90 Days After Delivery',
-        ];
-        const dbPaymentTerms = vendors.map((v: any) => String(v.paymentTerm || '').trim()).filter(Boolean);
-        const paymentTerms = Array.from(new Set<string>([...defaultPaymentTerms, ...dbPaymentTerms]));
+        const paymentTerms = Array.from(
+            new Set<string>(
+                vendors
+                    .map((v: any) => String(v.paymentTerm || '').trim())
+                    .filter(Boolean)
+            )
+        );
 
         return {
             groupHeads: groupHeadsMap,

@@ -1339,10 +1339,10 @@ export default () => {
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                {options?.paymentTerms?.map(
+                                                                {Array.from(new Set([...(options?.paymentTerms || []), field.value].filter((term): term is string => Boolean(term)))).map(
                                                                     (term, i) => (
                                                                         <SelectItem
-                                                                            key={i}
+                                                                            key={`reg-pt-${term}-${i}`}
                                                                             value={term}
                                                                         >
                                                                             {term}
@@ -1660,10 +1660,10 @@ export default () => {
                                                                     </SelectTrigger>
                                                                 </FormControl>
                                                                 <SelectContent>
-                                                                    {options?.paymentTerms?.map(
+                                                                    {Array.from(new Set([...(options?.paymentTerms || []), field.value].filter((term): term is string => Boolean(term)))).map(
                                                                         (term, i) => (
                                                                             <SelectItem
-                                                                                key={i}
+                                                                                key={`tp-pt-${index}-${term}-${i}`}
                                                                                 value={term}
                                                                             >
                                                                                 {term}
