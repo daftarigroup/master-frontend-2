@@ -41,9 +41,6 @@ import {
     type IndentQuote,
 } from '@/services/vendorUpdateService';
 
-
-
-
 // Type aliases for local use — imported from vendorUpdateService
 type VendorUpdateData = VendorPendingRecord;
 type HistoryData = VendorHistoryRecord;
@@ -60,7 +57,9 @@ export default () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [dialogStep, setDialogStep] = useState(1);
     const [amountToDetermineType, setAmountToDetermineType] = useState<number>(0);
-    const [computedVendorType, setComputedVendorType] = useState<'Regular' | 'Three Party'>('Regular');
+    const [computedVendorType, setComputedVendorType] = useState<'Regular' | 'Three Party'>(
+        'Regular'
+    );
     const [editingRow, setEditingRow] = useState<number | null>(null);
     const [editValues, setEditValues] = useState<Partial<HistoryData>>({});
     const [dataLoading, setDataLoading] = useState(false);
@@ -81,8 +80,15 @@ export default () => {
         if (!normalizedName) return undefined;
         return indentQuotes.find((q) => normalizeVendorKey(q?.supplierName) === normalizedName);
     };
-    const getSortedVendorNames = (searchTerm: string) =>
-        (options?.vendorNames || [])
+    const getSortedVendorNames = (searchTerm: string) => {
+        const uniqueVendors = Array.from(
+            new Set<string>(
+                (options?.vendorNames || [])
+                    .map((name) => (name || '').trim())
+                    .filter(Boolean)
+            )
+        );
+        return uniqueVendors
             .filter((name) => name.toLowerCase().includes(searchTerm.toLowerCase()))
             .sort((a, b) => {
                 const hasRateA = hasVendorRate(findQuoteByVendorName(a));
@@ -91,8 +97,7 @@ export default () => {
                 if (!hasRateA && hasRateB) return 1;
                 return a.localeCompare(b);
             });
-
-
+    };
 
     // Fetch pending vendor updates from backend API
     const loadPendingVendorUpdates = async () => {
@@ -165,13 +170,14 @@ export default () => {
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            filtered = filtered.filter((item: any) =>
-                item.indentNo.toLowerCase().includes(query) ||
-                item.firmNameMatch?.toLowerCase().includes(query) ||
-                item.indenter.toLowerCase().includes(query) ||
-                // item.department.toLowerCase().includes(query) ||
-                item.product.toLowerCase().includes(query) ||
-                item.specifications.toLowerCase().includes(query)
+            filtered = filtered.filter(
+                (item: any) =>
+                    item.indentNo.toLowerCase().includes(query) ||
+                    item.firmNameMatch?.toLowerCase().includes(query) ||
+                    item.indenter.toLowerCase().includes(query) ||
+                    // item.department.toLowerCase().includes(query) ||
+                    item.product.toLowerCase().includes(query) ||
+                    item.specifications.toLowerCase().includes(query)
             );
         }
 
@@ -195,13 +201,14 @@ export default () => {
 
         if (historySearchQuery.trim()) {
             const query = historySearchQuery.toLowerCase();
-            filtered = filtered.filter((item: any) =>
-                item.indentNo.toLowerCase().includes(query) ||
-                item.firmNameMatch?.toLowerCase().includes(query) ||
-                item.indenter.toLowerCase().includes(query) ||
-                // item.department.toLowerCase().includes(query) ||
-                item.product.toLowerCase().includes(query) ||
-                item.specifications.toLowerCase().includes(query)
+            filtered = filtered.filter(
+                (item: any) =>
+                    item.indentNo.toLowerCase().includes(query) ||
+                    item.firmNameMatch?.toLowerCase().includes(query) ||
+                    item.indenter.toLowerCase().includes(query) ||
+                    // item.department.toLowerCase().includes(query) ||
+                    item.product.toLowerCase().includes(query) ||
+                    item.specifications.toLowerCase().includes(query)
             );
         }
 
@@ -274,9 +281,9 @@ export default () => {
 
             if (uploadError) throw uploadError;
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('comparison_sheet')
-                .getPublicUrl(filePath);
+            const {
+                data: { publicUrl },
+            } = supabase.storage.from('comparison_sheet').getPublicUrl(filePath);
 
             return publicUrl;
         } catch (error) {
@@ -364,7 +371,7 @@ export default () => {
         {
             accessorKey: 'planned2',
             header: 'Planned Date',
-            cell: ({ row }) => formatDateTime(row.original.planned2)
+            cell: ({ row }) => formatDateTime(row.original.planned2),
         },
     ];
 
@@ -437,30 +444,25 @@ export default () => {
             accessorKey: 'planned2',
             header: 'Planned Date',
             cell: ({ row }) =>
-                row.original.planned2
-                    ? formatDateTime(row.original.planned2)
-                    : '-',
+                row.original.planned2 ? formatDateTime(row.original.planned2) : '-',
         },
         {
             accessorKey: 'actual2',
             header: 'Actual Date',
-            cell: ({ row }) =>
-                row.original.actual2
-                    ? formatDateTime(row.original.actual2)
-                    : '-',
+            cell: ({ row }) => (row.original.actual2 ? formatDateTime(row.original.actual2) : '-'),
         },
     ];
 
     // Creating Regular Vendor form
     const regularSchema = z.object({
-        vendorName: z.string().min(1, "Vendor name is required"),
-        rate: z.coerce.number().min(0, "Rate must be 0 or positive"),
+        vendorName: z.string().min(1, 'Vendor name is required'),
+        rate: z.coerce.number().min(0, 'Rate must be 0 or positive'),
         gstPercent: z.coerce.number().min(0, 'GST % is required'),
-        paymentTerm: z.string().min(1, "Payment term is required"),
+        paymentTerm: z.string().min(1, 'Payment term is required'),
         advancePercent: z.coerce.number().min(0).max(100).optional(),
         quotationNo: z.string().optional(),
         quotationDate: z.string().optional(),
-        deliveryTime: z.coerce.number().gt(0, "Delivery time must be greater than 0").optional(),
+        deliveryTime: z.coerce.number().gt(0, 'Delivery time must be greater than 0').optional(),
         make: z.string().optional(),
     });
 
@@ -523,56 +525,97 @@ export default () => {
 
     // Creating Three Party Vendor form
     const threePartySchema = z.object({
-        vendors: z.array(z.object({
-            vendorName: z.string().optional(),
-            rate: z.coerce.number().optional(),
-            gstPercent: z.coerce.number().optional(),
-            paymentTerm: z.string().optional(),
-            advancePercent: z.coerce.number().optional(),
-            whatsappNumber: z.string().optional(),
-            emailId: z.string().optional(),
-            quotationNo: z.string().optional(),
-            quotationDate: z.string().optional(),
-            deliveryTime: z.coerce.number().optional(),
-            make: z.string().optional(),
-        })).length(3).superRefine((vendors, ctx) => {
-            // Vendors 1 and 2 are mandatory
-            [0, 1].forEach((index: any) => {
-                const v = vendors[index];
-                if (!v.vendorName?.trim()) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Vendor Name is required', path: [index, 'vendorName'] });
-                }
-                if (v.rate === undefined || v.rate < 0) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Rate must be >= 0', path: [index, 'rate'] });
-                }
-                if (!v.paymentTerm) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Pay terms required', path: [index, 'paymentTerm'] });
-                }
-                if (!v.whatsappNumber || v.whatsappNumber.length < 10) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Min 10 digits', path: [index, 'whatsappNumber'] });
-                }
-                if (!v.emailId || !/^\S+@\S+\.\S+$/.test(v.emailId)) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid email', path: [index, 'emailId'] });
-                }
-            });
+        vendors: z
+            .array(
+                z.object({
+                    vendorName: z.string().optional(),
+                    rate: z.coerce.number().optional(),
+                    gstPercent: z.coerce.number().optional(),
+                    paymentTerm: z.string().optional(),
+                    advancePercent: z.coerce.number().optional(),
+                    whatsappNumber: z.string().optional(),
+                    emailId: z.string().optional(),
+                    quotationNo: z.string().optional(),
+                    quotationDate: z.string().optional(),
+                    deliveryTime: z.coerce.number().optional(),
+                    make: z.string().optional(),
+                })
+            )
+            .length(3)
+            .superRefine((vendors, ctx) => {
+                // Vendors 1 and 2 are mandatory
+                [0, 1].forEach((index: any) => {
+                    const v = vendors[index];
+                    if (!v.vendorName?.trim()) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Vendor Name is required',
+                            path: [index, 'vendorName'],
+                        });
+                    }
+                    if (v.rate === undefined || v.rate < 0) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Rate must be >= 0',
+                            path: [index, 'rate'],
+                        });
+                    }
+                    if (!v.paymentTerm) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Pay terms required',
+                            path: [index, 'paymentTerm'],
+                        });
+                    }
+                    if (!v.whatsappNumber || v.whatsappNumber.length < 10) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Min 10 digits',
+                            path: [index, 'whatsappNumber'],
+                        });
+                    }
+                    if (!v.emailId || !/^\S+@\S+\.\S+$/.test(v.emailId)) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Invalid email',
+                            path: [index, 'emailId'],
+                        });
+                    }
+                });
 
-            // Vendor 3 is optional, but if vendorName is entered, validate others
-            const v3 = vendors[2];
-            if (v3.vendorName?.trim()) {
-                if (v3.rate === undefined || v3.rate < 0) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Rate must be >= 0', path: [2, 'rate'] });
+                // Vendor 3 is optional, but if vendorName is entered, validate others
+                const v3 = vendors[2];
+                if (v3.vendorName?.trim()) {
+                    if (v3.rate === undefined || v3.rate < 0) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Rate must be >= 0',
+                            path: [2, 'rate'],
+                        });
+                    }
+                    if (!v3.paymentTerm) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Pay terms required',
+                            path: [2, 'paymentTerm'],
+                        });
+                    }
+                    if (v3.whatsappNumber && v3.whatsappNumber.length < 10) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Min 10 digits',
+                            path: [2, 'whatsappNumber'],
+                        });
+                    }
+                    if (v3.emailId && !/^\S+@\S+\.\S+$/.test(v3.emailId)) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: 'Invalid email',
+                            path: [2, 'emailId'],
+                        });
+                    }
                 }
-                if (!v3.paymentTerm) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Pay terms required', path: [2, 'paymentTerm'] });
-                }
-                if (v3.whatsappNumber && v3.whatsappNumber.length < 10) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Min 10 digits', path: [2, 'whatsappNumber'] });
-                }
-                if (v3.emailId && !/^\S+@\S+\.\S+$/.test(v3.emailId)) {
-                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid email', path: [2, 'emailId'] });
-                }
-            }
-        }),
+            }),
         comparisonSheet: z.any().optional(),
         productCode: z.string().optional(),
     });
@@ -641,11 +684,17 @@ export default () => {
             const quote = findQuoteByVendorName(watchVendorRegular);
             if (quote && hasVendorRate(quote)) {
                 regularForm.setValue('quotationNo', quote.quatationNo || '');
-                regularForm.setValue('quotationDate', new Date(quote.timestamp).toISOString().split('T')[0]);
+                regularForm.setValue(
+                    'quotationDate',
+                    new Date(quote.timestamp).toISOString().split('T')[0]
+                );
                 regularForm.setValue('rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendorRegular));
+                const vendor = options.vendors.find(
+                    (v: any) =>
+                        normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendorRegular)
+                );
                 if (vendor?.paymentTerm) {
                     regularForm.setValue('paymentTerm', vendor.paymentTerm);
                 }
@@ -658,11 +707,17 @@ export default () => {
             const quote = findQuoteByVendorName(watchVendor0);
             if (quote && hasVendorRate(quote)) {
                 threePartyForm.setValue('vendors.0.quotationNo', quote.quatationNo || '');
-                threePartyForm.setValue('vendors.0.quotationDate', new Date(quote.timestamp).toISOString().split('T')[0]);
+                threePartyForm.setValue(
+                    'vendors.0.quotationDate',
+                    new Date(quote.timestamp).toISOString().split('T')[0]
+                );
                 threePartyForm.setValue('vendors.0.rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor0));
+                const vendor = options.vendors.find(
+                    (v: any) =>
+                        normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor0)
+                );
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.0.paymentTerm', vendor.paymentTerm);
                 }
@@ -675,11 +730,17 @@ export default () => {
             const quote = findQuoteByVendorName(watchVendor1);
             if (quote && hasVendorRate(quote)) {
                 threePartyForm.setValue('vendors.1.quotationNo', quote.quatationNo || '');
-                threePartyForm.setValue('vendors.1.quotationDate', new Date(quote.timestamp).toISOString().split('T')[0]);
+                threePartyForm.setValue(
+                    'vendors.1.quotationDate',
+                    new Date(quote.timestamp).toISOString().split('T')[0]
+                );
                 threePartyForm.setValue('vendors.1.rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor1));
+                const vendor = options.vendors.find(
+                    (v: any) =>
+                        normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor1)
+                );
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.1.paymentTerm', vendor.paymentTerm);
                 }
@@ -692,11 +753,17 @@ export default () => {
             const quote = findQuoteByVendorName(watchVendor2);
             if (quote && hasVendorRate(quote)) {
                 threePartyForm.setValue('vendors.2.quotationNo', quote.quatationNo || '');
-                threePartyForm.setValue('vendors.2.quotationDate', new Date(quote.timestamp).toISOString().split('T')[0]);
+                threePartyForm.setValue(
+                    'vendors.2.quotationDate',
+                    new Date(quote.timestamp).toISOString().split('T')[0]
+                );
                 threePartyForm.setValue('vendors.2.rate', Number(quote.vendor_rate) || 0);
             }
             if (options?.vendors) {
-                const vendor = options.vendors.find((v: any) => normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor2));
+                const vendor = options.vendors.find(
+                    (v: any) =>
+                        normalizeVendorKey(v.vendorName) === normalizeVendorKey(watchVendor2)
+                );
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.2.paymentTerm', vendor.paymentTerm);
                 }
@@ -715,7 +782,10 @@ export default () => {
             const now = new Date().toISOString();
 
             if (values.comparisonSheet) {
-                url = await uploadFileToSupabase(values.comparisonSheet, selectedIndent.indentNo || '');
+                url = await uploadFileToSupabase(
+                    values.comparisonSheet,
+                    selectedIndent.indentNo || ''
+                );
             }
 
             const processVendorData = (vendor: any) => {
@@ -806,8 +876,6 @@ export default () => {
         }
     }
 
-
-
     function onError(e: any) {
         console.error(e);
         toast.error('Please fill all required fields');
@@ -825,7 +893,6 @@ export default () => {
                 }}
             >
                 <Tabs defaultValue="pending">
-
                     <Heading
                         heading="Vendor Rate Update"
                         subtext="Update vendors for Regular and Three Party indents"
@@ -962,7 +1029,10 @@ export default () => {
                             {/* UOM Filter */}
                             <div className="w-full sm:w-auto">
                                 <div className="flex gap-2 items-center">
-                                    <Select value={selectedHistoryUOM} onValueChange={setSelectedHistoryUOM}>
+                                    <Select
+                                        value={selectedHistoryUOM}
+                                        onValueChange={setSelectedHistoryUOM}
+                                    >
                                         <SelectTrigger className="w-32 sm:w-36">
                                             <SelectValue placeholder="Select UOM" />
                                         </SelectTrigger>
@@ -1034,29 +1104,38 @@ export default () => {
 
                 {/* Step 1 and Regular Vendor Step 2 */}
                 {selectedIndent && !(dialogStep === 2 && computedVendorType === 'Three Party') && (
-                    <DialogContent className={`${dialogStep === 2 ? 'max-w-5xl' : 'max-w-2xl'} max-h-[95vh] overflow-y-auto`}>
+                    <DialogContent
+                        className={`${dialogStep === 2 ? 'max-w-5xl' : 'max-w-2xl'} max-h-[95vh] overflow-y-auto`}
+                    >
                         {dialogStep === 1 ? (
                             <div className="grid gap-5">
                                 <DialogHeader className="grid gap-2">
                                     <DialogTitle>Step 1: Determine Vendor Type</DialogTitle>
                                     <DialogDescription>
-                                        <span className="font-medium">{selectedIndent?.indentNo}</span>
+                                        <span className="font-medium">
+                                            {selectedIndent?.indentNo}
+                                        </span>
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-4">
-
                                     <div className="grid gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
                                         <Label>Vendor Type Selection</Label>
                                         <Select
                                             value={computedVendorType}
-                                            onValueChange={(val: 'Regular' | 'Three Party') => setComputedVendorType(val)}
+                                            onValueChange={(val: 'Regular' | 'Three Party') =>
+                                                setComputedVendorType(val)
+                                            }
                                         >
                                             <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Select Vendor Type" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Regular">Regular Vendor</SelectItem>
-                                                <SelectItem value="Three Party">Three Party (3 Party)</SelectItem>
+                                                <SelectItem value="Regular">
+                                                    Regular Vendor
+                                                </SelectItem>
+                                                <SelectItem value="Three Party">
+                                                    Three Party (3 Party)
+                                                </SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <p className="text-[10px] text-muted-foreground font-medium italic">
@@ -1068,11 +1147,7 @@ export default () => {
                                     <DialogClose asChild>
                                         <Button variant="outline">Close</Button>
                                     </DialogClose>
-                                    <Button
-                                        onClick={() => setDialogStep(2)}
-                                    >
-                                        Next
-                                    </Button>
+                                    <Button onClick={() => setDialogStep(2)}>Next</Button>
                                 </DialogFooter>
                             </div>
                         ) : computedVendorType === 'Regular' ? (
@@ -1085,7 +1160,9 @@ export default () => {
                                         <DialogTitle>Step 2: Update Regular Vendor</DialogTitle>
                                         <DialogDescription>
                                             Update vendor for indent{' '}
-                                            <span className="font-medium">{selectedIndent?.indentNo}</span>
+                                            <span className="font-medium">
+                                                {selectedIndent?.indentNo}
+                                            </span>
                                         </DialogDescription>
                                     </DialogHeader>
                                     {/* Copy existing form fields... */}
@@ -1097,7 +1174,10 @@ export default () => {
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>Vendor Name</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                        <Select
+                                                            onValueChange={field.onChange}
+                                                            value={field.value}
+                                                        >
                                                             <FormControl>
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder="Select vendor" />
@@ -1109,27 +1189,46 @@ export default () => {
                                                                     <input
                                                                         placeholder="Search vendors..."
                                                                         value={searchTermVendor}
-                                                                        onChange={(e) => setSearchTermVendor(e.target.value)}
-                                                                        onKeyDown={(e) => e.stopPropagation()}
+                                                                        onChange={(e) =>
+                                                                            setSearchTermVendor(
+                                                                                e.target.value
+                                                                            )
+                                                                        }
+                                                                        onKeyDown={(e) =>
+                                                                            e.stopPropagation()
+                                                                        }
                                                                         className="flex h-10 w-full rounded-md border-0 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
                                                                     />
                                                                 </div>
-                                                                {getSortedVendorNames(searchTermVendor)
-                                                                    .map((v, i) => {
-                                                                        const quote = findQuoteByVendorName(v);
-                                                                        return (
-                                                                            <SelectItem key={i} value={v}>
-                                                                                <div className="flex justify-between items-center w-full min-w-[200px] gap-2">
-                                                                                    <span className="truncate max-w-[150px]">{v}</span>
-                                                                                    {quote && hasVendorRate(quote) && (
+                                                                {getSortedVendorNames(
+                                                                    searchTermVendor
+                                                                ).map((v, i) => {
+                                                                    const quote =
+                                                                        findQuoteByVendorName(v);
+                                                                    return (
+                                                                        <SelectItem
+                                                                            key={i}
+                                                                            value={v}
+                                                                        >
+                                                                            <div className="flex justify-between items-center w-full min-w-[200px] gap-2">
+                                                                                <span className="truncate max-w-[150px]">
+                                                                                    {v}
+                                                                                </span>
+                                                                                {quote &&
+                                                                                    hasVendorRate(
+                                                                                        quote
+                                                                                    ) && (
                                                                                         <span className="text-xs font-bold px-1.5 py-0.5 bg-primary/10 text-primary rounded border border-primary/20 shrink-0">
-                                                                                            ₹{quote.vendor_rate}
+                                                                                            ₹
+                                                                                            {
+                                                                                                quote.vendor_rate
+                                                                                            }
                                                                                         </span>
                                                                                     )}
-                                                                                </div>
-                                                                            </SelectItem>
-                                                                        );
-                                                                    })}
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    );
+                                                                })}
                                                             </SelectContent>
                                                         </Select>
                                                     </FormItem>
@@ -1145,7 +1244,10 @@ export default () => {
                                                     <FormItem>
                                                         <FormLabel>Enquiry No</FormLabel>
                                                         <FormControl>
-                                                            <Input {...field} placeholder="Enquiry no." />
+                                                            <Input
+                                                                {...field}
+                                                                placeholder="Enquiry no."
+                                                            />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -1184,18 +1286,33 @@ export default () => {
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>GST %</FormLabel>
-                                                        <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value?.toString()}>
+                                                        <Select
+                                                            onValueChange={(val) =>
+                                                                field.onChange(Number(val))
+                                                            }
+                                                            value={field.value?.toString()}
+                                                        >
                                                             <FormControl>
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder="Select GST %" />
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                <SelectItem value="0">0%</SelectItem>
-                                                                <SelectItem value="5">5%</SelectItem>
-                                                                <SelectItem value="12">12%</SelectItem>
-                                                                <SelectItem value="18">18%</SelectItem>
-                                                                <SelectItem value="28">28%</SelectItem>
+                                                                <SelectItem value="0">
+                                                                    0%
+                                                                </SelectItem>
+                                                                <SelectItem value="5">
+                                                                    5%
+                                                                </SelectItem>
+                                                                <SelectItem value="12">
+                                                                    12%
+                                                                </SelectItem>
+                                                                <SelectItem value="18">
+                                                                    18%
+                                                                </SelectItem>
+                                                                <SelectItem value="28">
+                                                                    28%
+                                                                </SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     </FormItem>
@@ -1203,32 +1320,43 @@ export default () => {
                                             />
                                         </div>
 
-                                        <div className={`grid gap-4 md:col-span-2 ${regularForm.watch('paymentTerm') === 'Partly Advance/ Partly PI' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                        <div
+                                            className={`grid gap-4 md:col-span-2 ${regularForm.watch('paymentTerm') === 'Partly Advance/ Partly PI' ? 'grid-cols-2' : 'grid-cols-1'}`}
+                                        >
                                             <FormField
                                                 control={regularForm.control}
                                                 name="paymentTerm"
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>Payment Term</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                        <Select
+                                                            onValueChange={field.onChange}
+                                                            value={field.value}
+                                                        >
                                                             <FormControl>
                                                                 <SelectTrigger>
                                                                     <SelectValue placeholder="Select payment term" />
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                {options?.paymentTerms?.map((term, i) => (
-                                                                    <SelectItem key={i} value={term}>
-                                                                        {term}
-                                                                    </SelectItem>
-                                                                ))}
+                                                                {options?.paymentTerms?.map(
+                                                                    (term, i) => (
+                                                                        <SelectItem
+                                                                            key={i}
+                                                                            value={term}
+                                                                        >
+                                                                            {term}
+                                                                        </SelectItem>
+                                                                    )
+                                                                )}
                                                             </SelectContent>
                                                         </Select>
                                                     </FormItem>
                                                 )}
                                             />
 
-                                            {regularForm.watch('paymentTerm') === 'Partly Advance/ Partly PI' && (
+                                            {regularForm.watch('paymentTerm') ===
+                                                'Partly Advance/ Partly PI' && (
                                                 <FormField
                                                     control={regularForm.control}
                                                     name="advancePercent"
@@ -1236,7 +1364,13 @@ export default () => {
                                                         <FormItem>
                                                             <FormLabel>Advance %</FormLabel>
                                                             <FormControl>
-                                                                <Input type="number" placeholder="Enter % e.g. 50" {...field} min={0} max={100} />
+                                                                <Input
+                                                                    type="number"
+                                                                    placeholder="Enter % e.g. 50"
+                                                                    {...field}
+                                                                    min={0}
+                                                                    max={100}
+                                                                />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -1252,7 +1386,11 @@ export default () => {
                                                     <FormItem>
                                                         <FormLabel>Delivery Time (Days)</FormLabel>
                                                         <FormControl>
-                                                            <Input type="number" placeholder="e.g. 4" {...field} />
+                                                            <Input
+                                                                type="number"
+                                                                placeholder="e.g. 4"
+                                                                {...field}
+                                                            />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -1264,7 +1402,10 @@ export default () => {
                                                     <FormItem>
                                                         <FormLabel>Make</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Enter make" {...field} />
+                                                            <Input
+                                                                placeholder="Enter make"
+                                                                {...field}
+                                                            />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -1272,10 +1413,19 @@ export default () => {
                                         </div>
                                     </div>
                                     <DialogFooter>
-                                        <Button variant="outline" onClick={() => setDialogStep(1)}>Back</Button>
-                                        <Button type="submit" disabled={regularForm.formState.isSubmitting}>
+                                        <Button variant="outline" onClick={() => setDialogStep(1)}>
+                                            Back
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            disabled={regularForm.formState.isSubmitting}
+                                        >
                                             {regularForm.formState.isSubmitting && (
-                                                <Loader size={20} color="white" aria-label="Loading Spinner" />
+                                                <Loader
+                                                    size={20}
+                                                    color="white"
+                                                    aria-label="Loading Spinner"
+                                                />
                                             )}
                                             Update
                                         </Button>
@@ -1300,7 +1450,10 @@ export default () => {
                                 <DialogHeader>
                                     <DialogTitle>Step 2: Update Three Party Vendors</DialogTitle>
                                     <DialogDescription>
-                                        Update vendors for indent <span className="font-medium">{selectedIndent.indentNo}</span>
+                                        Update vendors for indent{' '}
+                                        <span className="font-medium">
+                                            {selectedIndent.indentNo}
+                                        </span>
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -1312,7 +1465,10 @@ export default () => {
                                             <FormItem>
                                                 <FormLabel>Product Code (Optional)</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} placeholder="Enter product code" />
+                                                    <Input
+                                                        {...field}
+                                                        placeholder="Enter product code"
+                                                    />
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -1321,8 +1477,13 @@ export default () => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     {fields.map((field, index) => (
-                                        <div key={field.id} className="border p-4 rounded-xl shadow-sm space-y-4">
-                                            <h3 className="font-bold border-b pb-2 text-blue-600">Vendor {index + 1} {index === 2 && "(Optional)"}</h3>
+                                        <div
+                                            key={field.id}
+                                            className="border p-4 rounded-xl shadow-sm space-y-4"
+                                        >
+                                            <h3 className="font-bold border-b pb-2 text-blue-600">
+                                                Vendor {index + 1} {index === 2 && '(Optional)'}
+                                            </h3>
 
                                             <div className="grid gap-4">
                                                 <FormField
@@ -1346,26 +1507,45 @@ export default () => {
                                                                         <input
                                                                             placeholder="Search vendors..."
                                                                             value={searchTermVendor}
-                                                                            onChange={(e) => setSearchTermVendor(e.target.value)}
+                                                                            onChange={(e) =>
+                                                                                setSearchTermVendor(
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
                                                                             className="h-10 w-full border-0 bg-transparent text-sm outline-none"
                                                                         />
                                                                     </div>
-                                                                    {getSortedVendorNames(searchTermVendor)
-                                                                        .map((v, i) => {
-                                                                            const quote = findQuoteByVendorName(v);
-                                                                            return (
-                                                                                <SelectItem key={i} value={v}>
-                                                                                    <div className="flex justify-between items-center w-full min-w-[200px] gap-2">
-                                                                                        <span className="truncate max-w-[150px]">{v}</span>
-                                                                                        {quote && hasVendorRate(quote) && (
+                                                                    {getSortedVendorNames(
+                                                                        searchTermVendor
+                                                                    ).map((v, i) => {
+                                                                        const quote =
+                                                                            findQuoteByVendorName(
+                                                                                v
+                                                                            );
+                                                                        return (
+                                                                            <SelectItem
+                                                                                key={i}
+                                                                                value={v}
+                                                                            >
+                                                                                <div className="flex justify-between items-center w-full min-w-[200px] gap-2">
+                                                                                    <span className="truncate max-w-[150px]">
+                                                                                        {v}
+                                                                                    </span>
+                                                                                    {quote &&
+                                                                                        hasVendorRate(
+                                                                                            quote
+                                                                                        ) && (
                                                                                             <span className="text-xs font-bold px-1.5 py-0.5 bg-primary/10 text-primary rounded border border-primary/20 shrink-0">
-                                                                                                ₹{quote.vendor_rate}
+                                                                                                ₹
+                                                                                                {
+                                                                                                    quote.vendor_rate
+                                                                                                }
                                                                                             </span>
                                                                                         )}
-                                                                                    </div>
-                                                                                </SelectItem>
-                                                                            );
-                                                                        })}
+                                                                                </div>
+                                                                            </SelectItem>
+                                                                        );
+                                                                    })}
                                                                 </SelectContent>
                                                             </Select>
                                                             <FormMessage />
@@ -1381,7 +1561,10 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>Enquiry No</FormLabel>
                                                                 <FormControl>
-                                                                    <Input {...field} placeholder="Quotation no." />
+                                                                    <Input
+                                                                        {...field}
+                                                                        placeholder="Quotation no."
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1410,7 +1593,10 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>Basic Rate</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" {...field} />
+                                                                    <Input
+                                                                        type="number"
+                                                                        {...field}
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1424,7 +1610,9 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>GST %</FormLabel>
                                                                 <Select
-                                                                    onValueChange={(val) => field.onChange(Number(val))}
+                                                                    onValueChange={(val) =>
+                                                                        field.onChange(Number(val))
+                                                                    }
                                                                     value={field.value?.toString()}
                                                                 >
                                                                     <FormControl>
@@ -1433,11 +1621,21 @@ export default () => {
                                                                         </SelectTrigger>
                                                                     </FormControl>
                                                                     <SelectContent>
-                                                                        <SelectItem value="0">0%</SelectItem>
-                                                                        <SelectItem value="5">5%</SelectItem>
-                                                                        <SelectItem value="12">12%</SelectItem>
-                                                                        <SelectItem value="18">18%</SelectItem>
-                                                                        <SelectItem value="28">28%</SelectItem>
+                                                                        <SelectItem value="0">
+                                                                            0%
+                                                                        </SelectItem>
+                                                                        <SelectItem value="5">
+                                                                            5%
+                                                                        </SelectItem>
+                                                                        <SelectItem value="12">
+                                                                            12%
+                                                                        </SelectItem>
+                                                                        <SelectItem value="18">
+                                                                            18%
+                                                                        </SelectItem>
+                                                                        <SelectItem value="28">
+                                                                            28%
+                                                                        </SelectItem>
                                                                     </SelectContent>
                                                                 </Select>
                                                                 <FormMessage />
@@ -1452,16 +1650,26 @@ export default () => {
                                                     render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel>Payment Term</FormLabel>
-                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                            <Select
+                                                                onValueChange={field.onChange}
+                                                                value={field.value}
+                                                            >
                                                                 <FormControl>
                                                                     <SelectTrigger>
                                                                         <SelectValue placeholder="Select payment term" />
                                                                     </SelectTrigger>
                                                                 </FormControl>
                                                                 <SelectContent>
-                                                                    {options?.paymentTerms?.map((term, i) => (
-                                                                        <SelectItem key={i} value={term}>{term}</SelectItem>
-                                                                    ))}
+                                                                    {options?.paymentTerms?.map(
+                                                                        (term, i) => (
+                                                                            <SelectItem
+                                                                                key={i}
+                                                                                value={term}
+                                                                            >
+                                                                                {term}
+                                                                            </SelectItem>
+                                                                        )
+                                                                    )}
                                                                 </SelectContent>
                                                             </Select>
                                                             <FormMessage />
@@ -1469,7 +1677,9 @@ export default () => {
                                                     )}
                                                 />
 
-                                                {threePartyForm.watch(`vendors.${index}.paymentTerm`) === 'Partly Advance/ Partly PI' && (
+                                                {threePartyForm.watch(
+                                                    `vendors.${index}.paymentTerm`
+                                                ) === 'Partly Advance/ Partly PI' && (
                                                     <FormField
                                                         control={threePartyForm.control}
                                                         name={`vendors.${index}.advancePercent`}
@@ -1477,7 +1687,11 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>Advance %</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" placeholder="Enter % e.g. 50" {...field} />
+                                                                    <Input
+                                                                        type="number"
+                                                                        placeholder="Enter % e.g. 50"
+                                                                        {...field}
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1493,7 +1707,10 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>WhatsApp</FormLabel>
                                                                 <FormControl>
-                                                                    <Input {...field} placeholder="WhatsApp no." />
+                                                                    <Input
+                                                                        {...field}
+                                                                        placeholder="WhatsApp no."
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1507,7 +1724,11 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>Email ID</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="email" {...field} placeholder="Email" />
+                                                                    <Input
+                                                                        type="email"
+                                                                        {...field}
+                                                                        placeholder="Email"
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1521,9 +1742,15 @@ export default () => {
                                                         name={`vendors.${index}.deliveryTime`}
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel>Delivery Time (Days)</FormLabel>
+                                                                <FormLabel>
+                                                                    Delivery Time (Days)
+                                                                </FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="number" placeholder="Days" {...field} />
+                                                                    <Input
+                                                                        type="number"
+                                                                        placeholder="Days"
+                                                                        {...field}
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1537,7 +1764,10 @@ export default () => {
                                                             <FormItem>
                                                                 <FormLabel>Make</FormLabel>
                                                                 <FormControl>
-                                                                    <Input {...field} placeholder="Make" />
+                                                                    <Input
+                                                                        {...field}
+                                                                        placeholder="Make"
+                                                                    />
                                                                 </FormControl>
                                                                 <FormMessage />
                                                             </FormItem>
@@ -1550,10 +1780,19 @@ export default () => {
                                 </div>
 
                                 <DialogFooter>
-                                    <Button variant="outline" onClick={() => setDialogStep(1)}>Back</Button>
-                                    <Button type="submit" disabled={threePartyForm.formState.isSubmitting}>
+                                    <Button variant="outline" onClick={() => setDialogStep(1)}>
+                                        Back
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={threePartyForm.formState.isSubmitting}
+                                    >
                                         {threePartyForm.formState.isSubmitting && (
-                                            <Loader size={20} color="white" aria-label="Loading Spinner" />
+                                            <Loader
+                                                size={20}
+                                                color="white"
+                                                aria-label="Loading Spinner"
+                                            />
                                         )}
                                         Update
                                     </Button>
@@ -1562,8 +1801,6 @@ export default () => {
                         </Form>
                     </DialogContent>
                 )}
-
-
             </Dialog>
         </div>
     );

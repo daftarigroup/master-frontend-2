@@ -166,7 +166,13 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         }));
 
         const { data: locationData } = await supabase.from('site_location_details').select('location');
-        const siteLocations = (locationData || []).map((l: any) => l.location);
+        const siteLocations: string[] = Array.from(
+            new Set<string>(
+                (locationData || [])
+                    .map((l: any) => String(l.location || '').trim())
+                    .filter(Boolean)
+            )
+        );
 
         // --- Processing Data for Return ---
         
@@ -177,16 +183,22 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         let firstCompany: any = null;
 
         (firmData || []).forEach((f: any) => {
-            const firmName = f.firm_name;
+            const firmName = String(f.firm_name || '').trim();
             const firmId = f.id;
             
+            if (!firmName) return;
+
             // Use isAllowedFirm helper to check permissions (supports both name and ID)
             if (!isAllowedFirm({ id: firmId, name: firmName }, permittedFirms)) {
                 return;
             }
 
-            firms.push(firmName);
-            firmObjects.push({ id: firmId, name: firmName });
+            if (!firms.includes(firmName)) {
+                firms.push(firmName);
+            }
+            if (!firmObjects.some((fo) => fo.name === firmName)) {
+                firmObjects.push({ id: firmId, name: firmName });
+            }
             
             const company = (f.company && f.company.company_name) ? f.company : (primaryCompany || {});
             if (!firstCompany && company?.company_name) firstCompany = company;
@@ -233,7 +245,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
 
         // Vendors
         const vendors = (vendorData || []).map((v: any) => ({
-            vendorName: v.vendor_name,
+            vendorName: (v.vendor_name || '').trim(),
             gstin: v.gstin || '',
             address: v.address || '',
             email: v.email || '',
@@ -241,7 +253,29 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             personName: v.person_name || '',
             phone: v.phone || '',
         }));
-        const vendorNames = vendors.map((v: any) => v.vendorName);
+        const vendorNames = Array.from(
+            new Set<string>(
+                vendors
+                    .map((v: any) => (v.vendorName || '').trim())
+                    .filter(Boolean)
+            )
+        );
+
+        const defaultPaymentTerms = [
+            '100% Advance Against PI',
+            '100% Against PI',
+            'Partly Advance/ Partly PI',
+            'Immediate After Delivery',
+            'Against Delivery',
+            'Within 7 Days After Delivery',
+            'Within 15 Days After Delivery',
+            'Within 30 Days After Delivery',
+            'Within 45 Days After Delivery',
+            'Within 60 Days After Delivery',
+            'Within 90 Days After Delivery',
+        ];
+        const dbPaymentTerms = vendors.map((v: any) => String(v.paymentTerm || '').trim()).filter(Boolean);
+        const paymentTerms = Array.from(new Set<string>([...defaultPaymentTerms, ...dbPaymentTerms]));
 
         return {
             groupHeads: groupHeadsMap,
@@ -255,7 +289,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             firmsnames: firms,
 
             fmsNames: [],
-            paymentTerms: Array.from(new Set<string>(vendors.map((v: any) => String(v.paymentTerm || '').trim()).filter(Boolean))),
+            paymentTerms,
             departments,
             locations: [],
             vendors,

@@ -69,7 +69,8 @@ const vendorSchema = z.object({
     responsible_person: optionalText(),
     location: optionalText(),
     phone: optionalText(),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 type VendorFormValues = {
@@ -81,7 +82,7 @@ type VendorFormValues = {
     responsible_person: string;
     location: string;
     phone: string;
-    selected_firms: string[];
+    selected_firms?: string[];
     firm_name?: string;
 };
 const contractorSchema = z.object({
@@ -92,7 +93,8 @@ const contractorSchema = z.object({
     responsible_person: optionalText(),
     location: optionalText(),
     phone: optionalText(),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 type ContractorFormValues = {
@@ -103,12 +105,13 @@ type ContractorFormValues = {
     responsible_person: string;
     location: string;
     phone: string;
-    selected_firms: string[];
+    selected_firms?: string[];
     firm_name?: string;
 };
 const siteLocationSchema = z.object({
     location: z.string().min(1, 'Required'),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 const itemSchema = z.object({
@@ -142,23 +145,27 @@ const departmentSchema = z.object({ department: z.string().min(1, 'Required') })
 const projectSchema = z.object({ firm_name: z.string().min(1, 'Required'), destination_address: optionalText() });
 const ghSchema = z.object({
     group_head: z.string().min(1, 'Required'),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 const uomSchema = z.object({
     uom: z.string().min(1, 'Required'),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 const aouSchema = z.object({
     area_of_use: z.string().min(1, 'Required'),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 const ghUomSchema = z.object({
     group_head: optionalText(),
     uom: optionalText(),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 }).refine(data => data.group_head || data.uom, {
     message: "At least one field is required",
@@ -174,20 +181,23 @@ const companySchema = z.object({
     billing_address: optionalText(),
     destination_address: optionalText(),
     company_contact_person: optionalText(),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 const siteEngineerSchema = z.object({
     name: z.string().min(1, 'Required'),
     number: z.string().min(1, 'Required'),
     email: z.string().email('Invalid email'),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 const termsSchema = z.object({
     title: z.string().min(1, 'Heading is required'),
     name: z.string().min(1, 'Condition text is required'),
-    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
+    // Firm connection commented out for now (except Items)
+    selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
 
@@ -393,19 +403,19 @@ export default function MasterManagement() {
         }
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const iForm = useForm<z.infer<typeof itemSchema>>({ resolver: zodResolver(itemSchema) as any, defaultValues: { item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] } });
-    const dForm = useForm<z.infer<typeof departmentSchema>>({ resolver: zodResolver(departmentSchema), defaultValues: { department: '' } });
-    const pForm = useForm<z.infer<typeof projectSchema>>({ resolver: zodResolver(projectSchema) as any, defaultValues: { firm_name: '', destination_address: '' } });
-    const ghForm = useForm<z.infer<typeof ghSchema>>({ resolver: zodResolver(ghSchema), defaultValues: { group_head: '' } });
-    const uomForm = useForm<z.infer<typeof uomSchema>>({ resolver: zodResolver(uomSchema), defaultValues: { uom: '' } });
-    const aouForm = useForm<z.infer<typeof aouSchema>>({ resolver: zodResolver(aouSchema), defaultValues: { area_of_use: '' } });
-    const ghUomForm = useForm<z.infer<typeof ghUomSchema>>({ resolver: zodResolver(ghUomSchema) as any, defaultValues: { group_head: '', uom: '' } });
+    const iForm = useForm<any>({ resolver: zodResolver(itemSchema) as any, defaultValues: { item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] } });
+    const dForm = useForm<any>({ resolver: zodResolver(departmentSchema) as any, defaultValues: { department: '' } });
+    const pForm = useForm<any>({ resolver: zodResolver(projectSchema) as any, defaultValues: { firm_name: '', destination_address: '' } });
+    const ghForm = useForm<any>({ resolver: zodResolver(ghSchema) as any, defaultValues: { group_head: '' } });
+    const uomForm = useForm<any>({ resolver: zodResolver(uomSchema) as any, defaultValues: { uom: '' } });
+    const aouForm = useForm<any>({ resolver: zodResolver(aouSchema) as any, defaultValues: { area_of_use: '' } });
+    const ghUomForm = useForm<any>({ resolver: zodResolver(ghUomSchema) as any, defaultValues: { group_head: '', uom: '' } });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cForm = useForm<z.infer<typeof companySchema>>({ resolver: zodResolver(companySchema) as any, defaultValues: { company_name: '', company_gstin: '', company_pan: '', company_email: '', company_phone: '', company_address: '', billing_address: '', destination_address: '', company_contact_person: '' } });
-    const seForm = useForm<z.infer<typeof siteEngineerSchema>>({ resolver: zodResolver(siteEngineerSchema), defaultValues: { name: '', number: '', email: '' } });
-    const conForm = useForm<ContractorFormValues>({ resolver: zodResolver(contractorSchema) as any, defaultValues: { contractor_name: '', contractor_gstin: '', contractor_address: '', contractor_email: '', responsible_person: '', location: '', phone: '' } });
-    const slForm = useForm<z.infer<typeof siteLocationSchema>>({ resolver: zodResolver(siteLocationSchema), defaultValues: { location: '' } });
-    const tcForm = useForm<z.infer<typeof termsSchema>>({ resolver: zodResolver(termsSchema), defaultValues: { title: '', name: '' } });
+    const cForm = useForm<any>({ resolver: zodResolver(companySchema) as any, defaultValues: { company_name: '', company_gstin: '', company_pan: '', company_email: '', company_phone: '', company_address: '', billing_address: '', destination_address: '', company_contact_person: '' } });
+    const seForm = useForm<any>({ resolver: zodResolver(siteEngineerSchema) as any, defaultValues: { name: '', number: '', email: '' } });
+    const conForm = useForm<any>({ resolver: zodResolver(contractorSchema) as any, defaultValues: { contractor_name: '', contractor_gstin: '', contractor_address: '', contractor_email: '', responsible_person: '', location: '', phone: '' } });
+    const slForm = useForm<any>({ resolver: zodResolver(siteLocationSchema) as any, defaultValues: { location: '' } });
+    const tcForm = useForm<any>({ resolver: zodResolver(termsSchema) as any, defaultValues: { title: '', name: '' } });
 
     const { fields: regFields, append: regAppend, remove: regRemove } = useFieldArray({ control: iForm.control, name: "regular_conditions" });
     const { fields: tpFields, append: tpAppend, remove: tpRemove } = useFieldArray({ control: iForm.control, name: "third_party_conditions" });
@@ -633,32 +643,32 @@ export default function MasterManagement() {
     };
 
     const ghUomColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'group_head', header: 'Group Head', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><LayoutGrid size={16} className="text-blue-500" />{row.original.group_head || '--'}</div> },
         { accessorKey: 'uom', header: 'UOM', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Package size={16} className="text-emerald-500" />{row.original.uom || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'ghuom') }
     ];
 
     const ghColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'group_head', header: 'Group Head', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><LayoutGrid size={16} className="text-blue-500" />{row.original.group_head || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'gh') }
     ];
 
     const uomColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'uom', header: 'UOM', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Package size={16} className="text-emerald-500" />{row.original.uom || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'uom') }
     ];
 
     const aouColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'area_of_use', header: 'Area of Use', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><MapPin size={16} className="text-red-500" />{row.original.area_of_use || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'areaofuse') }
     ];
 
     const vendorColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'vendor_name', header: 'Vendor Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building2 size={16} className="text-primary" />{row.original.vendor_name}</div> },
         { accessorKey: 'vendor_gstin', header: 'GSTIN' },
         { accessorKey: 'vendor_email', header: 'Email' },
@@ -704,7 +714,7 @@ export default function MasterManagement() {
     ];
 
     const companyColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'company_name', header: 'Company Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-emerald-500" />{row.original.company_name}</div> },
         { accessorKey: 'company_gstin', header: 'GSTIN' },
         { accessorKey: 'company_pan', header: 'PAN' },
@@ -718,7 +728,7 @@ export default function MasterManagement() {
     ];
 
     const siteEngineerColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'name', header: 'Engineer Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><UserCog size={16} className="text-orange-500" />{row.original.name}</div> },
         { accessorKey: 'number', header: 'Phone Number', cell: ({ row }) => <div className="flex items-center gap-2"><Phone size={14} className="text-muted-foreground" />{row.original.number}</div> },
         { accessorKey: 'email', header: 'Email Address', cell: ({ row }) => <div className="flex items-center gap-2"><Mail size={14} className="text-muted-foreground" />{row.original.email}</div> },
@@ -726,7 +736,7 @@ export default function MasterManagement() {
     ];
 
     const contractorColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'contractor_name', header: 'Contractor Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Users size={16} className="text-primary" />{row.original.contractor_name}</div> },
         { accessorKey: 'contractor_gstin', header: 'GSTIN' },
         { accessorKey: 'contractor_email', header: 'Email' },
@@ -737,13 +747,13 @@ export default function MasterManagement() {
     ];
 
     const siteLocationColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'location', header: 'Location', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Map size={16} className="text-indigo-500" />{row.original.location}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'site_location') }
     ];
 
     const termsColumns: ColumnDef<any>[] = [
-        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'title', header: 'Heading', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><FileText size={16} className="text-teal-500 shrink-0" />{row.original.title}</div> },
         { accessorKey: 'name', header: 'Condition' },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'terms_condition') }
@@ -1347,7 +1357,7 @@ export default function MasterManagement() {
                                 {openDialog === 'vendor' && (
                                     <Form {...vForm}>
                                         <form className="grid gap-4" onSubmit={vForm.handleSubmit(v => onSubmit(v, 'vendor'), onInvalid)}>
-                                            <ProjectSelectorField control={vForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={vForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={vForm.control} name="vendor_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Vendor Name</FormLabel>
@@ -1404,7 +1414,7 @@ export default function MasterManagement() {
                                 {openDialog === 'contractor' && (
                                     <Form {...conForm}>
                                         <form className="grid gap-4" onSubmit={conForm.handleSubmit(v => onSubmit(v, 'contractor'), onInvalid)}>
-                                            <ProjectSelectorField control={conForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={conForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={conForm.control} name="contractor_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Contractor Name</FormLabel>
@@ -1455,7 +1465,7 @@ export default function MasterManagement() {
                                 {openDialog === 'site_location' && (
                                     <Form {...slForm}>
                                         <form className="grid gap-4" onSubmit={slForm.handleSubmit(v => onSubmit(v, 'site_location'), onInvalid)}>
-                                            <ProjectSelectorField control={slForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={slForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={slForm.control} name="location" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Location</FormLabel>
@@ -1589,7 +1599,7 @@ export default function MasterManagement() {
                                 {openDialog === 'ghuom' && (
                                     <Form {...ghUomForm}>
                                         <form className="grid gap-4 m-5" onSubmit={ghUomForm.handleSubmit(v => onSubmit(v, 'ghuom'), onInvalid)}>
-                                            <ProjectSelectorField control={ghUomForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={ghUomForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <FormField control={ghUomForm.control} name="group_head" render={({ field }) => (
                                                     <FormItem>
@@ -1634,7 +1644,7 @@ export default function MasterManagement() {
                                 {openDialog === 'gh' && (
                                     <Form {...ghForm}>
                                         <form className="grid gap-4 p-5" onSubmit={ghForm.handleSubmit(v => onSubmit(v, 'gh'), onInvalid)}>
-                                            <ProjectSelectorField control={ghForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={ghForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={ghForm.control} name="group_head" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Group Head</FormLabel>
@@ -1649,7 +1659,7 @@ export default function MasterManagement() {
                                 {openDialog === 'uom' && (
                                     <Form {...uomForm}>
                                         <form className="grid gap-4 p-5" onSubmit={uomForm.handleSubmit(v => onSubmit(v, 'uom'), onInvalid)}>
-                                            <ProjectSelectorField control={uomForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={uomForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={uomForm.control} name="uom" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>UOM Name</FormLabel>
@@ -1664,7 +1674,7 @@ export default function MasterManagement() {
                                 {openDialog === 'areaofuse' && (
                                     <Form {...aouForm}>
                                         <form className="grid gap-4 p-5" onSubmit={aouForm.handleSubmit(v => onSubmit(v, 'areaofuse'), onInvalid)}>
-                                            <ProjectSelectorField control={aouForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={aouForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={aouForm.control} name="area_of_use" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Area of Use</FormLabel>
@@ -1679,7 +1689,7 @@ export default function MasterManagement() {
                                 {openDialog === 'company' && (
                                     <Form {...cForm}>
                                         <form className="grid gap-6" onSubmit={cForm.handleSubmit(v => onSubmit(v, 'company'), onInvalid)}>
-                                            <ProjectSelectorField control={cForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={cForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={cForm.control} name="company_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Company Name</FormLabel>
@@ -1744,7 +1754,7 @@ export default function MasterManagement() {
                                 {openDialog === 'terms_condition' && (
                                     <Form {...tcForm}>
                                         <form className="grid gap-4 p-5" onSubmit={tcForm.handleSubmit(v => onSubmit(v, 'terms_condition'), onInvalid)}>
-                                            <ProjectSelectorField control={tcForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={tcForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={tcForm.control} name="title" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Heading</FormLabel>
@@ -1766,7 +1776,7 @@ export default function MasterManagement() {
                                 {openDialog === 'site_engineer' && (
                                     <Form {...seForm}>
                                         <form className="grid gap-4 p-5" onSubmit={seForm.handleSubmit(v => onSubmit(v, 'site_engineer'), onInvalid)}>
-                                            <ProjectSelectorField control={seForm.control} allFirms={masterSheet?.firms || []} />
+                                            {/* <ProjectSelectorField control={seForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={seForm.control} name="name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Engineer Name</FormLabel>
