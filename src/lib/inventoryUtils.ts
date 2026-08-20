@@ -231,6 +231,7 @@ export function calculateRealInventory(
             fromProject,
             toProject,
             current,
+            avgPrice: Number((relevantMasterRecords[0] as any)?.avgPrice ?? (relevantMasterRecords[0] as any)?.avg_price ?? (relevantMasterRecords[0] as any)?.individualRate ?? 0),
             totalPrice: current * (item.individualRate || 0),
             colorCode: current < 5 ? 'red' : 'green',
             status: current < 5 ? 'red' : 'green'

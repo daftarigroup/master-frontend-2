@@ -23,6 +23,7 @@ import { Textarea } from '../ui/textarea';
 import { Calculator } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import {
@@ -65,8 +66,10 @@ export default function RectifyTheMistake() {
         return allData.filter(i => i.planned2 && i.actual2);
     }, [allData]);
 
+    const canEditRectify = hasPageAccess(user as any, 'audits', 'EDIT', 'rectifyTheMistake');
+
     const pendingColumns: ColumnDef<TallyEntryRecord>[] = [
-        ...(user.receiveItemView
+        ...(canEditRectify
             ? [
                 {
                     header: 'Action',

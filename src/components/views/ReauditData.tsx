@@ -23,6 +23,7 @@ import { Textarea } from '../ui/textarea';
 import { Calculator } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import {
@@ -65,8 +66,10 @@ export default function ReauditData() {
         return allData.filter(i => i.planned3 && i.actual3);
     }, [allData]);
 
+    const canEditReaudit = hasPageAccess(user as any, 'audits', 'EDIT', 'reauditData');
+
     const pendingColumns: ColumnDef<TallyEntryRecord>[] = [
-        ...(user.receiveItemView
+        ...(canEditReaudit
             ? [
                 {
                     header: 'Action',

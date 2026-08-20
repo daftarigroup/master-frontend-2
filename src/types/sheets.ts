@@ -172,6 +172,7 @@ export type InventorySheet = {
     firmName: string;
     firm_id?: number;
     current: number;
+    avgPrice?: number;
     totalPrice: number;
     colorCode: string;
     status: string;

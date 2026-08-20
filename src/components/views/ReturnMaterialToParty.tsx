@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Truck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
@@ -148,8 +149,10 @@ export default () => {
         fetchData();
     }, [user?.firm_access]);
 
+    const canEditReturn = hasPageAccess(user as any, 'finance_logistics', 'EDIT', 'returnMaterialToParty');
+
     const pendingColumns: ColumnDef<StoreInPendingData>[] = [
-        ...(user.receiveItemView
+        ...(canEditReturn
             ? [
                 {
                     header: 'Action',

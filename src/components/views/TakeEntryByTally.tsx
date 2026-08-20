@@ -23,6 +23,7 @@ import { Textarea } from '../ui/textarea';
 import { Calculator, Search } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { Input } from '../ui/input';
@@ -114,8 +115,10 @@ export default function TallyEntry() {
         return filtered;
     }, [historyData, selectedPartyName, searchTerm]);
 
+    const canEditTally = hasPageAccess(user as any, 'audits', 'EDIT', 'takeEntryByTelly');
+
     const pendingColumns: ColumnDef<TallyEntryRecord>[] = [
-        ...(user.receiveItemView
+        ...(canEditTally
             ? [
                 {
                     header: 'Action',

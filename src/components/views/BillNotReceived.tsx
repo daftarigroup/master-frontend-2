@@ -29,6 +29,7 @@ import {
 import { Truck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { filterByFirmAccess } from '@/lib/firmAccess';
@@ -191,8 +192,10 @@ export default () => {
     });
 
 
+    const canEditBillNotReceived = hasPageAccess(user as any, 'finance_logistics', 'EDIT', 'billNotReceived');
+
     const columns: ColumnDef<RecieveItemsData>[] = [
-        ...(user.receiveItemView
+        ...(canEditBillNotReceived
             ? [
                 {
                     header: 'Action',

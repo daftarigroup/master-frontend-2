@@ -24,6 +24,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
@@ -388,8 +389,10 @@ export default () => {
         return <div className="min-w-[150px] whitespace-normal break-words">{value?.toString() || '-'}</div>;
     };
 
+    const canEditStoreIn = hasPageAccess(user as any, 'store_in', 'EDIT', 'storeIn');
+
     const columns: ColumnDef<RecieveItemsData>[] = [
-        ...(user?.receiveItemView
+        ...(canEditStoreIn
             ? [
                 {
                     header: 'Action',

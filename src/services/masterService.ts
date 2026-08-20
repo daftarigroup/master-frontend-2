@@ -332,15 +332,15 @@ export async function fetchMasterRecords(): Promise<any[]> {
             departments,
             defaultTerms,
         ] = await Promise.all([
-            supabase.from('company').select('id, company_name, gstin, pan, email, phone, address, contact_person, billing_address, destination_address').order('company_name'),
+            supabase.from('company').select('id, company_name, gstin, pan, email, phone, address, contact_person, billing_address, destination_address, firm_id, firm_name, firm:firm_id(firm_name)').order('company_name'),
             supabase.from('firm').select('*, company:company_id(*)').order('firm_name'),
-            supabase.from('group_head').select('id, name').order('name'),
-            supabase.from('uom').select('id, name').order('name'),
-            supabase.from('area_of_use').select('id, name').order('name'),
-            supabase.from('vendors').select('id, vendor_name, gstin, address, email, payment_term, person_name, phone, location').order('vendor_name'),
+            supabase.from('group_head').select('id, name, firm_id, firm_name, firm:firm_id(firm_name)').order('name'),
+            supabase.from('uom').select('id, name, firm_id, firm_name, firm:firm_id(firm_name)').order('name'),
+            supabase.from('area_of_use').select('id, name, firm_id, firm_name, firm:firm_id(firm_name)').order('name'),
+            supabase.from('vendors').select('id, vendor_name, gstin, address, email, payment_term, person_name, phone, location, firm_id, firm_name, firm:firm_id(firm_name)').order('vendor_name'),
             supabase.from('item').select('*, group_head:group_head_id(name), uom:uom_id(name), firm:firm_id(firm_name)').order('item_name'),
             supabase.from('department').select('id, name').order('name'),
-            supabase.from('default_po_terms').select('id, term_text, sort_order').order('sort_order', { ascending: true }),
+            supabase.from('default_po_terms').select('id, term_text, sort_order, firm_id, firm_name, firm:firm_id(firm_name)').order('sort_order', { ascending: true }),
         ]);
 
         const firstError = [companies, firms, groupHeads, uoms, areaOfUses, vendors, items, departments, defaultTerms].find((result: any) => result.error)?.error;
@@ -359,6 +359,8 @@ export async function fetchMasterRecords(): Promise<any[]> {
                 company_contact_person: c.contact_person,
                 billing_address: c.billing_address,
                 destination_address: c.destination_address,
+                firm_id: c.firm_id,
+                firm_name: c.firm?.firm_name || c.firm_name || '',
             })),
             ...(firms.data || []).map((f: any) => ({
                 id: f.id,
@@ -372,9 +374,9 @@ export async function fetchMasterRecords(): Promise<any[]> {
                 destination_address: f.destination_address || '',
                 company_contact_person: f.contact_person || '',
             })),
-            ...(groupHeads.data || []).map((g: any) => ({ id: g.id, __table: 'group_head', group_head: g.name })),
-            ...(uoms.data || []).map((u: any) => ({ id: u.id, __table: 'uom', uom: u.name })),
-            ...(areaOfUses.data || []).map((a: any) => ({ id: a.id, __table: 'area_of_use', area_of_use: a.name })),
+            ...(groupHeads.data || []).map((g: any) => ({ id: g.id, __table: 'group_head', group_head: g.name, firm_id: g.firm_id, firm_name: g.firm?.firm_name || g.firm_name || '' })),
+            ...(uoms.data || []).map((u: any) => ({ id: u.id, __table: 'uom', uom: u.name, firm_id: u.firm_id, firm_name: u.firm?.firm_name || u.firm_name || '' })),
+            ...(areaOfUses.data || []).map((a: any) => ({ id: a.id, __table: 'area_of_use', area_of_use: a.name, firm_id: a.firm_id, firm_name: a.firm?.firm_name || a.firm_name || '' })),
             ...(vendors.data || []).map((v: any) => ({
                 id: v.id,
                 __table: 'vendors',
@@ -389,6 +391,8 @@ export async function fetchMasterRecords(): Promise<any[]> {
                 location: v.location,
                 billing_address: v.address,
                 destination_address: v.address,
+                firm_id: v.firm_id,
+                firm_name: v.firm?.firm_name || v.firm_name || '',
             })),
             ...(items.data || []).map((i: any) => ({
                 id: i.id,
@@ -445,11 +449,13 @@ async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: nu
             contact_person: values.company_contact_person || null,
             billing_address: values.billing_address || null,
             destination_address: values.destination_address || null,
+            firm_id: values.firm_id ? Number(values.firm_id) : null,
+            firm_name: values.firm_name || null,
         };
         return id ? supabase.from('company').update(payload).eq('id', id) : supabase.from('company').insert(payload);
     }
 
-    if ('firm_name' in values && !('item_name' in values)) {
+    if ('firm_name' in values && !('item_name' in values) && !('vendor_name' in values) && !('group_head' in values) && !('uom' in values) && !('area_of_use' in values) && !('company_name' in values)) {
         const payload = {
             firm_name: values.firm_name,
             destination_address: values.destination_address || null,
@@ -458,17 +464,29 @@ async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: nu
     }
 
     if ('group_head' in values && !('item_name' in values) && !('uom' in values)) {
-        const payload = { name: values.group_head };
+        const payload = {
+            name: values.group_head,
+            firm_id: values.firm_id ? Number(values.firm_id) : null,
+            firm_name: values.firm_name || null,
+        };
         return id ? supabase.from('group_head').update(payload).eq('id', id) : supabase.from('group_head').insert(payload);
     }
 
     if ('uom' in values && !('item_name' in values) && !('group_head' in values)) {
-        const payload = { name: values.uom };
+        const payload = {
+            name: values.uom,
+            firm_id: values.firm_id ? Number(values.firm_id) : null,
+            firm_name: values.firm_name || null,
+        };
         return id ? supabase.from('uom').update(payload).eq('id', id) : supabase.from('uom').insert(payload);
     }
 
     if ('area_of_use' in values) {
-        const payload = { name: values.area_of_use };
+        const payload = {
+            name: values.area_of_use,
+            firm_id: values.firm_id ? Number(values.firm_id) : null,
+            firm_name: values.firm_name || null,
+        };
         return id ? supabase.from('area_of_use').update(payload).eq('id', id) : supabase.from('area_of_use').insert(payload);
     }
 
@@ -478,7 +496,12 @@ async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: nu
     }
 
     if ('default_terms' in values) {
-        const payload = { term_text: values.default_terms, active: true };
+        const payload = {
+            term_text: values.default_terms,
+            active: true,
+            firm_id: values.firm_id ? Number(values.firm_id) : null,
+            firm_name: values.firm_name || null,
+        };
         return id ? supabase.from('default_po_terms').update(payload).eq('id', id) : supabase.from('default_po_terms').insert(payload);
     }
 
@@ -492,6 +515,8 @@ async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: nu
             person_name: values.person_name || values.responsible_person || null,
             phone: values.phone || null,
             location: values.location || null,
+            firm_id: values.firm_id ? Number(values.firm_id) : null,
+            firm_name: values.firm_name || null,
         };
         return id ? supabase.from('vendors').update(payload).eq('id', id) : supabase.from('vendors').insert(payload);
     }
@@ -620,8 +645,6 @@ async function findOrCreateLookupId(table: 'group_head' | 'uom', name?: string |
 export async function insertNormalizedMasterData(_type: string, values: Record<string, any>): Promise<{ success: boolean; error?: any }> {
     try {
         void values;
-        // Kept for older call sites. insertMasterData already writes directly
-        // to normalized tables, so a second write here would duplicate items.
         return { success: true };
     } catch (error) {
         console.error('Error inserting normalized master data:', error);
@@ -689,40 +712,44 @@ export async function fetchSiteEngineers() {
     try {
         const { data, error } = await supabase
             .from('site_engineer_details')
-            .select('name, number, email')
+            .select('id, name, number, email, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('name', { ascending: true });
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map((s: any) => ({
+            ...s,
+            firm_name: s.firm?.firm_name || s.firm_name || '',
+        }));
     } catch (error) {
         console.error('Error fetching site engineers:', error);
         throw error;
     }
 }
 
-export async function upsertSiteEngineer(data: { name: string; number: string; email: string }): Promise<{ success: boolean; error?: any }> {
+export async function upsertSiteEngineer(data: { id?: number; name: string; number: string; email: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
-        // First check if an engineer with this number already exists
-        const { data: existing, error: fetchError } = await supabase
-            .from('site_engineer_details')
-            .select('number')
-            .eq('number', data.number)
-            .maybeSingle();
-
-        if (fetchError) throw fetchError;
-
         let result;
-        if (existing) {
-            // If exists, update the details for this number
+        if (data.id) {
             result = await supabase
                 .from('site_engineer_details')
-                .update({ name: data.name, email: data.email })
-                .eq('number', data.number);
+                .update({
+                    name: data.name,
+                    number: data.number,
+                    email: data.email,
+                    firm_id: data.firm_id || null,
+                    firm_name: data.firm_name || null,
+                })
+                .eq('id', data.id);
         } else {
-            // If not exists, insert a new record
             result = await supabase
                 .from('site_engineer_details')
-                .insert([data]);
+                .insert([{
+                    name: data.name,
+                    number: data.number,
+                    email: data.email,
+                    firm_id: data.firm_id || null,
+                    firm_name: data.firm_name || null,
+                }]);
         }
 
         if (result.error) throw result.error;
@@ -736,19 +763,25 @@ export async function upsertSiteEngineer(data: { name: string; number: string; e
 /**
  * Insert a new site engineer (legacy, now uses upsert)
  */
-export async function insertSiteEngineer(data: { name: string; number: string; email: string }): Promise<{ success: boolean; error?: any }> {
+export async function insertSiteEngineer(data: { id?: number; name: string; number: string; email: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     return upsertSiteEngineer(data);
 }
 
 /**
- * Update a site engineer by number
+ * Update a site engineer by id
  */
-export async function updateSiteEngineer(number: string, data: { name: string; number: string; email: string }): Promise<{ success: boolean; error?: any }> {
+export async function updateSiteEngineer(id: number, data: { name: string; number: string; email: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
         const { error } = await supabase
             .from('site_engineer_details')
-            .update(data)
-            .eq('number', number);
+            .update({
+                name: data.name,
+                number: data.number,
+                email: data.email,
+                firm_id: data.firm_id || null,
+                firm_name: data.firm_name || null,
+            })
+            .eq('id', id);
 
         if (error) throw error;
         return { success: true };
@@ -759,14 +792,14 @@ export async function updateSiteEngineer(number: string, data: { name: string; n
 }
 
 /**
- * Delete a site engineer by number
+ * Delete a site engineer by id
  */
-export async function deleteSiteEngineer(number: string): Promise<{ success: boolean; error?: any }> {
+export async function deleteSiteEngineer(id: number): Promise<{ success: boolean; error?: any }> {
     try {
         const { error } = await supabase
             .from('site_engineer_details')
             .delete()
-            .eq('number', number);
+            .eq('id', id);
 
         if (error) throw error;
         return { success: true };
@@ -783,10 +816,13 @@ export async function fetchContractors() {
     try {
         const { data, error } = await supabase
             .from('contractor_details')
-            .select('id, contractor_name, contractor_gstin, contractor_address, contractor_email, responsible_person, location, phone')
+            .select('id, contractor_name, contractor_gstin, contractor_address, contractor_email, responsible_person, location, phone, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('contractor_name', { ascending: true });
         if (error) throw error;
-        return data || [];
+        return (data || []).map((c: any) => ({
+            ...c,
+            firm_name: c.firm?.firm_name || c.firm_name || '',
+        }));
     } catch (error) {
         console.error('Error fetching contractors:', error);
         throw error;
@@ -795,7 +831,12 @@ export async function fetchContractors() {
 
 export async function insertContractor(data: any): Promise<{ success: boolean; error?: any }> {
     try {
-        const { error } = await supabase.from('contractor_details').insert(data);
+        const payload = {
+            ...data,
+            firm_id: data.firm_id ? Number(data.firm_id) : null,
+            firm_name: data.firm_name || null,
+        };
+        const { error } = await supabase.from('contractor_details').insert(payload);
         if (error) throw error;
         return { success: true };
     } catch (error) {
@@ -806,7 +847,12 @@ export async function insertContractor(data: any): Promise<{ success: boolean; e
 
 export async function updateContractor(id: number, data: any): Promise<{ success: boolean; error?: any }> {
     try {
-        const { error } = await supabase.from('contractor_details').update(data).eq('id', id);
+        const payload = {
+            ...data,
+            firm_id: data.firm_id ? Number(data.firm_id) : null,
+            firm_name: data.firm_name || null,
+        };
+        const { error } = await supabase.from('contractor_details').update(payload).eq('id', id);
         if (error) throw error;
         return { success: true };
     } catch (error) {
@@ -833,19 +879,27 @@ export async function fetchSiteLocations() {
     try {
         const { data, error } = await supabase
             .from('site_location_details')
-            .select('id, location')
+            .select('id, location, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('location', { ascending: true });
         if (error) throw error;
-        return data || [];
+        return (data || []).map((l: any) => ({
+            ...l,
+            firm_name: l.firm?.firm_name || l.firm_name || '',
+        }));
     } catch (error) {
         console.error('Error fetching site locations:', error);
         throw error;
     }
 }
 
-export async function insertSiteLocation(data: { location: string }): Promise<{ success: boolean; error?: any }> {
+export async function insertSiteLocation(data: { location: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
-        const { error } = await supabase.from('site_location_details').insert(data);
+        const payload = {
+            location: data.location,
+            firm_id: data.firm_id ? Number(data.firm_id) : null,
+            firm_name: data.firm_name || null,
+        };
+        const { error } = await supabase.from('site_location_details').insert(payload);
         if (error) throw error;
         return { success: true };
     } catch (error) {
@@ -854,9 +908,14 @@ export async function insertSiteLocation(data: { location: string }): Promise<{ 
     }
 }
 
-export async function updateSiteLocation(id: number, data: { location: string }): Promise<{ success: boolean; error?: any }> {
+export async function updateSiteLocation(id: number, data: { location: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
-        const { error } = await supabase.from('site_location_details').update(data).eq('id', id);
+        const payload = {
+            location: data.location,
+            firm_id: data.firm_id ? Number(data.firm_id) : null,
+            firm_name: data.firm_name || null,
+        };
+        const { error } = await supabase.from('site_location_details').update(payload).eq('id', id);
         if (error) throw error;
         return { success: true };
     } catch (error) {
@@ -880,19 +939,28 @@ export async function fetchTermsAndConditions() {
     try {
         const { data, error } = await supabase
             .from('terms_and_condition')
-            .select('id, title, name, created_at')
+            .select('id, title, name, created_at, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('created_at', { ascending: true });
         if (error) throw error;
-        return data || [];
+        return (data || []).map((t: any) => ({
+            ...t,
+            firm_name: t.firm?.firm_name || t.firm_name || '',
+        }));
     } catch (error) {
         console.error('Error fetching terms and conditions:', error);
         throw error;
     }
 }
 
-export async function insertTermsAndCondition(data: { title: string; name: string }): Promise<{ success: boolean; error?: any }> {
+export async function insertTermsAndCondition(data: { title: string; name: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
-        const { error } = await supabase.from('terms_and_condition').insert(data);
+        const payload = {
+            title: data.title,
+            name: data.name,
+            firm_id: data.firm_id ? Number(data.firm_id) : null,
+            firm_name: data.firm_name || null,
+        };
+        const { error } = await supabase.from('terms_and_condition').insert(payload);
         if (error) throw error;
         return { success: true };
     } catch (error) {
@@ -901,9 +969,15 @@ export async function insertTermsAndCondition(data: { title: string; name: strin
     }
 }
 
-export async function updateTermsAndCondition(id: number, data: { title: string; name: string }): Promise<{ success: boolean; error?: any }> {
+export async function updateTermsAndCondition(id: number, data: { title: string; name: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
-        const { error } = await supabase.from('terms_and_condition').update(data).eq('id', id);
+        const payload = {
+            title: data.title,
+            name: data.name,
+            firm_id: data.firm_id ? Number(data.firm_id) : null,
+            firm_name: data.firm_name || null,
+        };
+        const { error } = await supabase.from('terms_and_condition').update(payload).eq('id', id);
         if (error) throw error;
         return { success: true };
     } catch (error) {

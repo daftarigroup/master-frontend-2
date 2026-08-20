@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { PackageCheck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDate } from '@/lib/utils';
 import { Pill } from '../ui/pill';
@@ -139,9 +140,11 @@ export default () => {
         fetchData();
     }, [user.firmNameMatch]);
 
+    const canEditStoreOut = hasPageAccess(user as any, 'store_out', 'EDIT', 'storeOutApprovalAction');
+
     // Creating table columns
     const columns: ColumnDef<StoreOutTableData>[] = [
-        ...(user.storeOutApprovalAction
+        ...(canEditStoreOut
             ? [
                 {
                     header: 'Actions',

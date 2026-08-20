@@ -30,6 +30,7 @@ export interface InventoryRecord {
     firmName: string;
     firm_id?: number;
     current: number;
+    avgPrice?: number;
     totalPrice: number;
     status: string;
 }
@@ -113,6 +114,7 @@ export async function fetchInventoryRecords(permittedFirms?: string[]): Promise<
                 firmNameMatch: firmName,
                 firm_id: r.firm_id,
                 current: Number(r.current) || 0,
+                avgPrice: Number(r.avg_price ?? r.avgPrice ?? 0),
                 totalPrice: Number(r.total_price) || 0,
                 status: r.color_code || '',
                 colorCode: r.color_code || '',

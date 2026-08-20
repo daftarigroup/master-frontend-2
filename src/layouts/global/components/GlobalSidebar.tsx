@@ -22,6 +22,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -444,6 +445,9 @@ export const GlobalSidebar: React.FC = () => {
           Powered by <a href="https://botivate.in" target="_blank" rel="noreferrer" className="text-foreground/80 font-medium hover:text-primary transition-colors">Botivate</a>
         </div>
       </SidebarFooter>
+
+      {/* Mouse Click + Hold Drag Handle to Resize, Collapse or Expand */}
+      <SidebarRail />
     </Sidebar>
   );
 };

@@ -31,6 +31,7 @@ import { Truck } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
@@ -299,8 +300,10 @@ export default () => {
     }
 
 
+    const canEditDebitNote = hasPageAccess(user as any, 'finance_logistics', 'EDIT', 'sendDebitNote');
+
     const pendingColumns: ColumnDef<StoreInPendingData>[] = [
-        ...(user.receiveItemView
+        ...(canEditDebitNote
             ? [
                 {
                     header: 'Action',

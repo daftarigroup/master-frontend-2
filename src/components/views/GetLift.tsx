@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ShoppingCart, X, Truck, FileText, IndianRupee, CreditCard, User, Phone, CheckCircle2, Package, Info, Upload, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
@@ -383,9 +384,11 @@ export default function GetPurchase() {
         setHistoryData(processedHistory.reverse());
     }, [storeInRecords, indentRecords, user?.firm_access, user?.firmNameMatch]);
 
+    const canEditLifting = hasPageAccess(user as any, 'orders_view', 'EDIT', 'ordersView');
+
     // Creating table columns
     const columns: ColumnDef<GetPurchaseData>[] = [
-        ...(user?.receiveItemAction
+        ...(canEditLifting
             ? [
                 {
                     header: 'Action',
@@ -558,7 +561,7 @@ export default function GetPurchase() {
                         ) : (
                             <span className="text-muted-foreground text-xs">-</span>
                         )}
-                        {user?.administrate && (
+                        {canEditLifting && (
                             <label
                                 title={photoUrl ? 'Replace bill' : 'Upload bill'}
                                 className={`cursor-pointer inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
@@ -590,7 +593,7 @@ export default function GetPurchase() {
         {
             accessorKey: 'deliveryDate',
             header: 'Delivery Date',
-            cell: ({ row }) => <InlineDeliveryDate row={row.original} onSave={handleSaveDeliveryDate} canEdit={!!user?.administrate} />,
+            cell: ({ row }) => <InlineDeliveryDate row={row.original} onSave={handleSaveDeliveryDate} canEdit={canEditLifting} />,
         },
         {
             accessorKey: 'product',

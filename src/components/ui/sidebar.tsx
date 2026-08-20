@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Menu } from 'lucide-react';
+import gsap from 'gsap';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -20,7 +21,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = '16.5rem';
+const DEFAULT_SIDEBAR_WIDTH = 264; // 16.5rem
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 480;
+const COLLAPSE_THRESHOLD = 135;
 const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '4rem';
 const SIDEBAR_KEYBOARD_SHORTCUT = ';';
@@ -33,6 +37,11 @@ type SidebarContextProps = {
     setOpenMobile: (open: boolean) => void;
     isMobile: boolean;
     toggleSidebar: () => void;
+    width: number;
+    setWidth: (width: number) => void;
+    isDragging: boolean;
+    startDragging: (e: React.MouseEvent) => void;
+    wrapperRef: React.RefObject<HTMLDivElement | null>;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -61,11 +70,32 @@ function SidebarProvider({
 }) {
     const isMobile = useIsMobile();
     const [openMobile, setOpenMobile] = React.useState(false);
+    const wrapperRef = React.useRef<HTMLDivElement | null>(null);
 
-    // This is the internal state of the sidebar.
-    // We use openProp and setOpenProp for control from outside the component.
+    // Dynamic width with localStorage persistence
+    const [width, setWidthState] = React.useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('sidebar_custom_width');
+                if (saved) {
+                    const parsed = parseInt(saved, 10);
+                    if (!isNaN(parsed) && parsed >= MIN_SIDEBAR_WIDTH && parsed <= MAX_SIDEBAR_WIDTH) {
+                        return parsed;
+                    }
+                }
+            } catch {}
+        }
+        return DEFAULT_SIDEBAR_WIDTH;
+    });
+
+    const [isDragging, setIsDragging] = React.useState(false);
+
+    // Internal open state
     const [_open, _setOpen] = React.useState(defaultOpen);
     const open = openProp ?? _open;
+    const currentWidthRef = React.useRef<number>(open ? width : 64);
+    const isInitialMount = React.useRef(true);
+
     const setOpen = React.useCallback(
         (value: boolean | ((value: boolean) => boolean)) => {
             const openState = typeof value === 'function' ? value(open) : value;
@@ -81,9 +111,133 @@ function SidebarProvider({
         [setOpenProp, open]
     );
 
-    // Helper to toggle the sidebar.
+    const setWidth = React.useCallback((newWidth: number) => {
+        const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, newWidth));
+        setWidthState(clamped);
+        try {
+            localStorage.setItem('sidebar_custom_width', clamped.toString());
+        } catch {}
+    }, []);
+
+    // GSAP animation for smooth expand/collapse transition
+    React.useEffect(() => {
+        if (isMobile) return;
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+
+        const targetWidth = open ? width : 64;
+
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            currentWidthRef.current = targetWidth;
+            wrapper.style.setProperty('--sidebar-width', `${targetWidth}px`);
+            return;
+        }
+
+        if (isDragging) return;
+
+        gsap.to(currentWidthRef, {
+            current: targetWidth,
+            duration: 0.28,
+            ease: 'power3.out',
+            onUpdate: () => {
+                if (wrapper) {
+                    wrapper.style.setProperty('--sidebar-width', `${currentWidthRef.current}px`);
+                }
+            },
+            overwrite: 'auto',
+        });
+    }, [open, width, isDragging, isMobile]);
+
+    // Mouse click + hold (drag) to resize, collapse, or expand the sidebar with GSAP smoothing
+    const startDragging = React.useCallback(
+        (startEvent: React.MouseEvent) => {
+            if (isMobile) return;
+            startEvent.preventDefault();
+            startEvent.stopPropagation();
+            setIsDragging(true);
+
+            const startX = startEvent.clientX;
+            const initialWidth = open ? width : 64;
+            const wrapper = wrapperRef.current;
+
+            const onMouseMove = (e: MouseEvent) => {
+                const delta = e.clientX - startX;
+                const currentWidth = initialWidth + delta;
+
+                if (wrapper) {
+                    const displayWidth = Math.max(50, Math.min(MAX_SIDEBAR_WIDTH + 40, currentWidth));
+                    currentWidthRef.current = displayWidth;
+                    wrapper.style.setProperty('--sidebar-width', `${displayWidth}px`);
+                }
+
+                if (currentWidth < COLLAPSE_THRESHOLD) {
+                    if (open) setOpen(false);
+                } else {
+                    if (!open) setOpen(true);
+                    const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, currentWidth));
+                    setWidthState(clamped);
+                }
+            };
+
+            const onMouseUp = (e: MouseEvent) => {
+                setIsDragging(false);
+                document.body.style.removeProperty('cursor');
+                document.body.style.removeProperty('user-select');
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+
+                const finalDelta = e.clientX - startX;
+                const finalWidth = initialWidth + finalDelta;
+
+                if (finalWidth < COLLAPSE_THRESHOLD) {
+                    setOpen(false);
+                    if (wrapper) {
+                        gsap.to(currentWidthRef, {
+                            current: 64,
+                            duration: 0.24,
+                            ease: 'power3.out',
+                            onUpdate: () => {
+                                if (wrapper) {
+                                    wrapper.style.setProperty('--sidebar-width', `${currentWidthRef.current}px`);
+                                }
+                            },
+                        });
+                    }
+                } else {
+                    setOpen(true);
+                    const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, finalWidth));
+                    setWidthState(clamped);
+                    try {
+                        localStorage.setItem('sidebar_custom_width', clamped.toString());
+                    } catch {}
+
+                    if (wrapper) {
+                        gsap.to(currentWidthRef, {
+                            current: clamped,
+                            duration: 0.22,
+                            ease: 'power2.out',
+                            onUpdate: () => {
+                                if (wrapper) {
+                                    wrapper.style.setProperty('--sidebar-width', `${currentWidthRef.current}px`);
+                                }
+                            },
+                        });
+                    }
+                }
+            };
+
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        },
+        [isMobile, open, width, setOpen]
+    );
+
+    // Helper to toggle the sidebar with GSAP
     const toggleSidebar = React.useCallback(() => {
-        return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
+        return isMobile ? setOpenMobile((prev) => !prev) : setOpen((prev) => !prev);
     }, [isMobile, setOpen, setOpenMobile]);
 
     // Adds a keyboard shortcut to toggle the sidebar.
@@ -126,8 +280,6 @@ function SidebarProvider({
         };
     }, [isMobile, openMobile]);
 
-    // We add a state so that we can do data-state="expanded" or "collapsed".
-    // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? 'expanded' : 'collapsed';
 
     const contextValue = React.useMemo<SidebarContextProps>(
@@ -139,24 +291,33 @@ function SidebarProvider({
             openMobile,
             setOpenMobile,
             toggleSidebar,
+            width,
+            setWidth,
+            isDragging,
+            startDragging,
+            wrapperRef,
         }),
-        [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+        [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, width, setWidth, isDragging, startDragging]
     );
+
+    const dynamicSidebarWidth = `${open ? width : 64}px`;
 
     return (
         <SidebarContext.Provider value={contextValue}>
             <TooltipProvider delayDuration={0}>
                 <div
+                    ref={wrapperRef}
                     data-slot="sidebar-wrapper"
                     style={
                         {
-                            '--sidebar-width': SIDEBAR_WIDTH,
+                            '--sidebar-width': dynamicSidebarWidth,
                             '--sidebar-width-icon': SIDEBAR_WIDTH_ICON,
                             ...style,
                         } as React.CSSProperties
                     }
                     className={cn(
                         'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full',
+                        isDragging && 'select-none pointer-events-auto',
                         className
                     )}
                     {...props}
@@ -180,7 +341,7 @@ function Sidebar({
     variant?: 'sidebar' | 'floating' | 'inset';
     collapsible?: 'offcanvas' | 'icon' | 'none';
 }) {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+    const { isMobile, state, openMobile, setOpenMobile, isDragging } = useSidebar();
 
     if (collapsible === 'none') {
         return (
@@ -230,12 +391,14 @@ function Sidebar({
             data-variant={variant}
             data-side={side}
             data-slot="sidebar"
+            data-dragging={isDragging ? 'true' : 'false'}
         >
             {/* This is what handles the sidebar gap on desktop */}
             <div
                 data-slot="sidebar-gap"
                 className={cn(
                     'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
+                    isDragging && 'transition-none duration-0',
                     'group-data-[collapsible=offcanvas]:w-0',
                     'group-data-[side=right]:rotate-180',
                     variant === 'floating' || variant === 'inset'
@@ -247,6 +410,7 @@ function Sidebar({
                 data-slot="sidebar-container"
                 className={cn(
                     'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex',
+                    isDragging && 'transition-none duration-0',
                     side === 'left'
                         ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
                         : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
@@ -261,7 +425,7 @@ function Sidebar({
                 <div
                     data-sidebar="sidebar"
                     data-slot="sidebar-inner"
-                    className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+                    className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm relative"
                 >
                     {children}
                 </div>
@@ -287,33 +451,42 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
             {...props}
         >
             <Menu className="text-primary"/>
-            <span className="sr-only"></span>
+            <span className="sr-only">Toggle Sidebar</span>
         </Button>
     );
 }
 
-function SidebarRail({ className, ...props }: React.ComponentProps<'button'>) {
-    const { toggleSidebar } = useSidebar();
+function SidebarRail({ className, ...props }: React.ComponentProps<'div'>) {
+    const { toggleSidebar, startDragging, isDragging } = useSidebar();
 
     return (
-        <button
+        <div
             data-sidebar="rail"
             data-slot="sidebar-rail"
-            aria-label="Toggle Sidebar"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize or toggle sidebar"
             tabIndex={-1}
-            onClick={toggleSidebar}
-            title="Toggle Sidebar"
+            onMouseDown={startDragging}
+            onDoubleClick={toggleSidebar}
+            title="Click + drag to resize / collapse / expand. Double-click to toggle."
             className={cn(
-                'hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex',
-                'in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize',
-                '[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize',
-                'hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full',
-                '[[data-side=left][data-collapsible=offcanvas]_&]:-right-2',
-                '[[data-side=right][data-collapsible=offcanvas]_&]:-left-2',
+                'absolute inset-y-0 -right-2 z-30 hidden w-4 cursor-col-resize select-none sm:flex items-center justify-center group/rail',
+                'hover:after:bg-primary/40 after:transition-colors after:duration-150',
+                'after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-[2px] after:bg-transparent',
+                isDragging && 'after:bg-primary after:w-[3px]',
                 className
             )}
             {...props}
-        />
+        >
+            {/* Visual Grip Handle indicator on hover/drag */}
+            <div
+                className={cn(
+                    'z-10 w-1 h-8 rounded-full bg-slate-400/50 dark:bg-slate-500/50 opacity-0 group-hover/rail:opacity-100 group-hover/rail:scale-y-110 transition-all duration-150 shadow-xs pointer-events-none',
+                    isDragging && 'opacity-100 bg-primary scale-y-125 w-1.5'
+                )}
+            />
+        </div>
     );
 }
 
