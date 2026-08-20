@@ -481,7 +481,7 @@ export default function MasterManagement() {
                 ? editingRecord.selected_firms
                 : (editingRecord.firm_name && editingRecord.firm_name !== '--'
                     ? editingRecord.firm_name.split(',').map((s: string) => s.trim()).filter(Boolean)
-                    : (masterSheet?.firms ? [...masterSheet.firms] : []));
+                    : (openDialog === 'item' && masterSheet?.firms ? [...masterSheet.firms] : []));
 
             const normalized = {
                 ...editingRecord,
@@ -508,36 +508,36 @@ export default function MasterManagement() {
                 billing_address: editingRecord.billing_address ?? '',
                 destination_address: editingRecord.destination_address ?? '',
             };
-            if (openDialog === 'vendor') vForm.reset(normalized);
+            if (openDialog === 'vendor') vForm.reset({ ...normalized, selected_firms: [] });
             if (openDialog === 'item') {
                 iForm.reset({ ...normalized, selected_firms: existingFirms, include_in_inventory: false, inventory_quantity: 0 });
             }
             if (openDialog === 'dept') dForm.reset(normalized);
             if (openDialog === 'project') pForm.reset(normalized);
-            if (openDialog === 'gh') ghForm.reset(normalized);
-            if (openDialog === 'uom') uomForm.reset(normalized);
-            if (openDialog === 'areaofuse') aouForm.reset(normalized);
-            if (openDialog === 'ghuom') ghUomForm.reset(normalized);
-            if (openDialog === 'company') cForm.reset(normalized);
-            if (openDialog === 'site_engineer') seForm.reset(normalized);
-            if (openDialog === 'contractor') conForm.reset(normalized);
-            if (openDialog === 'site_location') slForm.reset(normalized);
-            if (openDialog === 'terms_condition') tcForm.reset({ title: editingRecord.title ?? '', name: editingRecord.name ?? '', selected_firms: existingFirms });
+            if (openDialog === 'gh') ghForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'uom') uomForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'areaofuse') aouForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'ghuom') ghUomForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'company') cForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'site_engineer') seForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'contractor') conForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'site_location') slForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'terms_condition') tcForm.reset({ title: editingRecord.title ?? '', name: editingRecord.name ?? '', selected_firms: [] });
         } else if (openDialog) {
-            const allFirmsList = masterSheet?.firms ? [...masterSheet.firms] : [];
-            if (openDialog === 'vendor') vForm.reset({ vendor_name: '', vendor_gstin: '', vendor_address: '', vendor_email: '', payment_term: '', responsible_person: '', location: '', phone: '', selected_firms: allFirmsList });
+            const allFirmsList = openDialog === 'item' && masterSheet?.firms ? [...masterSheet.firms] : [];
+            if (openDialog === 'vendor') vForm.reset({ vendor_name: '', vendor_gstin: '', vendor_address: '', vendor_email: '', payment_term: '', responsible_person: '', location: '', phone: '', selected_firms: [] });
             if (openDialog === 'item') iForm.reset({ item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', selected_firms: allFirmsList, regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] });
             if (openDialog === 'dept') dForm.reset({ department: '' });
             if (openDialog === 'project') pForm.reset({ firm_name: '', destination_address: '' });
-            if (openDialog === 'gh') ghForm.reset({ group_head: '', selected_firms: allFirmsList });
-            if (openDialog === 'uom') uomForm.reset({ uom: '', selected_firms: allFirmsList });
-            if (openDialog === 'areaofuse') aouForm.reset({ area_of_use: '', selected_firms: allFirmsList });
-            if (openDialog === 'ghuom') ghUomForm.reset({ group_head: '', uom: '', selected_firms: allFirmsList });
-            if (openDialog === 'company') cForm.reset({ company_name: '', company_gstin: '', company_pan: '', company_email: '', company_phone: '', company_address: '', billing_address: '', destination_address: '', company_contact_person: '', selected_firms: allFirmsList });
-            if (openDialog === 'site_engineer') seForm.reset({ name: '', number: '', email: '', selected_firms: allFirmsList });
-            if (openDialog === 'contractor') conForm.reset({ contractor_name: '', contractor_gstin: '', contractor_address: '', contractor_email: '', responsible_person: '', location: '', phone: '', selected_firms: allFirmsList });
-            if (openDialog === 'site_location') slForm.reset({ location: '', selected_firms: allFirmsList });
-            if (openDialog === 'terms_condition') tcForm.reset({ title: '', name: '', selected_firms: allFirmsList });
+            if (openDialog === 'gh') ghForm.reset({ group_head: '', selected_firms: [] });
+            if (openDialog === 'uom') uomForm.reset({ uom: '', selected_firms: [] });
+            if (openDialog === 'areaofuse') aouForm.reset({ area_of_use: '', selected_firms: [] });
+            if (openDialog === 'ghuom') ghUomForm.reset({ group_head: '', uom: '', selected_firms: [] });
+            if (openDialog === 'company') cForm.reset({ company_name: '', company_gstin: '', company_pan: '', company_email: '', company_phone: '', company_address: '', billing_address: '', destination_address: '', company_contact_person: '', selected_firms: [] });
+            if (openDialog === 'site_engineer') seForm.reset({ name: '', number: '', email: '', selected_firms: [] });
+            if (openDialog === 'contractor') conForm.reset({ contractor_name: '', contractor_gstin: '', contractor_address: '', contractor_email: '', responsible_person: '', location: '', phone: '', selected_firms: [] });
+            if (openDialog === 'site_location') slForm.reset({ location: '', selected_firms: [] });
+            if (openDialog === 'terms_condition') tcForm.reset({ title: '', name: '', selected_firms: [] });
         }
     }, [editingRecord, openDialog]);
 
@@ -821,249 +821,149 @@ export default function MasterManagement() {
                     res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'vendor') {
-                const makeVendorPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        vendor_name: values.vendor_name,
-                        vendor_gstin: values.vendor_gstin || null,
-                        vendor_address: values.vendor_address || null,
-                        vendor_email: values.vendor_email || null,
-                        payment_term: values.payment_term || null,
-                        responsible_person: values.responsible_person || null,
-                        location: values.location || null,
-                        phone: values.phone || null,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    vendor_name: values.vendor_name,
+                    vendor_gstin: values.vendor_gstin || null,
+                    vendor_address: values.vendor_address || null,
+                    vendor_email: values.vendor_email || null,
+                    payment_term: values.payment_term || null,
+                    responsible_person: values.responsible_person || null,
+                    location: values.location || null,
+                    phone: values.phone || null,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateMasterData(editingRecord.id, makeVendorPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertMasterData(makeVendorPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateMasterData(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertMasterData(makeVendorPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertMasterData(payload);
                 }
             } else if (type === 'contractor') {
-                const makeContractorPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        contractor_name: values.contractor_name,
-                        contractor_gstin: values.contractor_gstin || null,
-                        contractor_address: values.contractor_address || null,
-                        contractor_email: values.contractor_email || null,
-                        responsible_person: values.responsible_person || null,
-                        location: values.location || null,
-                        phone: values.phone || null,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    contractor_name: values.contractor_name,
+                    contractor_gstin: values.contractor_gstin || null,
+                    contractor_address: values.contractor_address || null,
+                    contractor_email: values.contractor_email || null,
+                    responsible_person: values.responsible_person || null,
+                    location: values.location || null,
+                    phone: values.phone || null,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateContractor(editingRecord.id, makeContractorPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertContractor(makeContractorPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateContractor(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertContractor(makeContractorPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertContractor(payload);
                 }
             } else if (type === 'site_location') {
-                const makeLocationPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        location: values.location,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    location: values.location,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateSiteLocation(editingRecord.id, makeLocationPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertSiteLocation(makeLocationPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateSiteLocation(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertSiteLocation(makeLocationPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertSiteLocation(payload);
                 }
             } else if (type === 'site_engineer') {
-                const makeEngineerPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        name: values.name,
-                        number: values.number,
-                        email: values.email,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    name: values.name,
+                    number: values.number,
+                    email: values.email,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateSiteEngineer(editingRecord.id, makeEngineerPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertSiteEngineer(makeEngineerPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateSiteEngineer(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertSiteEngineer(makeEngineerPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertSiteEngineer(payload);
                 }
             } else if (type === 'terms_condition') {
-                const makeTermsPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        title: values.title,
-                        name: values.name,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    title: values.title,
+                    name: values.name,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateTermsAndCondition(editingRecord.id, makeTermsPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertTermsAndCondition(makeTermsPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateTermsAndCondition(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertTermsAndCondition(makeTermsPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertTermsAndCondition(payload);
                 }
             } else if (type === 'company') {
-                const makeCompanyPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        company_name: values.company_name,
-                        company_gstin: values.company_gstin || null,
-                        company_pan: values.company_pan || null,
-                        company_email: values.company_email || null,
-                        company_phone: values.company_phone || null,
-                        company_address: values.company_address || null,
-                        billing_address: values.billing_address || null,
-                        destination_address: values.destination_address || null,
-                        company_contact_person: values.company_contact_person || null,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    company_name: values.company_name,
+                    company_gstin: values.company_gstin || null,
+                    company_pan: values.company_pan || null,
+                    company_email: values.company_email || null,
+                    company_phone: values.company_phone || null,
+                    company_address: values.company_address || null,
+                    billing_address: values.billing_address || null,
+                    destination_address: values.destination_address || null,
+                    company_contact_person: values.company_contact_person || null,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateMasterData(editingRecord.id, makeCompanyPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertMasterData(makeCompanyPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateMasterData(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertMasterData(makeCompanyPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertMasterData(payload);
                 }
             } else if (type === 'gh') {
-                const makeGhPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        group_head: values.group_head,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    group_head: values.group_head,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateMasterData(editingRecord.id, makeGhPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertMasterData(makeGhPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateMasterData(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertMasterData(makeGhPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertMasterData(payload);
                 }
             } else if (type === 'uom') {
-                const makeUomPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        uom: values.uom,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    uom: values.uom,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateMasterData(editingRecord.id, makeUomPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertMasterData(makeUomPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateMasterData(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertMasterData(makeUomPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertMasterData(payload);
                 }
             } else if (type === 'areaofuse') {
-                const makeAouPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        area_of_use: values.area_of_use,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    area_of_use: values.area_of_use,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateMasterData(editingRecord.id, makeAouPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertMasterData(makeAouPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateMasterData(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertMasterData(makeAouPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertMasterData(payload);
                 }
             } else if (type === 'ghuom') {
-                const makeGhUomPayload = (firmName: string) => {
-                    const sObj = masterSheet?.firmObjects?.find((f) => f.name === firmName);
-                    return {
-                        group_head: values.group_head || null,
-                        uom: values.uom || null,
-                        firm_name: firmName || null,
-                        firm_id: sObj?.id ? Number(sObj.id) : null,
-                    };
+                const payload = {
+                    group_head: values.group_head || null,
+                    uom: values.uom || null,
+                    firm_name: null,
+                    firm_id: null,
                 };
 
                 if (editingRecord) {
-                    const firstFirm = selectedFirms[0] || '';
-                    res = await updateMasterData(editingRecord.id, makeGhUomPayload(firstFirm));
-                    if (selectedFirms.length > 1) {
-                        const extraPromises = selectedFirms.slice(1).map((f) => insertMasterData(makeGhUomPayload(f)));
-                        await Promise.all(extraPromises);
-                    }
+                    res = await updateMasterData(editingRecord.id, payload);
                 } else {
-                    const ops = (selectedFirms.length > 0 ? selectedFirms : ['']).map((f) => insertMasterData(makeGhUomPayload(f)));
-                    const results = await Promise.all(ops);
-                    res = { success: results.every(r => r.success) };
+                    res = await insertMasterData(payload);
                 }
             } else if (editingRecord) {
                 if (type === 'dept') {
