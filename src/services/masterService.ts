@@ -264,7 +264,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         const paymentTerms = Array.from(
             new Set<string>(
                 vendors
-                    .map((v: any) => String(v.paymentTerm || '').trim())
+                    .flatMap((v: any) => String(v.paymentTerm || '').split(',').map((t: string) => t.trim()))
                     .filter(Boolean)
             )
         );

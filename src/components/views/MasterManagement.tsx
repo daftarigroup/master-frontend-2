@@ -347,6 +347,127 @@ const ConditionsCell = ({ val }: { val: any }) => {
     }
 };
 
+const MultiPaymentTermInput = ({
+    value,
+    onChange,
+    options = [],
+}: {
+    value?: string;
+    onChange: (val: string) => void;
+    options?: string[];
+}) => {
+    const [customTerm, setCustomTerm] = useState('');
+
+    const selectedTerms = useMemo(() => {
+        if (!value) return [];
+        return value
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean);
+    }, [value]);
+
+    const addTerm = (termToAdd: string) => {
+        const trimmed = termToAdd.trim();
+        if (!trimmed) return;
+        if (!selectedTerms.includes(trimmed)) {
+            const next = [...selectedTerms, trimmed];
+            onChange(next.join(', '));
+        }
+        setCustomTerm('');
+    };
+
+    const removeTerm = (termToRemove: string) => {
+        const next = selectedTerms.filter((t) => t !== termToRemove);
+        onChange(next.join(', '));
+    };
+
+    const presetTerms = Array.from(
+        new Set([
+            'Advance',
+            '30 Days',
+            '45 Days',
+            '60 Days',
+            '90 Days',
+            'Partly Advance/ Partly PI',
+            '100% Against Dispatch',
+            'Against Delivery',
+            'Immediate',
+            ...(options || []),
+        ])
+    );
+
+    const availablePresets = presetTerms.filter((t) => !selectedTerms.includes(t));
+
+    return (
+        <div className="space-y-2">
+            {selectedTerms.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2 bg-muted/20 border rounded-md min-h-[38px] items-center">
+                    {selectedTerms.map((term, idx) => (
+                        <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shadow-sm"
+                        >
+                            {term}
+                            <button
+                                type="button"
+                                onClick={() => removeTerm(term)}
+                                className="hover:text-destructive focus:outline-none transition-colors"
+                            >
+                                <X size={12} />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Select
+                    onValueChange={(val) => {
+                        if (val) addTerm(val);
+                    }}
+                    value=""
+                >
+                    <SelectTrigger className="flex-1 text-xs">
+                        <SelectValue placeholder="Select from presets..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {availablePresets.map((term, i) => (
+                            <SelectItem key={`preset-pt-${i}`} value={term} className="text-xs">
+                                {term}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-1.5 flex-1">
+                    <Input
+                        value={customTerm}
+                        onChange={(e) => setCustomTerm(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addTerm(customTerm);
+                            }
+                        }}
+                        placeholder="Or add custom payment term..."
+                        className="text-xs h-9"
+                    />
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => addTerm(customTerm)}
+                        disabled={!customTerm.trim()}
+                        className="shrink-0 h-9 text-xs px-3"
+                    >
+                        Add
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function MasterManagement() {
     const { updateInventorySheet, masterSheet, updateAll } = useSheets();
     const [allRecords, setAllRecords] = useState<any[]>([]);
@@ -672,6 +793,24 @@ export default function MasterManagement() {
         { accessorKey: 'vendor_name', header: 'Vendor Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building2 size={16} className="text-primary" />{row.original.vendor_name}</div> },
         { accessorKey: 'vendor_gstin', header: 'GSTIN' },
         { accessorKey: 'vendor_email', header: 'Email' },
+        {
+            accessorKey: 'payment_term',
+            header: 'Payment Terms',
+            cell: ({ row }) => {
+                const val = row.original.payment_term;
+                if (!val) return <span className="text-muted-foreground italic text-xs">--</span>;
+                const terms = val.split(',').map((t: string) => t.trim()).filter(Boolean);
+                return (
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {terms.map((t: string, i: number) => (
+                            <span key={i} className="px-1.5 py-0.5 rounded text-[11px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-100 dark:border-indigo-900">
+                                {t}
+                            </span>
+                        ))}
+                    </div>
+                );
+            }
+        },
         { accessorKey: 'responsible_person', header: 'Responsible Person' },
         { accessorKey: 'phone', header: 'Phone' },
         { accessorKey: 'location', header: 'Location' },
@@ -1279,8 +1418,15 @@ export default function MasterManagement() {
                                             )} />
                                             <FormField control={vForm.control} name="payment_term" render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Payment Term</FormLabel>
-                                                    <FormControl><Input {...field} placeholder="e.g., 30 Days" /></FormControl>
+                                                    <FormLabel>Payment Terms</FormLabel>
+                                                    <FormControl>
+                                                        <MultiPaymentTermInput
+                                                            value={field.value}
+                                                            onChange={field.onChange}
+                                                            options={masterSheet?.paymentTerms}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
                                                 </FormItem>
                                             )} />
                                             <FormField control={vForm.control} name="phone" render={({ field }) => (
