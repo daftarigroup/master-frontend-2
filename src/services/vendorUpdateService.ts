@@ -86,10 +86,12 @@ export async function fetchPendingVendorUpdates(permittedFirms?: string[]): Prom
         const res: any = await apiClient.get('/store/entity/indent', { params });
         const records: any[] = res.data || [];
 
-        // Filter: planned2 must exist AND actual2 must be null/empty
+        // Filter: planned2 must exist AND actual2 must be null/empty, exclude rejected indents
         const filtered = records.filter(r =>
             r.planned2 && r.planned2 !== '' &&
-            (!r.actual2 || r.actual2 === '')
+            (!r.actual2 || r.actual2 === '') &&
+            r.vendor_type !== 'Reject' &&
+            r.status !== 'Rejected'
         );
 
         return filtered.map(r => ({
@@ -138,10 +140,12 @@ export async function fetchCompletedVendorUpdates(permittedFirms?: string[]): Pr
         const res: any = await apiClient.get('/store/entity/indent', { params });
         const records: any[] = res.data || [];
 
-        // Filter: both planned2 AND actual2 must exist
+        // Filter: both planned2 AND actual2 must exist, exclude rejected indents
         const filtered = records.filter(r =>
             r.planned2 && r.planned2 !== '' &&
-            r.actual2 && r.actual2 !== ''
+            r.actual2 && r.actual2 !== '' &&
+            r.vendor_type !== 'Reject' &&
+            r.status !== 'Rejected'
         );
 
         return filtered.map(r => {

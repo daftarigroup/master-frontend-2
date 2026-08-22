@@ -748,6 +748,8 @@ export default function ApproveIndent() {
                 actual1: new Date().toISOString(),
                 vendor_type: 'Reject',
                 approved_quantity: 0,
+                status: 'Rejected',
+                planned2: null,
             });
             toast.success(`Rejected indent item from ${selectedIndent.indent_number}`);
             setOpenDialog(false);

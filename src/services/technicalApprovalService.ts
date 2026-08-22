@@ -43,7 +43,7 @@ export async function fetchPendingTechnicalApprovals(permittedFirms?: string[]):
         const rows = (res.data || []) as any[];
 
         const mapped = rows
-            .filter((r) => !r.vendor1_rank && !r.vendor2_rank && !r.vendor3_rank)
+            .filter((r) => r.vendor_type !== 'Reject' && r.status !== 'Rejected' && !r.vendor1_rank && !r.vendor2_rank && !r.vendor3_rank)
             .map((r): TechnicalApprovalIndent => ({
                 id: r.id,
                 indentNo: r.indent_number || '',
@@ -122,7 +122,7 @@ export async function fetchCompletedTechnicalApprovals(permittedFirms?: string[]
         const rows = (res.data || []) as any[];
 
         const mapped = rows
-            .filter((r) => r.vendor1_rank || r.vendor2_rank || r.vendor3_rank)
+            .filter((r) => r.vendor_type !== 'Reject' && r.status !== 'Rejected' && (r.vendor1_rank || r.vendor2_rank || r.vendor3_rank))
             .map((r): TechnicalHistoryIndent => ({
                 id: r.id,
                 indentNo: r.indent_number || '',

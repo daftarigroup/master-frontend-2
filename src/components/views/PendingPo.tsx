@@ -64,6 +64,7 @@ export default function ApprovedPOs() {
 
             // Filter for Management Approved indents that do NOT have a PO created yet
             const filteredData = (indentData || []).filter((sheet: any) => {
+                if (sheet.vendor_type === 'Reject' || sheet.status === 'Rejected') return false;
                 const isApproved = sheet.po_requred === 'Yes' || !!sheet.actual4 || !!sheet.approved_vendor_name;
                 if (!isApproved) return false;
 
@@ -176,7 +177,7 @@ export default function ApprovedPOs() {
             accessorKey: 'product',
             header: 'Product',
             cell: ({ getValue }) => (
-                <div className="max-w-[120px] break-words whitespace-normal px-1 text-sm">
+                <div className="min-w-[280px] max-w-[450px] break-words whitespace-normal px-2 text-sm leading-snug">
                     {getValue() as string || '-'}
                 </div>
             ),

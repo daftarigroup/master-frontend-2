@@ -42,7 +42,7 @@ export async function fetchPendingManagementApprovals(permittedFirms?: string[])
         const rows = (res.data || []) as any[];
 
         const mapped = rows
-            .filter((r) => !r.actual4 && (!r.approved_vendor_name || r.approved_vendor_name.trim() === '') && (r.vendor1_rank || r.vendor2_rank || r.vendor3_rank))
+            .filter((r) => r.vendor_type !== 'Reject' && r.status !== 'Rejected' && !r.actual4 && (!r.approved_vendor_name || r.approved_vendor_name.trim() === '') && (r.vendor1_rank || r.vendor2_rank || r.vendor3_rank))
             .map((r): ManagementApprovalIndent => ({
                 id: r.id,
                 indentNo: r.indent_number || '',
@@ -124,7 +124,7 @@ export async function fetchCompletedManagementApprovals(permittedFirms?: string[
         const rows = (res.data || []) as any[];
 
         const mapped = rows
-            .filter((r) => (r.actual4 || r.approved_vendor_name) && r.approved_vendor_name && r.approved_vendor_name.trim() !== '')
+            .filter((r) => r.vendor_type !== 'Reject' && r.status !== 'Rejected' && (r.actual4 || r.approved_vendor_name) && r.approved_vendor_name && r.approved_vendor_name.trim() !== '')
             .map((r): ManagementApprovalHistory => ({
                 id: r.id,
                 indentNo: r.indent_number || '',

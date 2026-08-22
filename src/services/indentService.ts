@@ -183,7 +183,7 @@ export async function updateIndentApproval(
         actual1: string;
         vendor_type: string;
         approved_quantity: number;
-        planned2?: string;
+        planned2?: string | null;
         status?: string;
         indent_url?: string;
     }

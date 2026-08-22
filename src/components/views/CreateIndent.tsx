@@ -20,11 +20,11 @@ import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
 
-import { formatDate, formatDateTimeFull } from '@/lib/utils';
+import { formatDate, formatDateTimeFull, cn } from '@/lib/utils';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Pill } from '../ui/pill';
 import { ClipLoader as Loader } from 'react-spinners';
-import { ClipboardList, Trash, Search, PlusCircle, Download } from 'lucide-react';
+import { ClipboardList, Trash, Search, PlusCircle, Download, Calendar as CalendarIcon } from 'lucide-react';
 import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
 import { useState, useEffect } from 'react';
@@ -33,6 +33,9 @@ import { useAuth } from '@/context/AuthContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 import { pdf } from '@react-pdf/renderer';
 import IndentPdf from '../element/IndentPdf';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+
 
 export default () => {
     const {
@@ -65,6 +68,7 @@ export default () => {
 
 
     const schema = z.object({
+        createdDate: z.string().nonempty({ message: 'Select Indent Date' }),
         indenterName: z.string().nonempty(),
         firmName: z.string().nonempty({ message: 'Select Project Name' }),
         firmId: z.coerce.number().optional(),
@@ -101,6 +105,7 @@ export default () => {
     const form = useForm({
         resolver: zodResolver(schema),
         defaultValues: {
+            createdDate: new Date().toISOString().split('T')[0],
             indenterName: '',
             firmName: '',
             firmId: undefined,
@@ -622,7 +627,16 @@ export default () => {
             );
 
             // 2. Insert rows immediately — don't wait for PDF
-            const timestamp = new Date().toISOString();
+            const now = new Date();
+            let timestamp: string;
+            if (data.createdDate) {
+                const [year, month, day] = data.createdDate.split('-').map(Number);
+                const d = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+                timestamp = d.toISOString();
+            } else {
+                timestamp = now.toISOString();
+            }
+
             const rows = data.products.map((product, i) => ({
                 timestamp,
                 planned1: timestamp,
@@ -660,6 +674,7 @@ export default () => {
             });
 
             form.reset({
+                createdDate: new Date().toISOString().split('T')[0],
                 indenterName: '',
                 firmName: '',
                 firmId: undefined,
@@ -705,7 +720,49 @@ export default () => {
                             onSubmit={form.handleSubmit(onSubmit, onError)}
                             className="space-y-8"
                         >
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                                <FormField
+                                    control={form.control}
+                                    name="createdDate"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel>
+                                                Indent Date
+                                                <span className="text-destructive">*</span>
+                                            </FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                        <Button
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "w-full justify-between text-left font-normal h-10 px-3 bg-background",
+                                                                !field.value && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            <span>{field.value ? formatDate(field.value) : "Select date"}</span>
+                                                            <CalendarIcon className="h-4 w-4 opacity-70" />
+                                                        </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={field.value ? new Date(field.value + 'T00:00:00') : undefined}
+                                                        onSelect={(date) => {
+                                                            if (date) {
+                                                                const pad = (n: number) => n.toString().padStart(2, '0');
+                                                                const dateStr = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+                                                                field.onChange(dateStr);
+                                                            }
+                                                        }}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </FormItem>
+                                    )}
+                                />
                                 <FormField
                                     control={form.control}
                                     name="firmName"
@@ -1268,20 +1325,49 @@ export default () => {
                                                         control={form.control}
                                                         name={`products.${index}.expectedRequirementDate`}
                                                         render={({ field }) => (
-                                                            <FormItem>
+                                                            <FormItem className="flex flex-col">
                                                                 <FormLabel>
                                                                     Expected Requirement Date
                                                                     <span className="text-destructive">
                                                                         *
                                                                     </span>
                                                                 </FormLabel>
-                                                                <FormControl>
-                                                                    <Input
-                                                                        type="date"
-                                                                        {...field}
-                                                                        disabled={!currentGroupHead}
-                                                                    />
-                                                                </FormControl>
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <FormControl>
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                disabled={!currentGroupHead}
+                                                                                className={cn(
+                                                                                    "w-full justify-between text-left font-normal h-10 px-3 bg-background",
+                                                                                    !field.value && "text-muted-foreground"
+                                                                                )}
+                                                                            >
+                                                                                <span>{field.value ? formatDate(field.value) : "Select date"}</span>
+                                                                                <CalendarIcon className="h-4 w-4 opacity-70" />
+                                                                            </Button>
+                                                                        </FormControl>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-auto p-0" align="start">
+                                                                        <Calendar
+                                                                            mode="single"
+                                                                            selected={field.value ? new Date(field.value + 'T00:00:00') : undefined}
+                                                                            disabled={(date) => {
+                                                                                const today = new Date();
+                                                                                today.setHours(0, 0, 0, 0);
+                                                                                return date < today;
+                                                                            }}
+                                                                            onSelect={(date) => {
+                                                                                if (date) {
+                                                                                    const pad = (n: number) => n.toString().padStart(2, '0');
+                                                                                    const dateStr = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+                                                                                    field.onChange(dateStr);
+                                                                                }
+                                                                            }}
+                                                                            initialFocus
+                                                                        />
+                                                                    </PopoverContent>
+                                                                </Popover>
                                                             </FormItem>
                                                         )}
                                                     />

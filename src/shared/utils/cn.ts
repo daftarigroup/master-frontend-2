@@ -11,7 +11,7 @@ export function formatDate(date: Date | string): string {
     if (!dObj || isNaN(dObj.getTime())) return typeof date === 'string' ? date : '-';
     
     const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${pad(dObj.getDate())}-${pad(dObj.getMonth() + 1)}-${dObj.getFullYear()}`;
+    return `${pad(dObj.getDate())}/${pad(dObj.getMonth() + 1)}/${dObj.getFullYear()}`;
 }
 
 export function formatDateTime(date: Date | string): string {
@@ -29,7 +29,7 @@ export function formatDateTime(date: Date | string): string {
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = pad(hours % 12 || 12);
 
-    return `${day}-${month}-${year} ${hour12}:${minutes}:${seconds} ${ampm}`;
+    return `${day}/${month}/${year} ${hour12}:${minutes}:${seconds} ${ampm}`;
 }
 
 export function formatTimestamp(date: Date | string): string {
@@ -49,7 +49,7 @@ export function formatDateTimeFull(date: Date | string): string {
     const minutes = pad(dObj.getMinutes());
     const seconds = pad(dObj.getSeconds());
 
-    return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
 /**

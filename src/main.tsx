@@ -263,7 +263,11 @@ const routes: RouteAttributes[] = [
         element: <VendorUpdate />,
         notifications: (sheets: any[], user: any) => {
             return sheets.filter((sheet: any) => {
-                return firmMatchesAccess(sheet, user) && sheet.planned2 !== '' && sheet.actual2 === '';
+                const vType = sheet.vendorType || sheet.vendor_type;
+                const status = (sheet.status || '').toLowerCase();
+                return firmMatchesAccess(sheet, user) &&
+                    vType !== 'Reject' && status !== 'rejected' &&
+                    sheet.planned2 !== '' && sheet.actual2 === '';
             }).length;
         },
     },
@@ -278,8 +282,10 @@ const routes: RouteAttributes[] = [
 
             return sheets.filter(
                 (sheet: any) => {
+                    const vType = sheet.vendorType || sheet.vendor_type;
+                    const status = (sheet.status || '').toLowerCase();
                     return firmMatchesAccess(sheet, user) &&
-                        (sheet.vendorType || sheet.vendor_type) !== 'Direct' &&
+                        vType !== 'Direct' && vType !== 'Reject' && status !== 'rejected' &&
                         sheet.planned3 && sheet.planned3 !== '' &&
                         (!sheet.actual3 || sheet.actual3 === '') &&
                         !(sheet.vendor1_rank || sheet.vendor2_rank || sheet.vendor3_rank);
@@ -298,8 +304,10 @@ const routes: RouteAttributes[] = [
 
             return sheets.filter(
                 (sheet: any) => {
+                    const vType = sheet.vendorType || sheet.vendor_type;
+                    const status = (sheet.status || '').toLowerCase();
                     return firmMatchesAccess(sheet, user) &&
-                        (sheet.vendorType || sheet.vendor_type) !== 'Direct' &&
+                        vType !== 'Direct' && vType !== 'Reject' && status !== 'rejected' &&
                         sheet.planned4 && sheet.planned4 !== '' &&
                         (!sheet.approvedVendorName && !sheet.approved_vendor_name) &&
                         (sheet.vendor1_rank || sheet.vendor2_rank || sheet.vendor3_rank);
