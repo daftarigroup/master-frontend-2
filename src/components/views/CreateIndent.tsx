@@ -15,8 +15,10 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import DataTable from '../element/DataTable';
-import { fetchIndentRecords, type IndentRecord } from '@/services/indentService';
+import { fetchIndentRecords, deleteIndentRecord, type IndentRecord } from '@/services/indentService';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 import { formatDate, formatDateTimeFull } from '@/lib/utils';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -54,6 +56,8 @@ export default () => {
     const [historyData, setHistoryData] = useState<IndentRecord[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [exportingIndentNo, setExportingIndentNo] = useState<string | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<IndentRecord | null>(null);
+
 
     const [isAddingProject, setIsAddingProject] = useState(false);
     const [isAddingDept, setIsAddingDept] = useState(false);
@@ -199,17 +203,32 @@ export default () => {
             cell: ({ row }) => {
                 const indentNo = row.original.indent_number;
                 const isLoading = exportingIndentNo === indentNo;
+                const canDelete = canDeleteStoreStage(user);
                 return (
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={isLoading}
-                        onClick={() => handleExportIndentPdf(indentNo)}
-                        className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 h-7 px-2 text-xs"
-                    >
-                        {isLoading ? <Loader size={11} color="currentColor" /> : <Download size={11} />}
-                        View PDF
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={isLoading}
+                            onClick={() => handleExportIndentPdf(indentNo)}
+                            className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 h-7 px-2 text-xs"
+                        >
+                            {isLoading ? <Loader size={11} color="currentColor" /> : <Download size={11} />}
+                            View PDF
+                        </Button>
+                        {canDelete && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteTarget(row.original)}
+                                className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                                title="Delete Indent"
+                            >
+                                <Trash size={12} />
+                                Delete
+                            </Button>
+                        )}
+                    </div>
                 );
             },
         },
@@ -1332,6 +1351,24 @@ export default () => {
                 </TabsContent>
             </Tabs>
 
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Create Indent"
+                isPermanentDelete={true}
+                indentNumber={deleteTarget?.indent_number}
+                productName={deleteTarget?.product_name}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await deleteIndentRecord(deleteTarget.id);
+                    toast.success(`Indent ${deleteTarget.indent_number} deleted successfully`);
+                    setDeleteTarget(null);
+                    fetchHistory();
+                    updateIndentSheet();
+                }}
+            />
+
         </div>
     );
 };
+

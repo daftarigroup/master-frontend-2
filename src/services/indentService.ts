@@ -370,3 +370,35 @@ export async function updateIndentStoreOutApproval(
         throw error;
     }
 }
+
+// ==================== STAGE DELETION & RESET FUNCTIONS ====================
+
+/**
+ * Permanently delete an indent record by ID
+ */
+export async function deleteIndentRecord(id: number) {
+    try {
+        await apiClient.delete(`/store/indents/${id}`);
+        return true;
+    } catch (error) {
+        console.error('Error deleting indent record:', error);
+        throw error;
+    }
+}
+
+/**
+ * Reset a specific stage and cascade reset all downstream stages
+ */
+export async function resetIndentStage(
+    id: number,
+    stage: 'approval' | 'vendor_rate' | 'technical_approval' | 'management_approval'
+) {
+    try {
+        await apiClient.post(`/store/indents/${id}/reset-stage`, { stage });
+        return true;
+    } catch (error) {
+        console.error(`Error resetting indent stage '${stage}':`, error);
+        throw error;
+    }
+}
+

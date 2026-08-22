@@ -19,7 +19,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { PuffLoader as Loader } from 'react-spinners';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Users, PenSquare, CheckSquare } from 'lucide-react';
+import { Users, PenSquare, CheckSquare, Trash } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
@@ -35,6 +35,10 @@ import {
     type ManagementApprovalIndent,
     type ManagementApprovalHistory,
 } from '@/services/rateApprovalService';
+import { resetIndentStage } from '@/services/indentService';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
+
 
 
 
@@ -74,6 +78,8 @@ export default () => {
     const [historyData, setHistoryData] = useState<HistoryData[]>([]);
     const [openDialog, setOpenDialog] = useState(false);
     const [dataLoading, setDataLoading] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<HistoryData | null>(null);
+
 
     const fetchPendingApprovals = async () => {
         try {
@@ -184,6 +190,7 @@ export default () => {
             id: 'action',
             cell: ({ row }: { row: Row<HistoryData> }) => {
                 const indent = row.original;
+                const canDelete = canDeleteStoreStage(user);
 
                 return (
                     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -200,6 +207,18 @@ export default () => {
                                 Update
                             </Button>
                         </DialogTrigger>
+                        {canDelete && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteTarget(indent)}
+                                className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-8 px-2 text-xs"
+                                title="Delete Management Approval Data"
+                            >
+                                <Trash className="h-3.5 w-3.5" />
+                                Delete
+                            </Button>
+                        )}
                     </div>
                 );
             },
@@ -517,6 +536,25 @@ export default () => {
                     </DialogContent>
                 )}
             </Dialog>
+
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Management Approval"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo}
+                productName={deleteTarget?.product}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetIndentStage(deleteTarget.id, 'management_approval');
+                    toast.success(`Management approval details for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchPendingApprovals();
+                    await fetchCompletedApprovals();
+                }}
+            />
         </div>
     );
 };
+

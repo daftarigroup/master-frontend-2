@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { PuffLoader as Loader } from 'react-spinners';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { ClipboardCheck, PenSquare, CheckSquare, ListTodo, Download } from 'lucide-react';
+import { ClipboardCheck, PenSquare, CheckSquare, ListTodo, Download, Trash } from 'lucide-react';
 import {
     Sheet,
     SheetContent,
@@ -45,10 +45,13 @@ import {
     updateIndentApproval,
     updateIndentSpecifications,
     updateIndentHistoryFields,
+    resetIndentStage,
     type IndentRecord
 } from '@/services/indentService';
 import { supabase } from '@/lib/supabase';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 
 export default function ApproveIndent() {
@@ -58,6 +61,8 @@ export default function ApproveIndent() {
     const [dataLoading, setDataLoading] = useState(true);
     const [selectedIndent, setSelectedIndent] = useState<IndentRecord | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<IndentRecord | null>(null);
+
     const [editingRow, setEditingRow] = useState<number | null>(null);
     const [editValues, setEditValues] = useState<Partial<IndentRecord>>({});
     const [downloading, setDownloading] = useState(false);
@@ -649,6 +654,26 @@ export default function ApproveIndent() {
                 );
             },
         },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<IndentRecord> }) => {
+                const canDelete = canDeleteStoreStage(user);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Approval Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
+        },
         ...(user.indentApprovalAction
             ? [
                 {
@@ -677,7 +702,7 @@ export default function ApproveIndent() {
                 },
             ]
             : []),
-    ], [user?.indentApprovalAction, handleEditClick, handleSaveEdit, handleCancelEdit]);
+    ], [user?.indentApprovalAction, user?.role, user?.administrate, handleEditClick, handleSaveEdit, handleCancelEdit]);
 
     const schema = z.object({
         approval: z.enum(['Reject', 'Three Party', 'Regular'], {
@@ -1023,6 +1048,25 @@ export default function ApproveIndent() {
                     );
                 })() : null}
             </Sheet>
+
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Indent Approval"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indent_number}
+                productName={deleteTarget?.product_name}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetIndentStage(deleteTarget.id, 'approval');
+                    toast.success(`Approval details for Indent ${deleteTarget.indent_number} deleted and reset`);
+                    setDeleteTarget(null);
+                    fetchData();
+                    updateAll();
+                }}
+            />
         </div>
     );
 }
+

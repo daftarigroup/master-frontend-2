@@ -17,3 +17,14 @@ export const isChecklistAdmin = (user: UserPermissions | null | undefined) =>
 
 export const isChecklistSuperAdmin = (user: UserPermissions | null | undefined) =>
   hasChecklistRole(user, 'SUPER_ADMIN');
+
+/**
+ * Role check for Store Stage Deletion & Reset:
+ * Allows SUPER_ADMIN, ADMIN, or users with administrate: true.
+ */
+export const canDeleteStoreStage = (user: UserPermissions | null | undefined): boolean => {
+  if (!user) return false;
+  const role = user.role?.toUpperCase();
+  return role === 'SUPER_ADMIN' || role === 'ADMIN' || user.administrate === true;
+};
+

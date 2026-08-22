@@ -23,7 +23,7 @@ import { Label } from '../ui/label';
 import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Tabs, TabsContent } from '../ui/tabs';
-import { UserCheck, PenSquare, CheckSquare, X, Search, UserCog } from 'lucide-react';
+import { UserCheck, PenSquare, CheckSquare, X, Search, UserCog, Trash } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
@@ -40,6 +40,9 @@ import {
     type VendorHistoryRecord,
     type IndentQuote,
 } from '@/services/vendorUpdateService';
+import { resetIndentStage } from '@/services/indentService';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 // Type aliases for local use — imported from vendorUpdateService
 type VendorUpdateData = VendorPendingRecord;
@@ -54,8 +57,10 @@ export default () => {
     const [tableData, setTableData] = useState<VendorUpdateData[]>([]);
     const [filteredTableData, setFilteredTableData] = useState<VendorUpdateData[]>([]);
     const [filteredHistoryData, setFilteredHistoryData] = useState<HistoryData[]>([]);
+    const [deleteTarget, setDeleteTarget] = useState<HistoryData | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [dialogStep, setDialogStep] = useState(1);
+
     const [amountToDetermineType, setAmountToDetermineType] = useState<number>(0);
     const [computedVendorType, setComputedVendorType] = useState<'Regular' | 'Three Party'>(
         'Regular'
@@ -376,6 +381,26 @@ export default () => {
     ];
 
     const historyColumns: ColumnDef<HistoryData>[] = [
+        {
+            id: 'action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<HistoryData> }) => {
+                const canDelete = canDeleteStoreStage(user);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Vendor Rate Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
+        },
         {
             accessorKey: 'date',
             header: 'Date',
@@ -1802,6 +1827,25 @@ export default () => {
                     </DialogContent>
                 )}
             </Dialog>
+
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Vendor Rate Update"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo}
+                productName={deleteTarget?.product}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetIndentStage(deleteTarget.id, 'vendor_rate');
+                    toast.success(`Vendor rate details for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    setDeleteTarget(null);
+                    await loadPendingVendorUpdates();
+                    await loadCompletedVendorUpdates();
+                }}
+            />
         </div>
     );
 };
+
