@@ -1,4 +1,4 @@
-import { Package2, Calculator, FileCheck, AlertTriangle, RotateCcw, ShieldCheck, CheckSquare, BarChart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package2, Calculator, FileCheck, AlertTriangle, RotateCcw, ShieldCheck, CheckSquare, BarChart, ChevronDown, ChevronUp, Trash } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useState, useMemo } from 'react';
 import type { ColumnDef, Row } from '@tanstack/react-table';
@@ -36,8 +36,11 @@ import { Textarea } from '../ui/textarea';
 import {
   fetchTallyEntryRecords,
   updateTallyEntryRecord,
+  resetTallyEntryStage,
   type TallyEntryRecord,
 } from '@/services/tallyEntryService';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 // Define Stage interface
 
@@ -203,6 +206,7 @@ export default function PcReportTable() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('ALL');
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<{ item: ProcessedTallyData; stage?: string } | null>(null);
 
   // Function to toggle product expansion in dialog
   const toggleProductExpand = (id: number) => {
@@ -526,18 +530,44 @@ export default function PcReportTable() {
         const rowData = row.original;
         const stageInfo = STAGES[rowData.currentStage];
         const IconComponent = stageInfo?.icon;
+        const canDelete = canDeleteStoreStage(user as any);
+
+        const currentStage = rowData.currentStage;
+        const stageToReset = currentStage === 'RECTIFY' ? 'audit'
+          : currentStage === 'REAUDIT' ? 'rectify'
+          : currentStage === 'TALLY_ENTRY' ? 'reaudit'
+          : currentStage === 'AGAIN_AUDIT' ? 'tally_entry'
+          : 'audit';
+
+        const canResetCurrent = currentStage !== 'AUDIT' || Boolean(rowData.status1);
 
         return (
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              onClick={() => handleItemSelect(rowData)}
-              className="flex items-center gap-2"
-            >
-              {IconComponent && <IconComponent className="w-4 h-4" />}
-              Process
-            </Button>
-          </DialogTrigger>
+          <div className="flex items-center gap-1.5">
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleItemSelect(rowData)}
+                className="flex items-center gap-1.5 h-8"
+              >
+                {IconComponent && <IconComponent className="w-3.5 h-3.5" />}
+                Process
+              </Button>
+            </DialogTrigger>
+
+            {canDelete && canResetCurrent && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteTarget({ item: rowData, stage: stageToReset })}
+                className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-8 px-2 text-xs"
+                title={`Reset ${stageToReset} stage`}
+              >
+                <Trash className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            )}
+          </div>
         );
       },
     },
@@ -959,6 +989,26 @@ export default function PcReportTable() {
         ) : null;
       },
     },
+    {
+      id: 'stage_delete_action',
+      header: 'Action',
+      cell: ({ row }: { row: Row<ProcessedTallyData> }) => {
+        const canDelete = canDeleteStoreStage(user as any);
+        if (!canDelete) return null;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setDeleteTarget({ item: row.original, stage: 'again_audit' })}
+            className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+            title="Delete / Reset Stage"
+          >
+            <Trash className="h-3.5 w-3.5" />
+            Delete
+          </Button>
+        );
+      },
+    },
   ];
 
   // Stats data
@@ -1334,6 +1384,25 @@ export default function PcReportTable() {
           </DialogContent>
         )}
       </Dialog>
+
+      <StageDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        stageName={deleteTarget?.stage ? STAGES[deleteTarget.stage.toUpperCase()]?.name || deleteTarget.stage : "Audit Data"}
+        isPermanentDelete={false}
+        indentNumber={deleteTarget?.item.indentNumber || deleteTarget?.item.poNumber}
+        productName={deleteTarget?.item.productName || deleteTarget?.item.products?.[0]}
+        customMessage={`Are you sure you want to delete and reset the ${deleteTarget?.stage || ''} stage for PO ${deleteTarget?.item.poNumber || ''}? This will clear this stage and any downstream stages.`}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          const stageKey = (deleteTarget.stage || 'audit').toLowerCase();
+          const items = deleteTarget.item.originalItems || [deleteTarget.item];
+          await Promise.all(items.map(it => resetTallyEntryStage(it.id, stageKey as any)));
+          toast.success(`Stage ${stageKey} deleted and reset successfully`);
+          setDeleteTarget(null);
+          updateAll();
+        }}
+      />
     </div>
   );
 }

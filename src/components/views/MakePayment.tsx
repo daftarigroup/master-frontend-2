@@ -1,4 +1,4 @@
-import { FileText, Building, DollarSign, CheckCircle, AlertCircle, ExternalLink, CheckSquare, XSquare, History } from 'lucide-react';
+import { FileText, Building, DollarSign, CheckCircle, AlertCircle, ExternalLink, CheckSquare, XSquare, History, Trash, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSheets } from '@/context/SheetsContext';
 import { useEffect, useState } from 'react';
@@ -28,7 +28,9 @@ import { uploadPaymentImage } from '@/services/storeInService';
 import { applyFirmAccessFilter, isAllowedFirm } from '@/lib/firmAccess';
 import { fetchPoMaster } from '@/services/poService';
 import { openPoPdfPreview } from '@/lib/poPdfUtils';
-import { Loader2 } from 'lucide-react';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
+import { resetPaymentStage } from '@/services/paymentService';
 
 interface PaymentsRecord {
     rowIndex?: number;
@@ -107,6 +109,7 @@ interface DisplayPayment {
 }
 
 interface DisplayPaymentHistory {
+    id?: number;
     rowIndex: number;
     timestamp: string;
     apPaymentNumber: string;
@@ -155,6 +158,7 @@ export default function MakePayment() {
     const [storeInRecords, setStoreInRecords] = useState<any[]>([]); // To store full metadata
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
     const [viewingPoNumber, setViewingPoNumber] = useState<string | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<DisplayPaymentHistory | null>(null);
 
     // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
     // payments.pdf/po_master.pdf used to hold a stored PO PDF URL; the PO PDF is now
@@ -404,6 +408,7 @@ export default function MakePayment() {
                         return isAllowedFirm({ id: r.firm_id, name: r.fms_name }, user?.firm_access);
                     })
                     .map((r: any, index: number) => ({
+                        id: r.id,
                         rowIndex: r.id || index,
                         timestamp: r.timestamp || '',
                         apPaymentNumber: r.ap_payment_number || '',
@@ -432,6 +437,7 @@ export default function MakePayment() {
                 const completedPaymentsFromTable = mappedPayments
                     .filter((p: any) => p.paymentDone && isAllowedFirm({ id: p.firm_id, name: p.firmNameMatch }, user?.firm_access))
                     .map((p) => ({
+                        id: p.rowIndex || 0,
                         rowIndex: p.rowIndex || 0,
                         timestamp: p.actual || p.timestamp || '',
                         apPaymentNumber: `AP-AUTO-${p.rowIndex}`,
@@ -1003,6 +1009,26 @@ export default function MakePayment() {
                     </div>
                 );
             }
+        },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<DisplayPaymentHistory> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Payment Record"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
         }
     ];
 
@@ -1169,6 +1195,24 @@ export default function MakePayment() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Make Payment"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo || deleteTarget?.uniqueNumber}
+                productName={deleteTarget?.productName}
+                customMessage={`Are you sure you want to delete this payment record (${deleteTarget?.uniqueNumber || deleteTarget?.apPaymentNumber})? This will restore the item to Pending Payment.`}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    const targetId = deleteTarget.id || deleteTarget.rowIndex;
+                    await resetPaymentStage(targetId);
+                    toast.success(`Payment record for ${deleteTarget.uniqueNumber || deleteTarget.apPaymentNumber} deleted and reset`);
+                    setDeleteTarget(null);
+                    updateAll();
+                }}
+            />
         </div>
     );
 }

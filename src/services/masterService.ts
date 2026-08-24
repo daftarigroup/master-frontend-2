@@ -91,7 +91,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         // 2. Fetch Group Heads
         const { data: ghData, error: ghError } = await supabase
             .from('group_head')
-            .select('name')
+            .select('id, name, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('name');
 
         if (ghError) throw ghError;
@@ -99,7 +99,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         // 3. Fetch UOMs
         const { data: uomData, error: uomError } = await supabase
             .from('uom')
-            .select('name')
+            .select('id, name, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('name');
 
         if (uomError) throw uomError;
@@ -107,7 +107,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         // 4. Fetch Area of Use
         const { data: aouData, error: aouError } = await supabase
             .from('area_of_use')
-            .select('name')
+            .select('id, name, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('name');
 
         if (aouError) throw aouError;
@@ -130,7 +130,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
         // 6. Fetch Vendors
         const { data: vendorData, error: vendorError } = await supabase
             .from('vendors')
-            .select('vendor_name, gstin, address, email, payment_term, person_name, phone')
+            .select('id, vendor_name, gstin, address, email, payment_term, person_name, phone, firm_id, firm_name, firm:firm_id(firm_name)')
             .order('vendor_name');
 
         if (vendorError) throw vendorError;
@@ -146,15 +146,21 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             .eq('active', true)
             .order('sort_order', { ascending: true });
 
-        // 7. Fetch Site Engineers, Contractors, Site Locations (Stay same for now)
-        const { data: seData } = await supabase.from('site_engineer_details').select('name, number, email');
+        // 7. Fetch Site Engineers, Contractors, Site Locations
+        const { data: seData } = await supabase
+            .from('site_engineer_details')
+            .select('id, name, number, email, firm_id, firm_name, firm:firm_id(firm_name)');
         const siteEngineers = (seData || []).map((se: any) => ({
             name: se.name,
             number: se.number,
-            email: se.email
+            email: se.email,
+            firmId: se.firm_id,
+            firmName: se.firm?.firm_name || se.firm_name || '',
         }));
 
-        const { data: contractorData } = await supabase.from('contractor_details').select('contractor_name, contractor_gstin, contractor_address, contractor_email, responsible_person, location, phone');
+        const { data: contractorData } = await supabase
+            .from('contractor_details')
+            .select('id, contractor_name, contractor_gstin, contractor_address, contractor_email, responsible_person, location, phone, firm_id, firm_name, firm:firm_id(firm_name)');
         const contractors = (contractorData || []).map((c: any) => ({
             contractorName: c.contractor_name,
             contractorGstin: c.contractor_gstin || '',
@@ -163,9 +169,13 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             responsiblePerson: c.responsible_person || '',
             location: c.location || '',
             phone: c.phone || '',
+            firmId: c.firm_id,
+            firmName: c.firm?.firm_name || c.firm_name || '',
         }));
 
-        const { data: locationData } = await supabase.from('site_location_details').select('location');
+        const { data: locationData } = await supabase
+            .from('site_location_details')
+            .select('id, location, firm_id, firm_name, firm:firm_id(firm_name)');
         const siteLocations: string[] = Array.from(
             new Set<string>(
                 (locationData || [])

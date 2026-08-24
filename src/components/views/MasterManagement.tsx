@@ -69,8 +69,7 @@ const vendorSchema = z.object({
     responsible_person: optionalText(),
     location: optionalText(),
     phone: optionalText(),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 type VendorFormValues = {
@@ -93,8 +92,7 @@ const contractorSchema = z.object({
     responsible_person: optionalText(),
     location: optionalText(),
     phone: optionalText(),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 type ContractorFormValues = {
@@ -110,8 +108,7 @@ type ContractorFormValues = {
 };
 const siteLocationSchema = z.object({
     location: z.string().min(1, 'Required'),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 const itemSchema = z.object({
@@ -145,27 +142,23 @@ const departmentSchema = z.object({ department: z.string().min(1, 'Required') })
 const projectSchema = z.object({ firm_name: z.string().min(1, 'Required'), destination_address: optionalText() });
 const ghSchema = z.object({
     group_head: z.string().min(1, 'Required'),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 const uomSchema = z.object({
     uom: z.string().min(1, 'Required'),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 const aouSchema = z.object({
     area_of_use: z.string().min(1, 'Required'),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 const ghUomSchema = z.object({
     group_head: optionalText(),
     uom: optionalText(),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 }).refine(data => data.group_head || data.uom, {
     message: "At least one field is required",
@@ -181,7 +174,6 @@ const companySchema = z.object({
     billing_address: optionalText(),
     destination_address: optionalText(),
     company_contact_person: optionalText(),
-    // Firm connection commented out for now (except Items)
     selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
@@ -189,14 +181,12 @@ const siteEngineerSchema = z.object({
     name: z.string().min(1, 'Required'),
     number: z.string().min(1, 'Required'),
     email: z.string().email('Invalid email'),
-    // Firm connection commented out for now (except Items)
-    selected_firms: z.array(z.string()).optional().default([]),
+    selected_firms: z.array(z.string()).min(1, 'Please select at least one project/firm'),
     firm_name: optionalText(),
 });
 const termsSchema = z.object({
     title: z.string().min(1, 'Heading is required'),
     name: z.string().min(1, 'Condition text is required'),
-    // Firm connection commented out for now (except Items)
     selected_firms: z.array(z.string()).optional().default([]),
     firm_name: optionalText(),
 });
@@ -602,7 +592,7 @@ export default function MasterManagement() {
                 ? editingRecord.selected_firms
                 : (editingRecord.firm_name && editingRecord.firm_name !== '--'
                     ? editingRecord.firm_name.split(',').map((s: string) => s.trim()).filter(Boolean)
-                    : (openDialog === 'item' && masterSheet?.firms ? [...masterSheet.firms] : []));
+                    : (masterSheet?.firms ? [...masterSheet.firms] : []));
 
             const normalized = {
                 ...editingRecord,
@@ -629,35 +619,35 @@ export default function MasterManagement() {
                 billing_address: editingRecord.billing_address ?? '',
                 destination_address: editingRecord.destination_address ?? '',
             };
-            if (openDialog === 'vendor') vForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'vendor') vForm.reset({ ...normalized, selected_firms: existingFirms });
             if (openDialog === 'item') {
                 iForm.reset({ ...normalized, selected_firms: existingFirms, include_in_inventory: false, inventory_quantity: 0 });
             }
             if (openDialog === 'dept') dForm.reset(normalized);
             if (openDialog === 'project') pForm.reset(normalized);
-            if (openDialog === 'gh') ghForm.reset({ ...normalized, selected_firms: [] });
-            if (openDialog === 'uom') uomForm.reset({ ...normalized, selected_firms: [] });
-            if (openDialog === 'areaofuse') aouForm.reset({ ...normalized, selected_firms: [] });
-            if (openDialog === 'ghuom') ghUomForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'gh') ghForm.reset({ ...normalized, selected_firms: existingFirms });
+            if (openDialog === 'uom') uomForm.reset({ ...normalized, selected_firms: existingFirms });
+            if (openDialog === 'areaofuse') aouForm.reset({ ...normalized, selected_firms: existingFirms });
+            if (openDialog === 'ghuom') ghUomForm.reset({ ...normalized, selected_firms: existingFirms });
             if (openDialog === 'company') cForm.reset({ ...normalized, selected_firms: [] });
-            if (openDialog === 'site_engineer') seForm.reset({ ...normalized, selected_firms: [] });
-            if (openDialog === 'contractor') conForm.reset({ ...normalized, selected_firms: [] });
-            if (openDialog === 'site_location') slForm.reset({ ...normalized, selected_firms: [] });
+            if (openDialog === 'site_engineer') seForm.reset({ ...normalized, selected_firms: existingFirms });
+            if (openDialog === 'contractor') conForm.reset({ ...normalized, selected_firms: existingFirms });
+            if (openDialog === 'site_location') slForm.reset({ ...normalized, selected_firms: existingFirms });
             if (openDialog === 'terms_condition') tcForm.reset({ title: editingRecord.title ?? '', name: editingRecord.name ?? '', selected_firms: [] });
         } else if (openDialog) {
-            const allFirmsList = openDialog === 'item' && masterSheet?.firms ? [...masterSheet.firms] : [];
-            if (openDialog === 'vendor') vForm.reset({ vendor_name: '', vendor_gstin: '', vendor_address: '', vendor_email: '', payment_term: '', responsible_person: '', location: '', phone: '', selected_firms: [] });
+            const allFirmsList = masterSheet?.firms ? [...masterSheet.firms] : [];
+            if (openDialog === 'vendor') vForm.reset({ vendor_name: '', vendor_gstin: '', vendor_address: '', vendor_email: '', payment_term: '', responsible_person: '', location: '', phone: '', selected_firms: allFirmsList });
             if (openDialog === 'item') iForm.reset({ item_name: '', group_head: '', uom: '', include_in_inventory: false, inventory_quantity: 0, firm_name: '', selected_firms: allFirmsList, regular_conditions: [{ value: '' }], third_party_conditions: [{ value: '' }] });
             if (openDialog === 'dept') dForm.reset({ department: '' });
             if (openDialog === 'project') pForm.reset({ firm_name: '', destination_address: '' });
-            if (openDialog === 'gh') ghForm.reset({ group_head: '', selected_firms: [] });
-            if (openDialog === 'uom') uomForm.reset({ uom: '', selected_firms: [] });
-            if (openDialog === 'areaofuse') aouForm.reset({ area_of_use: '', selected_firms: [] });
-            if (openDialog === 'ghuom') ghUomForm.reset({ group_head: '', uom: '', selected_firms: [] });
+            if (openDialog === 'gh') ghForm.reset({ group_head: '', selected_firms: allFirmsList });
+            if (openDialog === 'uom') uomForm.reset({ uom: '', selected_firms: allFirmsList });
+            if (openDialog === 'areaofuse') aouForm.reset({ area_of_use: '', selected_firms: allFirmsList });
+            if (openDialog === 'ghuom') ghUomForm.reset({ group_head: '', uom: '', selected_firms: allFirmsList });
             if (openDialog === 'company') cForm.reset({ company_name: '', company_gstin: '', company_pan: '', company_email: '', company_phone: '', company_address: '', billing_address: '', destination_address: '', company_contact_person: '', selected_firms: [] });
-            if (openDialog === 'site_engineer') seForm.reset({ name: '', number: '', email: '', selected_firms: [] });
-            if (openDialog === 'contractor') conForm.reset({ contractor_name: '', contractor_gstin: '', contractor_address: '', contractor_email: '', responsible_person: '', location: '', phone: '', selected_firms: [] });
-            if (openDialog === 'site_location') slForm.reset({ location: '', selected_firms: [] });
+            if (openDialog === 'site_engineer') seForm.reset({ name: '', number: '', email: '', selected_firms: allFirmsList });
+            if (openDialog === 'contractor') conForm.reset({ contractor_name: '', contractor_gstin: '', contractor_address: '', contractor_email: '', responsible_person: '', location: '', phone: '', selected_firms: allFirmsList });
+            if (openDialog === 'site_location') slForm.reset({ location: '', selected_firms: allFirmsList });
             if (openDialog === 'terms_condition') tcForm.reset({ title: '', name: '', selected_firms: [] });
         }
     }, [editingRecord, openDialog]);
@@ -764,32 +754,32 @@ export default function MasterManagement() {
     };
 
     const ghUomColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'group_head', header: 'Group Head', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><LayoutGrid size={16} className="text-blue-500" />{row.original.group_head || '--'}</div> },
         { accessorKey: 'uom', header: 'UOM', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Package size={16} className="text-emerald-500" />{row.original.uom || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'ghuom') }
     ];
 
     const ghColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'group_head', header: 'Group Head', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><LayoutGrid size={16} className="text-blue-500" />{row.original.group_head || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'gh') }
     ];
 
     const uomColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'uom', header: 'UOM', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Package size={16} className="text-emerald-500" />{row.original.uom || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'uom') }
     ];
 
     const aouColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'area_of_use', header: 'Area of Use', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><MapPin size={16} className="text-red-500" />{row.original.area_of_use || '--'}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'areaofuse') }
     ];
 
     const vendorColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'vendor_name', header: 'Vendor Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building2 size={16} className="text-primary" />{row.original.vendor_name}</div> },
         { accessorKey: 'vendor_gstin', header: 'GSTIN' },
         { accessorKey: 'vendor_email', header: 'Email' },
@@ -867,7 +857,7 @@ export default function MasterManagement() {
     ];
 
     const siteEngineerColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'name', header: 'Engineer Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><UserCog size={16} className="text-orange-500" />{row.original.name}</div> },
         { accessorKey: 'number', header: 'Phone Number', cell: ({ row }) => <div className="flex items-center gap-2"><Phone size={14} className="text-muted-foreground" />{row.original.number}</div> },
         { accessorKey: 'email', header: 'Email Address', cell: ({ row }) => <div className="flex items-center gap-2"><Mail size={14} className="text-muted-foreground" />{row.original.email}</div> },
@@ -875,7 +865,7 @@ export default function MasterManagement() {
     ];
 
     const contractorColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'contractor_name', header: 'Contractor Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Users size={16} className="text-primary" />{row.original.contractor_name}</div> },
         { accessorKey: 'contractor_gstin', header: 'GSTIN' },
         { accessorKey: 'contractor_email', header: 'Email' },
@@ -886,7 +876,7 @@ export default function MasterManagement() {
     ];
 
     const siteLocationColumns: ColumnDef<any>[] = [
-        // { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
+        { accessorKey: 'firm_name', header: 'Project Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Building size={16} className="text-purple-500 shrink-0" /><span className="truncate max-w-[140px]" title={row.original.firm_name || '--'}>{row.original.firm_name || '--'}</span></div> },
         { accessorKey: 'location', header: 'Location', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Map size={16} className="text-indigo-500" />{row.original.location}</div> },
         { id: 'actions', cell: ({ row }) => getActions(row.original, 'site_location') }
     ];
@@ -960,67 +950,119 @@ export default function MasterManagement() {
                     res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'vendor') {
-                const payload = {
-                    vendor_name: values.vendor_name,
-                    vendor_gstin: values.vendor_gstin || null,
-                    vendor_address: values.vendor_address || null,
-                    vendor_email: values.vendor_email || null,
-                    payment_term: values.payment_term || null,
-                    responsible_person: values.responsible_person || null,
-                    location: values.location || null,
-                    phone: values.phone || null,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        vendor_name: values.vendor_name,
+                        vendor_gstin: values.vendor_gstin || null,
+                        vendor_address: values.vendor_address || null,
+                        vendor_email: values.vendor_email || null,
+                        payment_term: values.payment_term || null,
+                        responsible_person: values.responsible_person || null,
+                        location: values.location || null,
+                        phone: values.phone || null,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateMasterData(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateMasterData(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertMasterData(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertMasterData(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertMasterData(getPayload(fName)))
+                        : [insertMasterData(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'contractor') {
-                const payload = {
-                    contractor_name: values.contractor_name,
-                    contractor_gstin: values.contractor_gstin || null,
-                    contractor_address: values.contractor_address || null,
-                    contractor_email: values.contractor_email || null,
-                    responsible_person: values.responsible_person || null,
-                    location: values.location || null,
-                    phone: values.phone || null,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        contractor_name: values.contractor_name,
+                        contractor_gstin: values.contractor_gstin || null,
+                        contractor_address: values.contractor_address || null,
+                        contractor_email: values.contractor_email || null,
+                        responsible_person: values.responsible_person || null,
+                        location: values.location || null,
+                        phone: values.phone || null,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateContractor(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateContractor(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertContractor(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertContractor(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertContractor(getPayload(fName)))
+                        : [insertContractor(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'site_location') {
-                const payload = {
-                    location: values.location,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        location: values.location,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateSiteLocation(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateSiteLocation(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertSiteLocation(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertSiteLocation(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertSiteLocation(getPayload(fName)))
+                        : [insertSiteLocation(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'site_engineer') {
-                const payload = {
-                    name: values.name,
-                    number: values.number,
-                    email: values.email,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        name: values.name,
+                        number: values.number,
+                        email: values.email,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateSiteEngineer(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateSiteEngineer(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertSiteEngineer(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertSiteEngineer(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertSiteEngineer(getPayload(fName)))
+                        : [insertSiteEngineer(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'terms_condition') {
                 const payload = {
@@ -1056,53 +1098,105 @@ export default function MasterManagement() {
                     res = await insertMasterData(payload);
                 }
             } else if (type === 'gh') {
-                const payload = {
-                    group_head: values.group_head,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        group_head: values.group_head,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateMasterData(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateMasterData(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertMasterData(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertMasterData(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertMasterData(getPayload(fName)))
+                        : [insertMasterData(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'uom') {
-                const payload = {
-                    uom: values.uom,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        uom: values.uom,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateMasterData(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateMasterData(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertMasterData(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertMasterData(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertMasterData(getPayload(fName)))
+                        : [insertMasterData(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'areaofuse') {
-                const payload = {
-                    area_of_use: values.area_of_use,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        area_of_use: values.area_of_use,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateMasterData(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateMasterData(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertMasterData(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertMasterData(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertMasterData(getPayload(fName)))
+                        : [insertMasterData(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (type === 'ghuom') {
-                const payload = {
-                    group_head: values.group_head || null,
-                    uom: values.uom || null,
-                    firm_name: null,
-                    firm_id: null,
+                const getPayload = (firmName?: string) => {
+                    const firmObj = firmName ? masterSheet?.firmObjects?.find((f) => f.name === firmName) : null;
+                    return {
+                        group_head: values.group_head || null,
+                        uom: values.uom || null,
+                        firm_name: firmName || null,
+                        firm_id: firmObj?.id ? Number(firmObj.id) : null,
+                    };
                 };
 
                 if (editingRecord) {
-                    res = await updateMasterData(editingRecord.id, payload);
+                    const firstFirm = selectedFirms[0] || values.firm_name || '';
+                    res = await updateMasterData(editingRecord.id, getPayload(firstFirm));
+
+                    if (selectedFirms.length > 1) {
+                        const extraPromises = selectedFirms.slice(1).map((fName) => insertMasterData(getPayload(fName)));
+                        await Promise.all(extraPromises);
+                    }
                 } else {
-                    res = await insertMasterData(payload);
+                    const insertPromises = selectedFirms.length > 0
+                        ? selectedFirms.map((fName) => insertMasterData(getPayload(fName)))
+                        : [insertMasterData(getPayload())];
+                    const results = await Promise.all(insertPromises);
+                    res = { success: results.every((r) => r.success) };
                 }
             } else if (editingRecord) {
                 if (type === 'dept') {
@@ -1361,10 +1455,10 @@ export default function MasterManagement() {
                 </TabsContent>
                 <TabsContent value="projects" className="flex-1 outline-none"><DataTable data={projectsData} columns={projectColumns} searchFields={['firm_name']} dataLoading={dataLoading} extraActions={<Button className="bg-purple-600" onClick={() => { pForm.reset(); setEditingRecord(null); setOpenDialog('project'); }}><Plus size={18} /> Add Project</Button>} /></TabsContent>
                 <TabsContent value="companies" className="flex-1 outline-none"><DataTable data={companiesData} columns={companyColumns} searchFields={['company_name']} dataLoading={dataLoading} extraActions={<Button className="bg-emerald-600" onClick={() => { cForm.reset(); setEditingRecord(null); setOpenDialog('company'); }}><Plus size={18} /> Add Company</Button>} /></TabsContent>
-                <TabsContent value="contractors" className="flex-1 outline-none"><DataTable data={contractors} columns={contractorColumns} searchFields={['contractor_name']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { conForm.reset(); setEditingRecord(null); setOpenDialog('contractor'); }}><Plus size={18} /> Add Contractor</Button>} /></TabsContent>
-                <TabsContent value="site_locations" className="flex-1 outline-none"><DataTable data={siteLocations} columns={siteLocationColumns} searchFields={['location']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { slForm.reset(); setEditingRecord(null); setOpenDialog('site_location'); }}><Plus size={18} /> Add Location</Button>} /></TabsContent>
-                <TabsContent value="site_engineers" className="flex-1 outline-none"><DataTable data={siteEngineers} columns={siteEngineerColumns} searchFields={['name', 'email']} dataLoading={dataLoading} extraActions={<Button className="bg-orange-600" onClick={() => { seForm.reset(); setEditingRecord(null); setOpenDialog('site_engineer'); }}><Plus size={18} /> Add Engineer</Button>} /></TabsContent>
-                <TabsContent value="terms_conditions" className="flex-1 outline-none"><DataTable data={termsAndConditions} columns={termsColumns} searchFields={['title', 'name']} dataLoading={dataLoading} extraActions={<Button className="bg-teal-600" onClick={() => { tcForm.reset(); setEditingRecord(null); setOpenDialog('terms_condition'); }}><Plus size={18} /> Add Condition</Button>} /></TabsContent>
+                <TabsContent value="contractors" className="flex-1 outline-none"><DataTable data={contractorsData} columns={contractorColumns} searchFields={['contractor_name']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { conForm.reset(); setEditingRecord(null); setOpenDialog('contractor'); }}><Plus size={18} /> Add Contractor</Button>} /></TabsContent>
+                <TabsContent value="site_locations" className="flex-1 outline-none"><DataTable data={siteLocationsData} columns={siteLocationColumns} searchFields={['location']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { slForm.reset(); setEditingRecord(null); setOpenDialog('site_location'); }}><Plus size={18} /> Add Location</Button>} /></TabsContent>
+                <TabsContent value="site_engineers" className="flex-1 outline-none"><DataTable data={siteEngineersData} columns={siteEngineerColumns} searchFields={['name', 'email']} dataLoading={dataLoading} extraActions={<Button className="bg-orange-600" onClick={() => { seForm.reset(); setEditingRecord(null); setOpenDialog('site_engineer'); }}><Plus size={18} /> Add Engineer</Button>} /></TabsContent>
+                <TabsContent value="terms_conditions" className="flex-1 outline-none"><DataTable data={termsData} columns={termsColumns} searchFields={['title', 'name']} dataLoading={dataLoading} extraActions={<Button className="bg-teal-600" onClick={() => { tcForm.reset(); setEditingRecord(null); setOpenDialog('terms_condition'); }}><Plus size={18} /> Add Condition</Button>} /></TabsContent>
                 <TabsContent value="doc_types" className="flex-1 outline-none">
                     <MasterListTab type="docDocumentType" title="Document Types" placeholder="Enter document type (e.g. Agreement, License, Certificate, Policy)" />
                 </TabsContent>
@@ -1385,9 +1479,8 @@ export default function MasterManagement() {
                     tcForm.reset();
                 }
             }}>
-                <DialogContent className={cn("z-50 w-screen h-[100dvh] max-h-[100dvh] max-w-none p-0 overflow-hidden rounded-none flex flex-col sm:w-[95vw] sm:h-auto sm:max-h-[90vh] sm:rounded-3xl sm:max-w-xl md:max-w-2xl lg:max-w-3xl [&>button]:z-30", openDialog === 'company' && "md:max-w-4xl")}>
-                    <div className={cn("h-2 w-full bg-gradient-to-r", openDialog === 'vendor' ? "from-indigo-600 to-cyan-600" : openDialog === 'item' ? "from-blue-600 to-indigo-600" : openDialog === 'dept' ? "from-orange-400 to-red-500" : "from-emerald-500 to-teal-600")} />
-                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden bg-background">
+                    <div className="flex flex-col h-full overflow-hidden">
                         <div className="sticky top-0 z-20 px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex-shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/40 shadow-sm">
                             <DialogHeader><DialogTitle className="text-lg sm:text-xl font-bold">{editingRecord ? 'Edit' : 'Add'} {openDialog === 'ghuom' ? 'Group Head & UOM' : openDialog?.toUpperCase()}</DialogTitle></DialogHeader>
                         </div>
@@ -1396,7 +1489,7 @@ export default function MasterManagement() {
                                 {openDialog === 'vendor' && (
                                     <Form {...vForm}>
                                         <form className="grid gap-4" onSubmit={vForm.handleSubmit(v => onSubmit(v, 'vendor'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={vForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={vForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={vForm.control} name="vendor_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Vendor Name</FormLabel>
@@ -1460,7 +1553,7 @@ export default function MasterManagement() {
                                 {openDialog === 'contractor' && (
                                     <Form {...conForm}>
                                         <form className="grid gap-4" onSubmit={conForm.handleSubmit(v => onSubmit(v, 'contractor'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={conForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={conForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={conForm.control} name="contractor_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Contractor Name</FormLabel>
@@ -1511,7 +1604,7 @@ export default function MasterManagement() {
                                 {openDialog === 'site_location' && (
                                     <Form {...slForm}>
                                         <form className="grid gap-4" onSubmit={slForm.handleSubmit(v => onSubmit(v, 'site_location'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={slForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={slForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={slForm.control} name="location" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Location</FormLabel>
@@ -1645,7 +1738,7 @@ export default function MasterManagement() {
                                 {openDialog === 'ghuom' && (
                                     <Form {...ghUomForm}>
                                         <form className="grid gap-4 m-5" onSubmit={ghUomForm.handleSubmit(v => onSubmit(v, 'ghuom'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={ghUomForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={ghUomForm.control} allFirms={masterSheet?.firms || []} />
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <FormField control={ghUomForm.control} name="group_head" render={({ field }) => (
                                                     <FormItem>
@@ -1690,7 +1783,7 @@ export default function MasterManagement() {
                                 {openDialog === 'gh' && (
                                     <Form {...ghForm}>
                                         <form className="grid gap-4 p-5" onSubmit={ghForm.handleSubmit(v => onSubmit(v, 'gh'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={ghForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={ghForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={ghForm.control} name="group_head" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Group Head</FormLabel>
@@ -1705,7 +1798,7 @@ export default function MasterManagement() {
                                 {openDialog === 'uom' && (
                                     <Form {...uomForm}>
                                         <form className="grid gap-4 p-5" onSubmit={uomForm.handleSubmit(v => onSubmit(v, 'uom'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={uomForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={uomForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={uomForm.control} name="uom" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>UOM Name</FormLabel>
@@ -1720,7 +1813,7 @@ export default function MasterManagement() {
                                 {openDialog === 'areaofuse' && (
                                     <Form {...aouForm}>
                                         <form className="grid gap-4 p-5" onSubmit={aouForm.handleSubmit(v => onSubmit(v, 'areaofuse'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={aouForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={aouForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={aouForm.control} name="area_of_use" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Area of Use</FormLabel>
@@ -1735,7 +1828,6 @@ export default function MasterManagement() {
                                 {openDialog === 'company' && (
                                     <Form {...cForm}>
                                         <form className="grid gap-6" onSubmit={cForm.handleSubmit(v => onSubmit(v, 'company'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={cForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={cForm.control} name="company_name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Company Name</FormLabel>
@@ -1800,7 +1892,6 @@ export default function MasterManagement() {
                                 {openDialog === 'terms_condition' && (
                                     <Form {...tcForm}>
                                         <form className="grid gap-4 p-5" onSubmit={tcForm.handleSubmit(v => onSubmit(v, 'terms_condition'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={tcForm.control} allFirms={masterSheet?.firms || []} /> */}
                                             <FormField control={tcForm.control} name="title" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Heading</FormLabel>
@@ -1822,7 +1913,7 @@ export default function MasterManagement() {
                                 {openDialog === 'site_engineer' && (
                                     <Form {...seForm}>
                                         <form className="grid gap-4 p-5" onSubmit={seForm.handleSubmit(v => onSubmit(v, 'site_engineer'), onInvalid)}>
-                                            {/* <ProjectSelectorField control={seForm.control} allFirms={masterSheet?.firms || []} /> */}
+                                            <ProjectSelectorField control={seForm.control} allFirms={masterSheet?.firms || []} />
                                             <FormField control={seForm.control} name="name" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Engineer Name</FormLabel>

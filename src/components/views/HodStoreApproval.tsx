@@ -9,12 +9,15 @@ import {
     fetchDirectRecords,
     updateStoreInHodApproval,
     createPaymentEntry,
+    resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
 import { supabase } from '@/lib/supabase';
 import { createTallyEntryRecord } from '@/services/tallyEntryService';
 import { useSheets } from '@/context/SheetsContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 
 import {
@@ -33,7 +36,7 @@ import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
-import { UserCheck, X, Package2, FileCheck, CheckCircle2, XCircle, AlertCircle, Gavel, CheckSquare, Truck } from 'lucide-react';
+import { UserCheck, X, Package2, FileCheck, CheckCircle2, XCircle, AlertCircle, Gavel, CheckSquare, Truck, Trash } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
@@ -106,6 +109,7 @@ export default () => {
     const [selectedItem, setSelectedItem] = useState<HodPendingData | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<HodHistoryData | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -355,6 +359,26 @@ export default () => {
         },
         { accessorKey: 'hodRemark', header: 'Remark' },
         { accessorKey: 'hodDate', header: 'Date' },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<HodHistoryData> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete HOD Check Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
+        },
     ];
 
     return (
@@ -593,6 +617,25 @@ export default () => {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="HOD Check"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo}
+                productName={deleteTarget?.productName}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetStoreInStage(deleteTarget.id, 'hod_check');
+                    toast.success(`HOD Check for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchAllData();
+                    updateTallyEntrySheet(true);
+                    updatePaymentsSheet(true);
+                    updateAll(true);
+                }}
+            />
         </div>
     );
 };

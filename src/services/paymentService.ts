@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/apiClient';
 import type { PaymentsSheet, PaymentHistory } from '@/types/sheets';
 import { hasNoFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
 
@@ -107,3 +108,18 @@ export async function fetchPaymentHistory(permittedFirms?: string[]): Promise<Pa
         throw error;
     }
 }
+
+/**
+ * Reset Payment Stage:
+ * Clears actual date, sets status back to Pending, and removes payment_history record
+ */
+export async function resetPaymentStage(id: number): Promise<boolean> {
+    try {
+        await apiClient.post(`/store/stage-reset/payments/${id}`);
+        return true;
+    } catch (error) {
+        console.error(`Error resetting payment stage for ID ${id}:`, error);
+        throw error;
+    }
+}
+

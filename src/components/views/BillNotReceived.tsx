@@ -24,18 +24,22 @@ import {
     fetchStoreInRecords,
     updateStoreInBillStatus,
     uploadBillCopy,
+    resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
-import { Truck } from 'lucide-react';
-import { Tabs, TabsContent } from '../ui/tabs';
+import { Truck, Trash } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { filterByFirmAccess } from '@/lib/firmAccess';
-import { getPublicFileUrl } from '@/lib/utils';
+import { getPublicFileUrl, formatDateTime, parseCustomDate } from '@/lib/utils';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 interface StoreInPendingData {
+    id?: number;
     liftNumber: string;
     indentNo: string;
     billNo: string;
@@ -58,7 +62,7 @@ interface StoreInPendingData {
     indentNumber: string;
     product: string;
     uom: string;
-    quantity: number
+    quantity: number;
     poCopy: string;
 
     billStatus: string;
@@ -69,6 +73,7 @@ interface StoreInPendingData {
     firm_id?: number;
     challanNo: string;
     challanImage: string;
+    actual11?: string;
 }
 
 
@@ -80,9 +85,11 @@ export default () => {
 
     const [allData, setAllData] = useState<StoreInRecord[]>([]);
     const [tableData, setTableData] = useState<RecieveItemsData[]>([]);
+    const [historyData, setHistoryData] = useState<RecieveItemsData[]>([]);
     const [selectedIndent, setSelectedIndent] = useState<RecieveItemsData | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [dataLoading, setDataLoading] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<RecieveItemsData | null>(null);
 
     const fetchAllData = async () => {
         setDataLoading(true);
@@ -108,41 +115,51 @@ export default () => {
             { id: (i: any) => i.firm_id, name: (i: any) => i.firmNameMatch }
         );
 
+        const mapItem = (i: any): RecieveItemsData => ({
+            id: i.id,
+            liftNumber: i.liftNumber || '',
+            indentNo: i.indentNo || '',
+            billNo: String(i.billNo) || '',
+            vendorName: i.vendorName || '',
+            productName: i.productName || '',
+            qty: i.qty || 0,
+            typeOfBill: i.typeOfBill || '',
+            billAmount: i.billAmount || 0,
+            paymentType: i.paymentType || '',
+            advanceAmountIfAny: String(i.advanceAmountIfAny) || '',
+            photoOfBill: i.photoOfBill || '',
+            transportationInclude: i.transportationInclude || '',
+            transporterName: i.transporterName || '',
+            amount: i.amount || 0,
+            poDate: i.poDate || '',
+            plannedDate: i.planned11 || '',
+            poNumber: i.poNumber || '',
+            vendor: i.vendor || '',
+            indentNumber: i.indentNumber || '',
+            product: i.product || '',
+            uom: i.uom || '',
+            quantity: i.qty || 0,
+            poCopy: i.poCopy || '',
+            billStatus: i.billStatus || '',
+            leadTimeToLiftMaterial: i.leadTimeToLiftMaterial || 0,
+            discountAmount: i.discountAmount || 0,
+            firmNameMatch: i.firmNameMatch || '',
+            firm_id: i.firm_id,
+            challanNo: i.challanNo || '',
+            challanImage: i.challanImage || '',
+            actual11: i.actual11 || '',
+        });
+
         setTableData(
             filteredByFirm
                 .filter((i) => i.planned11 !== '' && i.actual11 === '')
-                .map((i) => ({
-                    liftNumber: i.liftNumber || '',
-                    indentNo: i.indentNo || '',
-                    billNo: String(i.billNo) || '',
-                    vendorName: i.vendorName || '',
-                    productName: i.productName || '',
-                    qty: i.qty || 0,
-                    typeOfBill: i.typeOfBill || '',
-                    billAmount: i.billAmount || 0,
-                    paymentType: i.paymentType || '',
-                    advanceAmountIfAny: String(i.advanceAmountIfAny) || '',
-                    photoOfBill: i.photoOfBill || '',
-                    transportationInclude: i.transportationInclude || '',
-                    transporterName: i.transporterName || '',
-                    amount: i.amount || 0,
-                    poDate: i.poDate || '',
-                    plannedDate: i.planned11 || '',
-                    poNumber: i.poNumber || '',
-                    vendor: i.vendor || '',
-                    indentNumber: i.indentNumber || '',
-                    product: i.product || '',
-                    uom: i.uom || '',
-                    quantity: i.qty || 0, // Using qty from mapping
-                    poCopy: i.poCopy || '',
-                    billStatus: i.billStatus || '',
-                    leadTimeToLiftMaterial: i.leadTimeToLiftMaterial || 0,
-                    discountAmount: i.discountAmount || 0,
-                    firmNameMatch: i.firmNameMatch || '',
-                    firm_id: i.firm_id,
-                    challanNo: i.challanNo || '',
-                    challanImage: i.challanImage || '',
-                }))
+                .map(mapItem)
+        );
+
+        setHistoryData(
+            filteredByFirm
+                .filter((i) => i.planned11 !== '' && i.actual11 !== '')
+                .map(mapItem)
         );
     }, [allData, user?.username, user?.firm_access]);
 
@@ -274,6 +291,53 @@ export default () => {
         },
     ];
 
+    const historyColumns: ColumnDef<RecieveItemsData>[] = [
+        { accessorKey: 'liftNumber', header: 'Lift No.' },
+        { accessorKey: 'indentNo', header: 'Indent No.' },
+        { accessorKey: 'vendorName', header: 'Vendor Name' },
+        { accessorKey: 'productName', header: 'Product' },
+        { accessorKey: 'qty', header: 'Qty' },
+        { accessorKey: 'billStatus', header: 'Bill Status' },
+        {
+            accessorKey: 'actual11',
+            header: 'Received Date',
+            cell: ({ getValue }) => <div>{getValue() ? formatDateTime(parseCustomDate(getValue() as string)) : '-'}</div>,
+        },
+        {
+            accessorKey: 'photoOfBill',
+            header: 'Photo Of Bill',
+            cell: ({ row }) => {
+                const photo = row.original.photoOfBill;
+                const fileUrl = getPublicFileUrl(photo);
+                return fileUrl ? (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                        View
+                    </a>
+                ) : null;
+            },
+        },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<RecieveItemsData> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Bill Status Update"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
+        },
+    ];
+
 
 
 
@@ -373,8 +437,9 @@ export default () => {
                     <Heading
                         heading="Bill Status"
                         subtext="Receive items from purchase orders"
+                        tabs
                         pendingCount={tableData.length}
-                    // tabs
+                        historyCount={historyData.length}
                     >
                         <Truck size={50} className="text-primary" />
                     </Heading>
@@ -401,6 +466,21 @@ export default () => {
                                 'transportationInclude',
                                 'transporterName',
                                 'amount'
+                            ]}
+                            dataLoading={dataLoading}
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="history">
+                        <DataTable
+                            data={historyData}
+                            columns={historyColumns}
+                            searchFields={[
+                                'liftNumber',
+                                'indentNo',
+                                'vendorName',
+                                'productName',
+                                'billStatus',
                             ]}
                             dataLoading={dataLoading}
                         />
@@ -536,6 +616,22 @@ export default () => {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Bill Not Received"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo}
+                productName={deleteTarget?.productName}
+                onConfirm={async () => {
+                    if (!deleteTarget || !deleteTarget.id) return;
+                    await resetStoreInStage(deleteTarget.id, 'bill_not_received');
+                    toast.success(`Bill Status for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchAllData();
+                }}
+            />
         </div>
     );
 };

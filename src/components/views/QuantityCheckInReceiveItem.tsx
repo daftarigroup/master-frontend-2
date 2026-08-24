@@ -8,6 +8,7 @@ import {
     fetchStoreInRecords,
     updateStoreInQuantityCheck,
     uploadBillCopy,
+    resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
 
@@ -27,7 +28,7 @@ import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
-import { Truck } from 'lucide-react';
+import { Truck, Trash } from 'lucide-react';
 import { Tabs, TabsContent } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
@@ -36,6 +37,8 @@ import Heading from '../element/Heading';
 import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 interface StoreInPendingData {
     liftNumber: string;
@@ -65,6 +68,7 @@ interface StoreInPendingData {
 }
 
 interface StoreInHistoryData {
+    id?: number;
     liftNumber: string;
     indentNumber: string;
     billNo: string;
@@ -130,6 +134,7 @@ export default () => {
     const [historyData, setHistoryData] = useState<StoreInHistoryData[]>([]);
     const [selectedItem, setSelectedItem] = useState<StoreInPendingData | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<StoreInHistoryData | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -202,6 +207,7 @@ export default () => {
                 .filter((i) => i.actual7 !== '')
                 .sort((a, b) => (b.liftNumber || '').localeCompare(a.liftNumber || '', undefined, { numeric: true, sensitivity: 'base' }))
                 .map((i) => ({
+                    id: i.id,
                     liftNumber: i.liftNumber || '',
                     indentNumber: i.indentNo || '',
                     billNo: i.billNo || '',
@@ -504,6 +510,26 @@ export default () => {
             header: 'Planned Date',
             cell: ({ row }) => formatPlannedDate(row.original.planned7Date)
         },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<StoreInHistoryData> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete GRN Rejection Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
+        },
     ];
 
     function onError(e: any) {
@@ -768,6 +794,23 @@ export default () => {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Reject for GRN"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNumber}
+                productName={deleteTarget?.productName}
+                onConfirm={async () => {
+                    if (!deleteTarget || !deleteTarget.id) return;
+                    await resetStoreInStage(deleteTarget.id, 'reject_grn');
+                    toast.success(`GRN Rejection for Indent ${deleteTarget.indentNumber} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchAllData();
+                    updateAll();
+                }}
+            />
         </div>
     );
 };

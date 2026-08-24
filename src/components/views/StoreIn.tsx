@@ -15,7 +15,7 @@ import {
     DialogTrigger,
     DialogClose,
 } from '../ui/dialog';
-import { Truck, Building, FileText, IndianRupee, Plus, Pencil } from 'lucide-react';
+import { Truck, Building, FileText, IndianRupee, Plus, Pencil, Trash } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '../ui/form';
 import { toast } from 'sonner';
@@ -29,6 +29,8 @@ import Heading from '../element/Heading';
 import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
 import { filterByFirmAccess, isAllowedFirm } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
 import { useSheets } from '@/context/SheetsContext';
@@ -42,6 +44,7 @@ import {
     updateLiftHistoryAdmin,
     createDirectRecord,
     createPaymentEntry,
+    resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
 import { createFullkittingEntry } from '@/services/fullkittingService';
@@ -247,6 +250,7 @@ export default () => {
     const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
     const [vendorOptions, setVendorOptions] = useState<{ label: string; value: string }[]>([]);
     const [productOptions, setProductOptions] = useState<{ label: string; value: string }[]>([]);
+    const [deleteTarget, setDeleteTarget] = useState<StoreInHistoryData | null>(null);
 
     const fetchAllData = async () => {
         setIndentLoading(true);
@@ -613,9 +617,29 @@ export default () => {
                     Edit
                 </Button>
             ),
+        },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<HistoryData> }) => {
+                const canDelete = canDeleteStoreStage(user);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Store Check Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
         }] as ColumnDef<HistoryData>[],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    ], [setEditHistoryRow, setEditDeliveryDate, setEditPhotoFile]);
+    ], [setEditHistoryRow, setEditDeliveryDate, setEditPhotoFile, user?.role, user?.administrate]);
 
     const schema = z.object({
         status: z.enum(['Received', 'Not Received']),
@@ -1737,6 +1761,23 @@ export default () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Store Check"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo}
+                productName={deleteTarget?.productName}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetStoreInStage(deleteTarget.id, 'store_check');
+                    toast.success(`Store Check details for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchAllData();
+                    updateAll();
+                }}
+            />
         </div>
     );
 };

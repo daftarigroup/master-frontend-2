@@ -20,7 +20,7 @@ import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
-import { Calculator, Search } from 'lucide-react';
+import { Calculator, Search, Trash } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { hasPageAccess } from '@/components/element/PermissionGuard';
@@ -30,10 +30,13 @@ import { Input } from '../ui/input';
 import {
     fetchTallyEntryRecords,
     updateTallyEntryRecord,
+    resetTallyEntryStage,
     type TallyEntryRecord
 } from '@/services/tallyEntryService';
 
 import { formatDate, formatDateTime, getPublicFileUrl } from '@/lib/utils';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 export default function TallyEntry() {
     const { user } = useAuth();
@@ -43,6 +46,7 @@ export default function TallyEntry() {
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedPartyName, setSelectedPartyName] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [deleteTarget, setDeleteTarget] = useState<TallyEntryRecord | null>(null);
 
     const fetchData = async () => {
         setDataLoading(true);
@@ -310,6 +314,26 @@ export default function TallyEntry() {
             },
         },
         { accessorKey: 'remarks4', header: 'Remarks 4' },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<TallyEntryRecord> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Tally Entry"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
+        }
     ];
 
     const schema = z.object({
@@ -565,6 +589,23 @@ export default function TallyEntry() {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Take Entry by Tally"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNumber}
+                productName={deleteTarget?.productName}
+                customMessage={`Are you sure you want to delete and reset the Tally Entry for Indent ${deleteTarget?.indentNumber || ''}${deleteTarget?.productName ? ` (${deleteTarget.productName})` : ''}? This will return the item to Pending Tally Entry.`}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetTallyEntryStage(deleteTarget.id, 'tally_entry');
+                    toast.success(`Tally entry for ${deleteTarget.indentNumber} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchData();
+                }}
+            />
         </div>
     );
 }

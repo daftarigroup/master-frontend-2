@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/apiClient';
 import { hasNoFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
 
 /**
@@ -230,3 +231,18 @@ export async function uploadBiltyImage(file: File, indentNumber: string): Promis
         throw error;
     }
 }
+
+/**
+ * Reset Freight Payment stage:
+ * Clears actual date and payment details, moving it back to pending freight payment
+ */
+export async function resetFullkittingStage(id: number): Promise<boolean> {
+    try {
+        await apiClient.post(`/store/stage-reset/fullkitting/${id}`);
+        return true;
+    } catch (error) {
+        console.error(`Error resetting fullkitting stage for ID ${id}:`, error);
+        throw error;
+    }
+}
+

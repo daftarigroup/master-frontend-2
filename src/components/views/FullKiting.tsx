@@ -22,13 +22,15 @@ import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { Truck, ExternalLink } from 'lucide-react';
+import { Truck, ExternalLink, Trash } from 'lucide-react';
 import Heading from '../element/Heading';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { fetchFullkittingRecords, updateFullkittingRecord, uploadBiltyImage, type FullkittingRecord } from '@/services/fullkittingService';
+import { fetchFullkittingRecords, updateFullkittingRecord, uploadBiltyImage, resetFullkittingStage, type FullkittingRecord } from '@/services/fullkittingService';
 import { createPaymentEntry } from '@/services/storeInService';
 import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 // Helper function to format date as "YYYY-MM-DD"
 function formatDate(date: Date): string {
@@ -46,6 +48,7 @@ export default function FullKiting() {
     const [openDialog, setOpenDialog] = useState(false);
     const [dataLoading, setDataLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<FullkittingRecord | null>(null);
 
     const fetchData = async () => {
         try {
@@ -157,6 +160,26 @@ export default function FullKiting() {
                     </Button>
                 ) : '-';
             }
+        },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<FullkittingRecord> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Freight Payment Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
         }
     ];
 
@@ -493,6 +516,22 @@ export default function FullKiting() {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Freight Payment"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNumber}
+                productName={deleteTarget?.productName}
+                onConfirm={async () => {
+                    if (!deleteTarget || !deleteTarget.id) return;
+                    await resetFullkittingStage(deleteTarget.id);
+                    toast.success(`Freight Payment for Indent ${deleteTarget.indentNumber} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchData();
+                }}
+            />
         </div>
     );
 }

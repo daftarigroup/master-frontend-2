@@ -21,13 +21,16 @@ import { Input } from '../ui/input';
 import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { ShoppingCart, X, Truck, FileText, IndianRupee, CreditCard, User, Phone, CheckCircle2, Package, Info, Upload, Pencil, Check } from 'lucide-react';
+import { ShoppingCart, X, Truck, FileText, IndianRupee, CreditCard, User, Phone, CheckCircle2, Package, Info, Upload, Pencil, Check, Trash } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
+import { resetLiftingStage } from '@/services/storeInService';
 import {
     fetchIndentRecords,
     fetchStoreInRecords,
@@ -187,32 +190,32 @@ export default function GetPurchase() {
     const [indentRecords, setIndentRecords] = useState<GetLiftIndentRecord[]>([]);
     const [storeInRecords, setStoreInRecords] = useState<GetLiftStoreInRecord[]>([]);
     const [uploadingLiftNo, setUploadingLiftNo] = useState<string | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<HistoryData | null>(null);
 
+    const fetchAllData = async () => {
+        if (!user?.username) return;
+        setLoading(true);
+        try {
+            const firms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
+            const [vendors, indents, storeIns] = await Promise.all([
+                fetchVendorOptions(),
+                fetchIndentRecords(firms),
+                fetchStoreInRecords(firms),
+            ]);
+
+            setVendorOptions(vendors);
+            setIndentRecords(indents);
+            setStoreInRecords(storeIns);
+            updateAll(true);
+        } catch (error) {
+            console.error('Failed to fetch data:', error);
+            toast.error('Failed to load data');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchAllData = async () => {
-            if (!user?.username) return;
-            setLoading(true);
-            try {
-                const firms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
-                const [vendors, indents, storeIns] = await Promise.all([
-                    fetchVendorOptions(),
-                    fetchIndentRecords(firms),
-                    fetchStoreInRecords(firms),
-                ]);
-
-                setVendorOptions(vendors);
-                setIndentRecords(indents);
-                setStoreInRecords(storeIns);
-                updateAll(true);
-            } catch (error) {
-                console.error('Failed to fetch data:', error);
-                toast.error('Failed to load data');
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchAllData();
     }, [user?.username]);
 
@@ -619,6 +622,26 @@ export default function GetPurchase() {
             accessorKey: 'pendingLiftQty',
             header: 'Pending Qty',
             cell: ({ getValue }) => <div className="font-medium text-orange-600">{(getValue() as number) || 0}</div>,
+        },
+        {
+            id: 'stage_delete_action',
+            header: 'Action',
+            cell: ({ row }: { row: Row<HistoryData> }) => {
+                const canDelete = canDeleteStoreStage(user as any);
+                if (!canDelete) return null;
+                return (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(row.original)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-7 px-2 text-xs"
+                        title="Delete Lifting Data"
+                    >
+                        <Trash className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                );
+            },
         },
     ];
 
@@ -1577,6 +1600,29 @@ export default function GetPurchase() {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Lifting"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.indentNo}
+                productName={deleteTarget?.product}
+                customMessage={`Are you sure you want to delete and reset the Lifting stage for Indent ${deleteTarget?.indentNo || ''}${deleteTarget?.product ? ` (${deleteTarget.product})` : ''}? This will delete the store-in and linked transport records, restoring this item to Pending Lifting.`}
+                onConfirm={async () => {
+                    if (!deleteTarget) return;
+                    await resetLiftingStage({
+                        id: deleteTarget.id,
+                        liftNumber: deleteTarget.liftNumber,
+                        indentNo: deleteTarget.indentNo,
+                        productName: deleteTarget.product,
+                    });
+                    toast.success(`Lifting record for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    setDeleteTarget(null);
+                    await fetchAllData();
+                    updateAll();
+                }}
+            />
 
         </div>
     );

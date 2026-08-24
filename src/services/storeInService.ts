@@ -696,3 +696,42 @@ export async function createDirectRecord(recordData: any) {
         throw error;
     }
 }
+
+// ==================== STAGE DELETION & RESET FUNCTIONS ====================
+
+/**
+ * Reset a specific stage of store_in (store_check, hod_check, reject_grn, bill_not_received)
+ * and cascade reset downstream stages
+ */
+export async function resetStoreInStage(
+    id: number,
+    stage: 'store_check' | 'hod_check' | 'reject_grn' | 'bill_not_received'
+): Promise<boolean> {
+    try {
+        await apiClient.post(`/store/stage-reset/store-in/${id}`, { stage });
+        return true;
+    } catch (error) {
+        console.error(`Error resetting store-in stage '${stage}':`, error);
+        throw error;
+    }
+}
+
+/**
+ * Reset/Delete Lifting Stage:
+ * Removes store_in record, removes linked fullkitting/payments/tally, and restores indent to Pending Lifting
+ */
+export async function resetLiftingStage(data: {
+    id?: number;
+    liftNumber?: string;
+    indentNo?: string;
+    productName?: string;
+}): Promise<boolean> {
+    try {
+        await apiClient.post('/store/stage-reset/lifting', data);
+        return true;
+    } catch (error) {
+        console.error('Error resetting lifting stage:', error);
+        throw error;
+    }
+}
+

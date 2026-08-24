@@ -249,3 +249,21 @@ export async function createTallyEntryRecord(record: any) {
         throw error;
     }
 }
+
+/**
+ * Reset specific tally stage (audit, rectify, reaudit, tally_entry, again_audit)
+ * and cascade reset downstream stages
+ */
+export async function resetTallyEntryStage(
+    id: number,
+    stage: 'audit' | 'rectify' | 'reaudit' | 'tally_entry' | 'again_audit' | 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'stage5'
+): Promise<boolean> {
+    try {
+        await apiClient.post(`/store/stage-reset/tally-entry/${id}`, { stage });
+        return true;
+    } catch (error) {
+        console.error(`Error resetting tally entry stage '${stage}' for ID ${id}:`, error);
+        throw error;
+    }
+}
+
