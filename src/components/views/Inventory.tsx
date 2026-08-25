@@ -68,30 +68,50 @@ export default () => {
     const filteredIndents = useMemo(() => {
         if (selectedProjectId === 'All') return indentSheet || [];
         const selId = Number(selectedProjectId);
-        return (indentSheet || []).filter((i: any) => Number(i.firm_id || i.firmId) === selId);
-    }, [indentSheet, selectedProjectId]);
+        const selName = selectedFirm?.name?.trim().toLowerCase();
+        return (indentSheet || []).filter((i: any) => {
+            if (selId && Number(i.firm_id || i.firmId) === selId) return true;
+            if (selName && (i.firmName || i.firm_name || i.firmNameMatch)?.trim().toLowerCase() === selName) return true;
+            return false;
+        });
+    }, [indentSheet, selectedProjectId, selectedFirm?.name]);
 
     const filteredStoreIns = useMemo(() => {
         if (selectedProjectId === 'All') return storeInSheet || [];
         const selId = Number(selectedProjectId);
-        return (storeInSheet || []).filter((s: any) => Number(s.firm_id || s.firmId) === selId);
-    }, [storeInSheet, selectedProjectId]);
+        const selName = selectedFirm?.name?.trim().toLowerCase();
+        return (storeInSheet || []).filter((s: any) => {
+            if (selId && Number(s.firm_id || s.firmId) === selId) return true;
+            if (selName && (s.firmNameMatch || s.firm_name || s.firmName)?.trim().toLowerCase() === selName) return true;
+            return false;
+        });
+    }, [storeInSheet, selectedProjectId, selectedFirm?.name]);
 
     const filteredIssues = useMemo(() => {
         if (selectedProjectId === 'All') return issueSheet || [];
         const selId = Number(selectedProjectId);
-        return (issueSheet || []).filter((is: any) => Number(is.firm_id || is.firmId) === selId);
-    }, [issueSheet, selectedProjectId]);
+        const selName = selectedFirm?.name?.trim().toLowerCase();
+        return (issueSheet || []).filter((is: any) => {
+            if (selId && Number(is.firm_id || is.firmId) === selId) return true;
+            if (selName && (is.projectName || is.firm_name || is.firmNameMatch)?.trim().toLowerCase() === selName) return true;
+            return false;
+        });
+    }, [issueSheet, selectedProjectId, selectedFirm?.name]);
 
     const filteredTransfers = useMemo(() => {
         if (!stockTransferSheet) return [];
         if (selectedProjectId === 'All') return stockTransferSheet;
         const selId = Number(selectedProjectId);
-        return stockTransferSheet.filter((t: any) => 
-            Number(t.from_firm_id || t.fromFirmId) === selId || 
-            Number(t.to_firm_id || t.toFirmId) === selId
-        );
-    }, [stockTransferSheet, selectedProjectId]);
+        const selName = selectedFirm?.name?.trim().toLowerCase();
+        return stockTransferSheet.filter((t: any) => {
+            if (selId && (Number(t.from_firm_id || t.fromFirmId) === selId || Number(t.to_firm_id || t.toFirmId) === selId)) return true;
+            if (selName && (
+                (t.fromProject || t.from_project)?.trim().toLowerCase() === selName ||
+                (t.toProject || t.to_project)?.trim().toLowerCase() === selName
+            )) return true;
+            return false;
+        });
+    }, [stockTransferSheet, selectedProjectId, selectedFirm?.name]);
 
     const tableData = useMemo(() => {
         const inventoryBase = inventorySheet || [];
@@ -103,8 +123,18 @@ export default () => {
 
         const selectedProjectName = selectedProjectId === 'All' ? 'All' : (selectedFirm?.name || 'All');
 
+        const projectFilteredInventory = selectedProjectId === 'All'
+            ? filteredInventory
+            : filteredInventory.filter((i: any) => {
+                const selId = Number(selectedProjectId);
+                const selName = selectedFirm?.name?.trim().toLowerCase();
+                if (selId && Number(i.firm_id || i.firmId) === selId) return true;
+                if (selName && (i.firmName || i.firm_name || i.firmNameMatch)?.trim().toLowerCase() === selName) return true;
+                return false;
+            });
+
         const calculated = calculateRealInventory(
-            filteredInventory,
+            projectFilteredInventory,
             filteredIndents,
             filteredStoreIns,
             filteredIssues,
@@ -112,19 +142,8 @@ export default () => {
             selectedProjectName
         ) as unknown as InventoryRecord[];
 
-        if (selectedProjectId === 'All') return calculated;
-
-        // Filter to only show items with any activity for the selected project
-        return calculated.filter(item =>
-            (item.indented || 0) > 0 ||
-            (item.approved || 0) > 0 ||
-            (item.liftingQty || 0) > 0 ||
-            (item.outQuantity || 0) > 0 ||
-            (item.inTransit || 0) > 0 ||
-            (item.purchaseReturn || 0) > 0 ||
-            (item.issueReturn || 0) > 0 ||
-            (item.stockTransferReceiving || 0) > 0 ||
-            (item.stockTransferGiven || 0) > 0
+        return [...calculated].sort((a, b) =>
+            (a.itemName || '').localeCompare(b.itemName || '', undefined, { numeric: true, sensitivity: 'base' })
         );
     }, [inventorySheet, filteredIndents, filteredStoreIns, filteredIssues, filteredTransfers, selectedProjectId, selectedFirm?.name, user?.firm_access]);
 

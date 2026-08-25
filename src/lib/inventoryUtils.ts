@@ -2,7 +2,7 @@ import type { InventorySheet, IndentSheet, StoreInSheet, IssueSheet } from '../t
 
 /**
  * Calculates real-time inventory metrics by aggregating transactional data
- * across Indents, Store-Ins, and Issues.
+ * across Indents, Store-Ins, Issues, and Stock Transfers.
  */
 export function calculateRealInventory(
     inventoryMaster: InventorySheet[],
@@ -12,10 +12,40 @@ export function calculateRealInventory(
     transfers: any[] = [],
     currentProject: string = 'All'
 ): InventorySheet[] {
+    const curProjLower = (currentProject || 'All').trim().toLowerCase();
+    const isAllProjects = curProjLower === 'all' || !currentProject;
+
+    // Helper to check if a record matches the current project
+    const matchesProject = (firmName?: string, firmId?: any) => {
+        if (isAllProjects) return true;
+        if (firmName && firmName.trim().toLowerCase() === curProjLower) return true;
+        if (firmId && String(firmId) === currentProject) return true;
+        return false;
+    };
+
+    // Filter transaction data to current project if specified
+    const projectIndents = isAllProjects
+        ? indents
+        : indents.filter(i => matchesProject(i.firmName || (i as any).firm_name || (i as any).firmNameMatch, i.firmId || (i as any).firm_id));
+
+    const projectStoreIns = isAllProjects
+        ? storeIns
+        : storeIns.filter(s => matchesProject(s.firmNameMatch || (s as any).firm_name || (s as any).firmName, (s as any).firm_id || (s as any).firmId));
+
+    const projectIssues = isAllProjects
+        ? issues
+        : issues.filter(is => matchesProject(is.projectName || (is as any).firm_name || (is as any).firmNameMatch, (is as any).firm_id || (is as any).firmId));
+
+    const projectMaster = isAllProjects
+        ? inventoryMaster
+        : inventoryMaster.filter(r => matchesProject(r.firmName || (r as any).firm_name || (r as any).firmNameMatch, (r as any).firm_id || (r as any).firmId));
+
     // 1. Group transactions by product name for efficient lookup
-    const indentSummary = groupAndSum(indents, 'productName', ['quantity', 'approvedQuantity']);
-    const storeInDetailed = storeIns.reduce((acc, s) => {
+    const indentSummary = groupAndSum(projectIndents, 'productName', ['quantity', 'approvedQuantity']);
+    
+    const storeInDetailed = projectStoreIns.reduce((acc, s) => {
         const key = (s.productName || '').trim();
+        if (!key) return acc;
         if (!acc[key]) {
             acc[key] = { liftingQty: 0, stockTransfer: 0, purchaseQuantity: 0, purchaseReturn: 0 };
         }
@@ -34,8 +64,9 @@ export function calculateRealInventory(
         return acc;
     }, {} as Record<string, any>);
     
-    const issueSummary = issues.reduce((acc, is) => {
+    const issueSummary = projectIssues.reduce((acc, is) => {
         const key = (is.productName || '').trim();
+        if (!key) return acc;
         if (!acc[key]) {
             acc[key] = { givenQty: 0, rejectedDamageQty: 0 };
         }
@@ -54,24 +85,26 @@ export function calculateRealInventory(
 
     const transferSummary = (transfers || []).reduce((acc, t) => {
         const key = (t.productName || '').trim();
+        if (!key) return acc;
         if (!acc[key]) acc[key] = { in: 0, out: 0, totalVolume: 0, sources: new Set<string>(), destinations: new Set<string>() };
         
         const qty = Number(t.quantity) || 0;
         acc[key].totalVolume += qty;
 
-        const curProjLower = currentProject.trim().toLowerCase();
         const toProjLower = (t.toProject || '').trim().toLowerCase();
         const fromProjLower = (t.fromProject || '').trim().toLowerCase();
+        const toFirmIdStr = String(t.to_firm_id || t.toFirmId || '');
+        const fromFirmIdStr = String(t.from_firm_id || t.fromFirmId || '');
 
-        if (currentProject === 'All') {
+        if (isAllProjects) {
             if (t.fromProject) acc[key].sources.add(t.fromProject);
             if (t.toProject) acc[key].destinations.add(t.toProject);
         } else {
-            if (toProjLower === curProjLower) {
+            if (toProjLower === curProjLower || toFirmIdStr === currentProject) {
                 acc[key].in += qty;
                 if (t.fromProject) acc[key].sources.add(t.fromProject);
             }
-            if (fromProjLower === curProjLower) {
+            if (fromProjLower === curProjLower || fromFirmIdStr === currentProject) {
                 acc[key].out += qty;
                 if (t.toProject) acc[key].destinations.add(t.toProject);
             }
@@ -79,20 +112,22 @@ export function calculateRealInventory(
         return acc;
     }, {} as Record<string, { in: number; out: number; totalVolume: number; sources: Set<string>; destinations: Set<string> }>);
 
-    // 1. Collect ALL unique item names from all sources to ensure we don't miss anything (e.g. transfers of new items)
+    // 1. Collect ALL unique item names involved with the project (or all projects)
     const allItemNames = new Set([
-        ...inventoryMaster.map(i => (i.itemName || '').trim()),
+        ...projectMaster.map(i => (i.itemName || '').trim()),
         ...Object.keys(indentSummary),
         ...Object.keys(storeInDetailed),
         ...Object.keys(issueSummary),
         ...Object.keys(transferSummary)
     ]);
 
-    return Array.from(allItemNames).map(itemName => {
+    // Sort alphabetically by default for clean and deterministic presentation
+    const sortedItemNames = Array.from(allItemNames)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+    return sortedItemNames.map(itemName => {
         const key = itemName;
-        // Match against the trimmed product name: stored names can carry stray
-        // leading/trailing/double spaces, and itemName here is already trimmed.
-        // Comparing the raw name would miss those rows and blank out uom/groupHead.
         const nameMatches = (n?: string) => (n || '').trim() === itemName;
         const relevantMasterRecords = inventoryMaster.filter(i => (i.itemName || '').trim() === itemName);
         
@@ -102,7 +137,7 @@ export function calculateRealInventory(
         let groupHead = '';
         let uom = '';
 
-        if (currentProject === 'All') {
+        if (isAllProjects) {
             opening = relevantMasterRecords.reduce((sum, r) => sum + (Number(r.opening) || 0), 0);
             masterStockTransfer = relevantMasterRecords.reduce((sum, r) => sum + (Number(r.stockTransfer) || 0), 0);
             
@@ -112,17 +147,19 @@ export function calculateRealInventory(
             
             // Try Master -> Indents -> StoreIns -> Issues -> StockTransfers
             groupHead = first?.groupHead ||
-                        indents.find(i => nameMatches(i.productName))?.groupHead ||
-                        issues.find(is => nameMatches(is.productName))?.groupHead ||
+                        projectIndents.find(i => nameMatches(i.productName))?.groupHead ||
+                        projectIssues.find(is => nameMatches(is.productName))?.groupHead ||
                         transfers.find(t => nameMatches(t.productName))?.groupHead || '';
 
             uom = first?.uom ||
-                  indents.find(i => nameMatches(i.productName))?.uom ||
-                  storeIns.find(s => nameMatches(s.productName))?.uom ||
-                  issues.find(is => nameMatches(is.productName))?.uom ||
+                  projectIndents.find(i => nameMatches(i.productName))?.uom ||
+                  projectStoreIns.find(s => nameMatches(s.productName))?.uom ||
+                  projectIssues.find(is => nameMatches(is.productName))?.uom ||
                   transfers.find(t => nameMatches(t.productName))?.uom || '';
         } else {
-            const specific = relevantMasterRecords.find(r => r.firmName === currentProject);
+            const specific = relevantMasterRecords.find(r => 
+                matchesProject(r.firmName || (r as any).firm_name || (r as any).firmNameMatch, (r as any).firm_id || (r as any).firmId)
+            );
             opening = Number(specific?.opening) || 0;
             masterStockTransfer = Number(specific?.stockTransfer) || 0;
             
@@ -131,20 +168,20 @@ export function calculateRealInventory(
             
             // Try Master -> Indents -> StoreIns -> Issues -> StockTransfers
             groupHead = meta?.groupHead ||
-                        indents.find(i => nameMatches(i.productName))?.groupHead ||
-                        issues.find(is => nameMatches(is.productName))?.groupHead ||
+                        projectIndents.find(i => nameMatches(i.productName))?.groupHead ||
+                        projectIssues.find(is => nameMatches(is.productName))?.groupHead ||
                         transfers.find(t => nameMatches(t.productName))?.groupHead || '';
 
             uom = meta?.uom ||
-                  indents.find(i => nameMatches(i.productName))?.uom ||
-                  storeIns.find(s => nameMatches(s.productName))?.uom ||
-                  issues.find(is => nameMatches(is.productName))?.uom ||
+                  projectIndents.find(i => nameMatches(i.productName))?.uom ||
+                  projectStoreIns.find(s => nameMatches(s.productName))?.uom ||
+                  projectIssues.find(is => nameMatches(is.productName))?.uom ||
                   transfers.find(t => nameMatches(t.productName))?.uom || '';
         }
 
         const projectNames = Array.from(new Set(relevantMasterRecords.map(r => r.firmName).filter(Boolean)));
-        const resolvedFirmName = currentProject === 'All'
-            ? (projectNames.length > 0 ? projectNames.join(', ') : (indents.find(i => nameMatches(i.productName))?.firmName || storeIns.find(s => nameMatches(s.productName))?.firmNameMatch || '--'))
+        const resolvedFirmName = isAllProjects
+            ? (projectNames.length > 0 ? projectNames.join(', ') : (projectIndents.find(i => nameMatches(i.productName))?.firmName || projectStoreIns.find(s => nameMatches(s.productName))?.firmNameMatch || '--'))
             : currentProject;
 
         const item = {
@@ -155,18 +192,18 @@ export function calculateRealInventory(
             individualRate,
             stockTransfer: masterStockTransfer,
             firmName: resolvedFirmName,
-            purchaseReturn: currentProject === 'All' 
+            purchaseReturn: isAllProjects 
                 ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.purchaseReturn) || 0), 0)
-                : (relevantMasterRecords.find(r => r.firmName === currentProject)?.purchaseReturn || 0),
-            issueReturn: currentProject === 'All'
+                : (relevantMasterRecords.find(r => matchesProject(r.firmName || (r as any).firm_name, (r as any).firm_id))?.purchaseReturn || 0),
+            issueReturn: isAllProjects
                 ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.issueReturn) || 0), 0)
-                : (relevantMasterRecords.find(r => r.firmName === currentProject)?.issueReturn || 0),
-            outQuantity: currentProject === 'All'
+                : (relevantMasterRecords.find(r => matchesProject(r.firmName || (r as any).firm_name, (r as any).firm_id))?.issueReturn || 0),
+            outQuantity: isAllProjects
                 ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.outQuantity) || 0), 0)
-                : (relevantMasterRecords.find(r => r.firmName === currentProject)?.outQuantity || 0),
-            liftingQty: currentProject === 'All'
+                : (relevantMasterRecords.find(r => matchesProject(r.firmName || (r as any).firm_name, (r as any).firm_id))?.outQuantity || 0),
+            liftingQty: isAllProjects
                 ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.liftingQty) || 0), 0)
-                : (relevantMasterRecords.find(r => r.firmName === currentProject)?.liftingQty || 0),
+                : (relevantMasterRecords.find(r => matchesProject(r.firmName || (r as any).firm_name, (r as any).firm_id))?.liftingQty || 0),
         };
 
         const iSum = indentSummary[key] || { quantity: 0, approvedQuantity: 0 };
@@ -174,8 +211,8 @@ export function calculateRealInventory(
         const oSum = issueSummary[key] || { givenQty: 0, rejectedDamageQty: 0 };
 
         // Core metrics: Use transaction sum if available, else fallback to master record baseline
-        const indented = iSum.quantity || (currentProject === 'All' ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.indented) || 0), 0) : (relevantMasterRecords.find(r => r.firmName === currentProject)?.indented || 0));
-        const approved = iSum.approvedQuantity || (currentProject === 'All' ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0) : (relevantMasterRecords.find(r => r.firmName === currentProject)?.approved || 0));
+        const indented = iSum.quantity || (isAllProjects ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.indented) || 0), 0) : (relevantMasterRecords.find(r => matchesProject(r.firmName, (r as any).firm_id))?.indented || 0));
+        const approved = iSum.approvedQuantity || (isAllProjects ? relevantMasterRecords.reduce((sum, r) => sum + (Number(r.approved) || 0), 0) : (relevantMasterRecords.find(r => matchesProject(r.firmName, (r as any).firm_id))?.approved || 0));
         const purchaseQuantity = sDet.purchaseQuantity;
         const liftingQty = sDet.liftingQty || item.liftingQty || 0;
         const purchaseReturn = sDet.purchaseReturn || item.purchaseReturn || 0;
@@ -186,15 +223,15 @@ export function calculateRealInventory(
         const tSum = transferSummary[key] || { in: 0, out: 0, totalVolume: 0, sources: new Set(), destinations: new Set() };
         let stockTransfer = (sDet.stockTransfer || 0) + (item.stockTransfer || 0);
         
-        const stockTransferReceiving = (sDet.stockTransfer || 0) + (item.stockTransfer || 0) + (currentProject === 'All' ? tSum.totalVolume : tSum.in);
-        const stockTransferGiven = currentProject === 'All' ? tSum.totalVolume : tSum.out;
+        const stockTransferReceiving = (sDet.stockTransfer || 0) + (item.stockTransfer || 0) + (isAllProjects ? tSum.totalVolume : tSum.in);
+        const stockTransferGiven = isAllProjects ? tSum.totalVolume : tSum.out;
 
         const sourcesArr = Array.from(tSum.sources);
         const destinationsArr = Array.from(tSum.destinations);
         const fromProject = sourcesArr.length > 0 ? (sourcesArr.length > 1 ? `${sourcesArr[0]} (+${sourcesArr.length - 1})` : sourcesArr[0]) : '';
         const toProject = destinationsArr.length > 0 ? (destinationsArr.length > 1 ? `${destinationsArr[0]} (+${destinationsArr.length - 1})` : destinationsArr[0]) : '';
 
-        if (currentProject === 'All') {
+        if (isAllProjects) {
             stockTransfer += tSum.totalVolume;
         } else {
             stockTransfer += (tSum.in - tSum.out);
@@ -205,14 +242,28 @@ export function calculateRealInventory(
         
         // Final Current Quantity Calculation:
         // Current = Opening + Lifting + NetStockTransfer - PurchaseReturn - (Issued - IssueReturn)
-        const netTransferForBalance = currentProject === 'All' ? 0 : (tSum.in - tSum.out);
+        const netTransferForBalance = isAllProjects ? 0 : (tSum.in - tSum.out);
         const current = (item.opening || 0) + liftingQty + (sDet.stockTransfer || 0) + netTransferForBalance + (item.stockTransfer || 0) - purchaseReturn - (outQuantity - issueReturn);
 
-        // Filter: If we are in a specific project view and there's absolutely no activity or stock for this item, skip it
-        // This prevents the "All" list from being cluttered with items that have 0 everything.
-        if (currentProject !== 'All' && 
-            current === 0 && indented === 0 && liftingQty === 0 && stockTransferReceiving === 0 && stockTransferGiven === 0 && outQuantity === 0) {
-            return null as any;
+        // Filter: If filtering by a specific project, ensure the item has actual presence/activity in this project
+        if (!isAllProjects) {
+            const hasProjectMaster = projectMaster.some(r => (r.itemName || '').trim() === itemName);
+            const hasActivity = (
+                (item.opening || 0) !== 0 ||
+                current !== 0 ||
+                indented !== 0 ||
+                approved !== 0 ||
+                liftingQty !== 0 ||
+                outQuantity !== 0 ||
+                inTransit !== 0 ||
+                purchaseReturn !== 0 ||
+                issueReturn !== 0 ||
+                stockTransferReceiving !== 0 ||
+                stockTransferGiven !== 0
+            );
+            if (!hasProjectMaster && !hasActivity) {
+                return null as any;
+            }
         }
 
         return {
@@ -233,8 +284,8 @@ export function calculateRealInventory(
             current,
             avgPrice: Number((relevantMasterRecords[0] as any)?.avgPrice ?? (relevantMasterRecords[0] as any)?.avg_price ?? (relevantMasterRecords[0] as any)?.individualRate ?? 0),
             totalPrice: current * (item.individualRate || 0),
-            colorCode: current < 5 ? 'red' : 'green',
-            status: current < 5 ? 'red' : 'green'
+            colorCode: current === 0 ? 'reject' : (current < 5 ? 'red' : 'green'),
+            status: current === 0 ? 'Out of Stock' : (current < 5 ? 'red' : 'green')
         } as InventorySheet;
     }).filter(Boolean);
 }
@@ -245,6 +296,7 @@ export function calculateRealInventory(
 function groupAndSum<T>(data: T[], keyField: keyof T, sumFields: string[]): Record<string, any> {
     return data.reduce((acc, item) => {
         const key = String(item[keyField] || '').trim();
+        if (!key) return acc;
         if (!acc[key]) {
             acc[key] = {};
             sumFields.forEach(f => acc[key][f] = 0);
@@ -256,3 +308,4 @@ function groupAndSum<T>(data: T[], keyField: keyof T, sumFields: string[]): Reco
         return acc;
     }, {} as Record<string, any>);
 }
+

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
+import { apiClient } from '@/lib/apiClient';
 
 /**
  * Fetch all indent data from Supabase
@@ -538,3 +539,24 @@ export async function updateIndentsAfterPoCreation(ids: number[], deliveryDate?:
         throw error;
     }
 }
+
+/**
+ * Reset/Delete PO Stage:
+ * Clears PO assignment from linked indents, removes downstream store_in records (if any),
+ * and deletes records from po_master.
+ * @param poNumber The PO number to reset/delete
+ */
+export async function resetPoStage(poNumber: string): Promise<boolean> {
+    try {
+        if (!poNumber || !poNumber.trim()) {
+            throw new Error('PO Number is required for stage reset');
+        }
+
+        await apiClient.post('/store/stage-reset/po', { poNumber: poNumber.trim() });
+        return true;
+    } catch (error) {
+        console.error(`Error resetting PO '${poNumber}':`, error);
+        throw error;
+    }
+}
+

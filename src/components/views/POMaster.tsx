@@ -79,15 +79,39 @@ export default () => {
         try {
             setDataLoading(true);
             const data = await fetchPoMaster(permittedFirms);
-            setTableData(
-                data.map((sheet: any) => ({
-                    ...sheet,
-                    po_created_date: sheet.po_created_date ? formatDate(sheet.po_created_date) : (sheet.timestamp ? formatDate(sheet.timestamp) : ''),
-                    timestamp: sheet.timestamp ? formatDate(sheet.timestamp) : '',
-                    quotationDate: sheet.quotationDate ? formatDate(sheet.quotationDate) : '',
-                    enquiryDate: sheet.enquiryDate ? formatDate(sheet.enquiryDate) : '',
-                }))
-            );
+            const mapped = data.map((sheet: any) => ({
+                ...sheet,
+                po_created_date: sheet.po_created_date ? formatDate(sheet.po_created_date) : (sheet.timestamp ? formatDate(sheet.timestamp) : ''),
+                rawTimestamp: sheet.timestamp || sheet.po_created_date || '',
+                timestamp: sheet.timestamp ? formatDate(sheet.timestamp) : '',
+                quotationDate: sheet.quotationDate ? formatDate(sheet.quotationDate) : '',
+                enquiryDate: sheet.enquiryDate ? formatDate(sheet.enquiryDate) : '',
+            }));
+
+            mapped.sort((a: any, b: any) => {
+                const cleanA = (a.poNumber || a.po_number || '').trim();
+                const cleanB = (b.poNumber || b.po_number || '').trim();
+                const matchA = cleanA.match(/^(.*?)(?:[/_-])?(\d+)$/);
+                const matchB = cleanB.match(/^(.*?)(?:[/_-])?(\d+)$/);
+                if (matchA && matchB) {
+                    const prefixA = (matchA[1] || '').trim();
+                    const prefixB = (matchB[1] || '').trim();
+                    const numA = parseInt(matchA[2], 10);
+                    const numB = parseInt(matchB[2], 10);
+                    if (prefixA.toLowerCase() === prefixB.toLowerCase()) {
+                        if (numB !== numA) return numB - numA;
+                    } else {
+                        const prefixComp = prefixB.localeCompare(prefixA, undefined, { numeric: true, sensitivity: 'base' });
+                        if (prefixComp !== 0) return prefixComp;
+                        if (numB !== numA) return numB - numA;
+                    }
+                }
+                const numComp = cleanB.localeCompare(cleanA, undefined, { numeric: true, sensitivity: 'base' });
+                if (numComp !== 0) return numComp;
+                return new Date(b.rawTimestamp || 0).getTime() - new Date(a.rawTimestamp || 0).getTime();
+            });
+
+            setTableData(mapped);
         } catch (error) {
             console.error('Error fetching PO master:', error);
         } finally {
