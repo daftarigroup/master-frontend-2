@@ -26,7 +26,7 @@ export function calculateRealInventory(
     // Filter transaction data to current project if specified
     const projectIndents = isAllProjects
         ? indents
-        : indents.filter(i => matchesProject(i.firmName || (i as any).firm_name || (i as any).firmNameMatch, i.firmId || (i as any).firm_id));
+        : indents.filter(i => matchesProject(i.firmName || (i as any).firm_name || (i as any).firmNameMatch, i.firm_id || (i as any).firmId));
 
     const projectStoreIns = isAllProjects
         ? storeIns
