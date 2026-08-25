@@ -244,3 +244,20 @@ export async function createIssueRecords(rows: Partial<IssueRecord>[]) {
         throw error;
     }
 }
+
+/**
+ * Reset/Delete Store Data Issue Approval Stage:
+ * Reverts an approved or rejected issue record back to Pending status
+ * and resynchronizes inventory stock aggregations.
+ * @param id The ID of the issue record
+ */
+export async function resetIssueStage(id: number): Promise<boolean> {
+    try {
+        await apiClient.post(`/store/stage-reset/issue/${id}`);
+        return true;
+    } catch (error) {
+        console.error(`Error resetting issue stage for ID ${id}:`, error);
+        throw error;
+    }
+}
+

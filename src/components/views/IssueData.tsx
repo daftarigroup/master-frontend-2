@@ -22,18 +22,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { PuffLoader as Loader } from 'react-spinners';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { ClipboardCheck, Pencil, Check, X } from 'lucide-react';
+import { ClipboardCheck, Pencil, Check, X, Trash2 } from 'lucide-react';
 import Heading from '../element/Heading';
 import { Input } from '../ui/input';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { openIssuePdfPreview } from '@/lib/issuePdfUtils';
+import { canDeleteStoreStage } from '@/lib/roleAccess';
+import StageDeleteDialog from '../element/StageDeleteDialog';
 
 import {
     fetchIssueRecords,
     updateIssueApproval,
     updateIssuePlannedDate,
+    resetIssueStage,
     type IssueRecord
 } from '@/services/issueService';
 import { filterByFirmAccess } from '@/lib/firmAccess';
@@ -127,6 +130,7 @@ export default function IssueData() {
     const [selectedIssue, setSelectedIssue] = useState<IssueRecord | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<IssueRecord | null>(null);
 
 
     const fetchData = async () => {
@@ -313,7 +317,32 @@ export default function IssueData() {
                 </button>
             ),
         },
+        {
+            id: 'actions',
+            header: 'Actions',
+            cell: ({ row }) => {
+                const record = row.original;
+                const canDelete = canDeleteStoreStage(user);
+                if (!canDelete) return null;
+
+                return (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteTarget(record)}
+                            className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-8 px-2 text-xs"
+                            title="Reset Issue Approval to Pending"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                        </Button>
+                    </div>
+                );
+            },
+        },
     ];
+
 
     const returnColumns: ColumnDef<IssueRecord>[] = [
         { accessorKey: 'issue_no', header: 'Issue No' },
@@ -600,6 +629,25 @@ export default function IssueData() {
                     </DialogContent>
                 )}
             </Dialog>
+
+            <StageDeleteDialog
+                open={!!deleteTarget}
+                onOpenChange={(v) => !v && setDeleteTarget(null)}
+                stageName="Store Issue Approval"
+                isPermanentDelete={false}
+                indentNumber={deleteTarget?.issue_no}
+                productName={deleteTarget?.product_name}
+                customMessage={`Are you sure you want to delete approval for Issue ${deleteTarget?.issue_no} (${deleteTarget?.product_name})? This will revert the issue back to Pending state.`}
+                onConfirm={async () => {
+                    if (!deleteTarget || !deleteTarget.id) return;
+                    await resetIssueStage(deleteTarget.id);
+                    toast.success(`Issue ${deleteTarget.issue_no} approval reset to Pending`);
+                    setDeleteTarget(null);
+                    await fetchData();
+                    updateAll(true);
+                }}
+            />
         </div>
     );
 }
+
