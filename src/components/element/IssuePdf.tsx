@@ -1,37 +1,37 @@
-// Updated: 2026-04-29T11:03:00
+// Updated: 2026-08-31
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
     page: {
-        padding: 30,
+        padding: 24,
         fontFamily: 'Helvetica',
-        fontSize: 10,
+        fontSize: 9.5,
         color: '#333',
     },
     logoContainer: {
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 6,
     },
     logo: {
-        width: 150,
-        height: 60,
+        width: 140,
+        height: 46,
         objectFit: 'contain',
     },
     header: {
-        marginBottom: 20,
+        marginBottom: 10,
         borderBottom: '2 solid #4f46e5',
-        paddingBottom: 10,
+        paddingBottom: 5,
         alignItems: 'center',
     },
     title: {
-        fontSize: 20,
+        fontSize: 17,
         fontFamily: 'Helvetica-Bold',
         color: '#4f46e5',
         textAlign: 'center',
-        marginBottom: 5,
+        marginBottom: 2,
     },
     subtitle: {
-        fontSize: 10,
+        fontSize: 8.5,
         textAlign: 'center',
         color: '#666',
         textTransform: 'uppercase',
@@ -40,89 +40,89 @@ const styles = StyleSheet.create({
     infoGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginBottom: 20,
+        marginBottom: 10,
         backgroundColor: '#f8fafc',
-        padding: 15,
+        padding: 9,
         borderRadius: 5,
     },
     infoItem: {
-        width: '50%',
-        marginBottom: 8,
+        width: '25%',
+        marginBottom: 5,
     },
     label: {
         fontFamily: 'Helvetica-Bold',
-        fontSize: 9,
+        fontSize: 7.5,
         color: '#64748b',
         marginBottom: 2,
     },
     value: {
-        fontSize: 11,
+        fontSize: 9.5,
         color: '#1e293b',
     },
     table: {
-        marginTop: 10,
+        marginTop: 6,
     },
     tableHeader: {
         flexDirection: 'row',
         backgroundColor: '#4f46e5',
         color: '#ffffff',
-        padding: 8,
+        padding: 6,
         fontFamily: 'Helvetica-Bold',
-        fontSize: 9,
+        fontSize: 8.5,
     },
     tableRow: {
         flexDirection: 'row',
         borderBottom: '1 solid #e2e8f0',
-        padding: 8,
+        padding: 6,
         alignItems: 'center',
     },
     colSr: { width: '5%', textAlign: 'center' },
-    colMain: { width: '35%' },
-    colQty: { width: '15%', textAlign: 'center' },
-    colUom: { width: '10%' },
-    colReturnQty: { width: '12.5%', textAlign: 'center' },
-    colRemark: { width: '25%' },
+    colMain: { width: '40%' },
+    colQty: { width: '12%', textAlign: 'center' },
+    colUom: { width: '8%' },
+    colReturnQty: { width: '12%', textAlign: 'center' },
+    colRemark: { width: '35%' },
     specText: {
-        fontSize: 8,
+        fontSize: 7.5,
         color: '#64748b',
         marginTop: 2,
     },
     footer: {
         position: 'absolute',
-        bottom: 30,
-        left: 30,
-        right: 30,
+        bottom: 16,
+        left: 24,
+        right: 24,
         borderTop: '1 solid #e2e8f0',
-        paddingTop: 10,
+        paddingTop: 4,
         textAlign: 'center',
-        fontSize: 8,
+        fontSize: 7.5,
         color: '#94a3b8',
     },
     signatureSection: {
         position: 'absolute',
-        bottom: 60,
-        left: 30,
-        right: 30,
+        bottom: 40,
+        left: 24,
+        right: 24,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        paddingHorizontal: 40,
     },
     signatureBox: {
         alignItems: 'center',
-        width: '35%',
+        width: '25%',
     },
     signatureLine: {
         width: '100%',
         borderTop: '1 solid #333',
-        marginBottom: 5,
+        marginBottom: 4,
     },
     signatureLabel: {
-        fontSize: 10,
+        fontSize: 9,
         fontFamily: 'Helvetica-Bold',
         color: '#1e293b',
     },
     signatureName: {
-        fontSize: 9,
+        fontSize: 8.5,
         fontFamily: 'Helvetica-Bold',
         marginBottom: 2,
         color: '#1e293b',
@@ -175,9 +175,9 @@ const IssuePdf = ({
     return (
         <Document>
             {/* Page 1: Original Copy */}
-            <Page size="A4" style={styles.page}>
-                <View style={{ position: 'absolute', top: 20, right: 30 }}>
-                    <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#94a3b8' }}>ORIGINAL COPY</Text>
+            <Page size="A4" orientation="landscape" style={styles.page}>
+                <View style={{ position: 'absolute', top: 16, right: 24 }}>
+                    <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#94a3b8' }}>ORIGINAL COPY</Text>
                 </View>
 
                 {logo ? (
@@ -220,21 +220,18 @@ const IssuePdf = ({
                         <Text style={styles.label}>{isReturn ? 'RETURN PERSON' : 'ISSUE PERSON'}</Text>
                         <Text style={styles.value}>{isReturn ? returnPersonName : issuePersonName || '-'}</Text>
                     </View>
-
-                    {remarks ? (
-                        <View style={[styles.infoItem, { width: '100%', marginTop: 5 }]}>
-                            <Text style={styles.label}>ISSUE REMARKS</Text>
-                            <Text style={styles.value}>{remarks}</Text>
-                        </View>
-                    ) : null}
+                    <View style={styles.infoItem}>
+                        <Text style={styles.label}>ISSUE REMARKS</Text>
+                        <Text style={styles.value}>{remarks || '-'}</Text>
+                    </View>
 
                     {isReturn && (
                         <>
-                            <View style={[styles.infoItem, { width: '50%', marginTop: 5 }]}>
+                            <View style={[styles.infoItem, { marginTop: 4 }]}>
                                 <Text style={styles.label}>REJECTED / DAMAGE QTY</Text>
                                 <Text style={[styles.value, { color: '#ef4444' }]}>{rejectedDamageQty || 0}</Text>
                             </View>
-                            <View style={[styles.infoItem, { width: '100%', marginTop: 5 }]}>
+                            <View style={[styles.infoItem, { width: '75%', marginTop: 4 }]}>
                                 <Text style={styles.label}>DAMAGE REMARK</Text>
                                 <Text style={styles.value}>{damageRemark || '-'}</Text>
                             </View>
@@ -248,7 +245,7 @@ const IssuePdf = ({
                         <View style={[styles.colMain, !isReturn ? { width: '45%' } : {}]}>
                             <Text>MATERIAL / PRODUCT</Text>
                         </View>
-                        <Text style={[styles.colQty, isReturn ? { width: '12.5%' } : {}]}>ISSUE QTY</Text>
+                        <Text style={[styles.colQty, isReturn ? { width: '12%' } : {}]}>ISSUE QTY</Text>
                         {isReturn && <Text style={styles.colReturnQty}>RETURN QTY</Text>}
                         <Text style={styles.colUom}>UOM</Text>
                         <Text style={styles.colRemark}>ISSUE REMARK</Text>
@@ -261,7 +258,7 @@ const IssuePdf = ({
                                 <Text style={{ fontFamily: 'Helvetica-Bold' }}>{p.productName}</Text>
                                 <Text style={styles.specText}>Group: {p.groupHead}</Text>
                             </View>
-                            <Text style={[styles.colQty, isReturn ? { width: '12.5%' } : {}]}>{p.quantity}</Text>
+                            <Text style={[styles.colQty, isReturn ? { width: '12%' } : {}]}>{p.quantity}</Text>
                             {isReturn && <Text style={styles.colReturnQty}>{rejectedDamageQty || 0}</Text>}
                             <Text style={styles.colUom}>{p.uom}</Text>
                             <Text style={styles.colRemark}>{remarks || '-'}</Text>
@@ -271,7 +268,6 @@ const IssuePdf = ({
 
                 <View style={styles.signatureSection}>
                     <View style={styles.signatureBox}>
-                        {/* <Text style={styles.signatureName}>{issuePersonName || ' '}</Text> */}
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureLabel}>Store incharge</Text>
                     </View>
@@ -288,9 +284,9 @@ const IssuePdf = ({
             </Page>
 
             {/* Page 2: Duplicate Copy */}
-            <Page size="A4" style={styles.page}>
-                <View style={{ position: 'absolute', top: 20, right: 30 }}>
-                    <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#94a3b8' }}>DUPLICATE COPY</Text>
+            <Page size="A4" orientation="landscape" style={styles.page}>
+                <View style={{ position: 'absolute', top: 16, right: 24 }}>
+                    <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#94a3b8' }}>DUPLICATE COPY</Text>
                 </View>
 
                 {logo ? (
@@ -333,21 +329,18 @@ const IssuePdf = ({
                         <Text style={styles.label}>{isReturn ? 'RETURN PERSON' : 'ISSUE PERSON'}</Text>
                         <Text style={styles.value}>{isReturn ? returnPersonName : issuePersonName || '-'}</Text>
                     </View>
+                    <View style={styles.infoItem}>
+                        <Text style={styles.label}>ISSUE REMARKS</Text>
+                        <Text style={styles.value}>{remarks || '-'}</Text>
+                    </View>
                     
-                    {remarks ? (
-                        <View style={[styles.infoItem, { width: '100%', marginTop: 5 }]}>
-                            <Text style={styles.label}>ISSUE REMARKS</Text>
-                            <Text style={styles.value}>{remarks}</Text>
-                        </View>
-                    ) : null}
-
                     {isReturn && (
                         <>
-                            <View style={[styles.infoItem, { width: '50%', marginTop: 5 }]}>
+                            <View style={[styles.infoItem, { marginTop: 4 }]}>
                                 <Text style={styles.label}>REJECTED / DAMAGE QTY</Text>
                                 <Text style={[styles.value, { color: '#ef4444' }]}>{rejectedDamageQty || 0}</Text>
                             </View>
-                            <View style={[styles.infoItem, { width: '100%', marginTop: 5 }]}>
+                            <View style={[styles.infoItem, { width: '75%', marginTop: 4 }]}>
                                 <Text style={styles.label}>DAMAGE REMARK</Text>
                                 <Text style={styles.value}>{damageRemark || '-'}</Text>
                             </View>
@@ -361,7 +354,7 @@ const IssuePdf = ({
                         <View style={[styles.colMain, !isReturn ? { width: '45%' } : {}]}>
                             <Text>MATERIAL / PRODUCT</Text>
                         </View>
-                        <Text style={[styles.colQty, isReturn ? { width: '12.5%' } : {}]}>ISSUE QTY</Text>
+                        <Text style={[styles.colQty, isReturn ? { width: '12%' } : {}]}>ISSUE QTY</Text>
                         {isReturn && <Text style={styles.colReturnQty}>RETURN QTY</Text>}
                         <Text style={styles.colUom}>UOM</Text>
                         <Text style={styles.colRemark}>ISSUE REMARK</Text>
@@ -374,7 +367,7 @@ const IssuePdf = ({
                                 <Text style={{ fontFamily: 'Helvetica-Bold' }}>{p.productName}</Text>
                                 <Text style={styles.specText}>Group: {p.groupHead}</Text>
                             </View>
-                            <Text style={[styles.colQty, isReturn ? { width: '12.5%' } : {}]}>{p.quantity}</Text>
+                            <Text style={[styles.colQty, isReturn ? { width: '12%' } : {}]}>{p.quantity}</Text>
                             {isReturn && <Text style={styles.colReturnQty}>{rejectedDamageQty || 0}</Text>}
                             <Text style={styles.colUom}>{p.uom}</Text>
                             <Text style={styles.colRemark}>{remarks || '-'}</Text>
@@ -404,3 +397,4 @@ const IssuePdf = ({
 };
 
 export default IssuePdf;
+

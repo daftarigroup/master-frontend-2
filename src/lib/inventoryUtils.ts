@@ -266,6 +266,37 @@ export function calculateRealInventory(
             }
         }
 
+        // Calculate dynamic Avg Price:
+        // Priority 1: Master individualRate / avgPrice
+        // Priority 2: Weighted Average from storeIns / lifting with rates
+        // Priority 3: Latest Approved / Indent rate
+        let resolvedAvgPrice = Number((relevantMasterRecords[0] as any)?.avgPrice ?? (relevantMasterRecords[0] as any)?.avg_price ?? (relevantMasterRecords[0] as any)?.individualRate ?? item.individualRate ?? 0);
+
+        if (!resolvedAvgPrice) {
+            const matchingStoreIns = projectStoreIns.filter(s => (s.productName || '').trim() === itemName && Number(s.receivedQuantity || 0) > 0);
+            let totalVal = 0;
+            let totalValQty = 0;
+            matchingStoreIns.forEach(s => {
+                const r = Number((s as any).priceAsPerPo || (s as any).rate || 0);
+                const q = Number(s.receivedQuantity || 0);
+                if (r > 0 && q > 0) {
+                    totalVal += (r * q);
+                    totalValQty += q;
+                }
+            });
+            if (totalValQty > 0 && totalVal > 0) {
+                resolvedAvgPrice = Number((totalVal / totalValQty).toFixed(2));
+            } else {
+                const matchingIndents = projectIndents.filter(i => (i.productName || '').trim() === itemName);
+                const indentWithRate = matchingIndents.find(i => Number((i as any).approvedRate || (i as any).approved_rate || (i as any).rate || (i as any).rate1 || 0) > 0);
+                if (indentWithRate) {
+                    resolvedAvgPrice = Number((indentWithRate as any).approvedRate || (indentWithRate as any).approved_rate || (indentWithRate as any).rate || (indentWithRate as any).rate1 || 0);
+                }
+            }
+        }
+
+        const totalPrice = Number((current * (resolvedAvgPrice || 0)).toFixed(2));
+
         return {
             ...item,
             indented,
@@ -282,8 +313,8 @@ export function calculateRealInventory(
             fromProject,
             toProject,
             current,
-            avgPrice: Number((relevantMasterRecords[0] as any)?.avgPrice ?? (relevantMasterRecords[0] as any)?.avg_price ?? (relevantMasterRecords[0] as any)?.individualRate ?? 0),
-            totalPrice: current * (item.individualRate || 0),
+            avgPrice: resolvedAvgPrice,
+            totalPrice,
             colorCode: current === 0 ? 'reject' : (current < 5 ? 'red' : 'green'),
             status: current === 0 ? 'Out of Stock' : (current < 5 ? 'red' : 'green')
         } as InventorySheet;

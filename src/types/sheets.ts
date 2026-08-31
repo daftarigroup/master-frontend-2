@@ -39,6 +39,8 @@ export type IndentSheet = {
     timeDelay3: string;
     approvedVendorName: string;
     approvedRate: number;
+    approved_rate?: string | number;
+    rate?: number;
     approvedPaymentTerm: string;
     approvedDate: string;
     planned4: string;

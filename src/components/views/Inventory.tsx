@@ -38,6 +38,8 @@ interface DetailRow {
     date: string;
     refNo: string;
     quantity: number;
+    rate?: number;
+    amount?: number;
     party: string;
     projectName: string;
     siteLocation?: string;
@@ -49,6 +51,7 @@ export default () => {
         indentSheet,
         storeInSheet,
         issueSheet,
+        poMasterSheet,
         inventoryLoading,
         indentLoading,
         storeInLoading,
@@ -154,6 +157,8 @@ export default () => {
         refNo: true,
         party: true,
         quantity: true,
+        rate: true,
+        amount: true,
         projectName: true,
         siteLocation: true,
     });
@@ -181,131 +186,195 @@ export default () => {
         let rows: DetailRow[] = [];
         let title = `${type} History: ${itemName}`;
 
-        // Get the UOM from inventorySheet as a reliable fallback
-        const productUom = inventorySheet?.find(i => i.itemName === itemName)?.uom || 'N/A';
+        // Get the current item's fallback rate / avgPrice
+        const matchedItem = inventorySheet?.find(i => i.itemName === itemName);
+        const itemFallbackRate = Number(matchedItem?.avgPrice || (matchedItem as any)?.individualRate || 0);
 
         switch (type) {
             case 'Indented':
                 rows = filteredIndents
                     .filter((i: any) => i.productName === itemName)
-                    .map((i: any) => ({
-                        date: i.timestamp,
-                        refNo: i.indentNumber,
-                        quantity: Number(i.quantity || 0),
-                        party: i.indenterName || 'N/A',
-                        projectName: i.firmName || 'N/A'
-                    }));
+                    .map((i: any) => {
+                        const poMatch = poMasterSheet?.find((p: any) => (i.poNumber && p.poNumber === i.poNumber) || (i.po_number && p.poNumber === i.po_number));
+                        const rate = Number(i.approvedRate || i.approved_rate || i.rate || i.rate1 || poMatch?.rate || i.negotiated_rate || i.price || itemFallbackRate || 0);
+                        const quantity = Number(i.quantity || 0);
+                        return {
+                            date: i.timestamp,
+                            refNo: i.indentNumber,
+                            quantity,
+                            rate,
+                            amount: Number((quantity * rate).toFixed(2)),
+                            party: i.indenterName || 'N/A',
+                            projectName: i.firmName || 'N/A'
+                        };
+                    });
                 break;
             case 'Approved':
                 rows = filteredIndents
                     .filter((i: any) => i.productName === itemName && Number(i.approvedQuantity || 0) > 0)
-                    .map((i: any) => ({
-                        date: i.timestamp,
-                        refNo: i.indentNumber,
-                        quantity: Number(i.approvedQuantity || 0),
-                        party: i.indenterName || 'N/A',
-                        projectName: i.firmName || 'N/A'
-                    }));
+                    .map((i: any) => {
+                        const poMatch = poMasterSheet?.find((p: any) => (i.poNumber && p.poNumber === i.poNumber) || (i.po_number && p.poNumber === i.po_number));
+                        const rate = Number(i.approvedRate || i.approved_rate || i.rate || i.rate1 || poMatch?.rate || i.negotiated_rate || i.price || itemFallbackRate || 0);
+                        const quantity = Number(i.approvedQuantity || 0);
+                        return {
+                            date: i.timestamp,
+                            refNo: i.indentNumber,
+                            quantity,
+                            rate,
+                            amount: Number((quantity * rate).toFixed(2)),
+                            party: i.indenterName || 'N/A',
+                            projectName: i.firmName || 'N/A'
+                        };
+                    });
                 break;
             case 'Lifting Quantity':
                 rows = filteredStoreIns
                     .filter((s: any) => s.productName === itemName && Number(s.receivedQuantity || 0) > 0)
-                    .map((s: any) => ({
-                        date: s.materialDate || s.planned6 || s.timestamp,
-                        refNo: s.billNo || s.liftNumber,
-                        quantity: Number(s.receivedQuantity || 0),
-                        party: s.vendorName || 'N/A',
-                        projectName: s.firmNameMatch || 'N/A',
-                        siteLocation: s.location || 'N/A'
-                    }));
+                    .map((s: any) => {
+                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => (ind.indentNumber && s.indentNo && ind.indentNumber === s.indentNo) || (ind.poNumber && s.poNumber && ind.poNumber === s.poNumber));
+                        const poMatch = poMasterSheet?.find((p: any) => (s.poNumber && p.poNumber === s.poNumber) || (s.billNo && p.poNumber === s.billNo));
+                        const poRate = Number(s.priceAsPerPo || s.rate || matchedIndent?.approvedRate || matchedIndent?.approved_rate || matchedIndent?.rate || matchedIndent?.rate1 || poMatch?.rate || itemFallbackRate || 0);
+                        const quantity = Number(s.receivedQuantity || 0);
+                        return {
+                            date: s.materialDate || s.planned6 || s.timestamp,
+                            refNo: s.billNo || s.liftNumber,
+                            quantity,
+                            rate: poRate,
+                            amount: Number((quantity * poRate).toFixed(2)),
+                            party: s.vendorName || 'N/A',
+                            projectName: s.firmNameMatch || 'N/A',
+                            siteLocation: s.location || 'N/A'
+                        };
+                    });
                 break;
             case 'In Transit':
                 rows = filteredStoreIns
                     .filter((s: any) => s.productName === itemName && (Number(s.qty || 0) - Number(s.receivedQuantity || 0)) > 0)
-                    .map((s: any) => ({
-                        date: s.timestamp,
-                        refNo: s.billNo || s.liftNumber,
-                        quantity: Number(s.qty || 0) - Number(s.receivedQuantity || 0),
-                        party: s.vendorName || 'N/A',
-                        projectName: s.firmNameMatch || 'N/A',
-                        siteLocation: s.location || 'N/A'
-                    }));
+                    .map((s: any) => {
+                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => (ind.indentNumber && s.indentNo && ind.indentNumber === s.indentNo) || (ind.poNumber && s.poNumber && ind.poNumber === s.poNumber));
+                        const poMatch = poMasterSheet?.find((p: any) => (s.poNumber && p.poNumber === s.poNumber) || (s.billNo && p.poNumber === s.billNo));
+                        const poRate = Number(s.priceAsPerPo || s.rate || matchedIndent?.approvedRate || matchedIndent?.approved_rate || matchedIndent?.rate || matchedIndent?.rate1 || poMatch?.rate || itemFallbackRate || 0);
+                        const quantity = Number(s.qty || 0) - Number(s.receivedQuantity || 0);
+                        return {
+                            date: s.timestamp,
+                            refNo: s.billNo || s.liftNumber,
+                            quantity,
+                            rate: poRate,
+                            amount: Number((quantity * poRate).toFixed(2)),
+                            party: s.vendorName || 'N/A',
+                            projectName: s.firmNameMatch || 'N/A',
+                            siteLocation: s.location || 'N/A'
+                        };
+                    });
                 break;
             case 'Issued':
                 rows = filteredIssues
                     .filter((is: any) => is.productName === itemName && Number(is.givenQty || 0) > 0)
-                    .map((is: any) => ({
-                        date: is.planned1 || is.timestamp,
-                        refNo: is.issueNo,
-                        quantity: Number(is.givenQty || 0),
-                        party: is.constructorName || 'N/A',
-                        projectName: is.projectName || is.firm_name || 'N/A',
-                    }));
+                    .map((is: any) => {
+                        const quantity = Number(is.givenQty || 0);
+                        return {
+                            date: is.planned1 || is.timestamp,
+                            refNo: is.issueNo,
+                            quantity,
+                            rate: itemFallbackRate,
+                            amount: Number((quantity * itemFallbackRate).toFixed(2)),
+                            party: is.constructorName || 'N/A',
+                            projectName: is.projectName || is.firm_name || 'N/A',
+                        };
+                    });
                 break;
             case 'Issue Return':
                 rows = filteredIssues
                     .filter((is: any) => is.productName === itemName && Number(is.rejected_damage_qty || 0) > 0)
-                    .map((is: any) => ({
-                        date: is.timestamp,
-                        refNo: is.issueNo,
-                        quantity: Number(is.rejected_damage_qty || 0),
-                        party: is.returnPersonName || is.return_person_name || 'N/A',
-                        projectName: is.projectName || is.firm_name || 'N/A',
-                        siteLocation: is.siteLocation || 'N/A'
-                    }));
+                    .map((is: any) => {
+                        const quantity = Number(is.rejected_damage_qty || 0);
+                        return {
+                            date: is.timestamp,
+                            refNo: is.issueNo,
+                            quantity,
+                            rate: itemFallbackRate,
+                            amount: Number((quantity * itemFallbackRate).toFixed(2)),
+                            party: is.returnPersonName || is.return_person_name || 'N/A',
+                            projectName: is.projectName || is.firm_name || 'N/A',
+                            siteLocation: is.siteLocation || 'N/A'
+                        };
+                    });
                 break;
             case 'Purchase Return':
                 rows = filteredStoreIns
                     .filter((s: any) => s.productName === itemName && Number(s.returnQuantity || 0) > 0)
-                    .map((s: any) => ({
-                        date: s.timestamp,
-                        refNo: s.billNo || s.liftNumber,
-                        quantity: Number(s.returnQuantity || 0),
-                        party: s.vendorName || 'N/A',
-                        projectName: s.firmNameMatch || 'N/A',
-                        siteLocation: s.location || 'N/A'
-                    }));
+                    .map((s: any) => {
+                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => (ind.indentNumber && s.indentNo && ind.indentNumber === s.indentNo) || (ind.poNumber && s.poNumber && ind.poNumber === s.poNumber));
+                        const poMatch = poMasterSheet?.find((p: any) => (s.poNumber && p.poNumber === s.poNumber));
+                        const poRate = Number(s.priceAsPerPo || s.rate || matchedIndent?.approvedRate || matchedIndent?.approved_rate || matchedIndent?.rate || poMatch?.rate || itemFallbackRate || 0);
+                        const quantity = Number(s.returnQuantity || 0);
+                        return {
+                            date: s.timestamp,
+                            refNo: s.billNo || s.liftNumber,
+                            quantity,
+                            rate: poRate,
+                            amount: Number((quantity * poRate).toFixed(2)),
+                            party: s.vendorName || 'N/A',
+                            projectName: s.firmNameMatch || 'N/A',
+                            siteLocation: s.location || 'N/A'
+                        };
+                    });
                 break;
             case 'Stock Transfer Receiving':
                 // Combine transfers from both dedicated table and old store_in 'Transfer' status
                 const legacyTransfers = filteredStoreIns
                     .filter((s: any) => s.productName === itemName && s.receivingStatus === 'Transfer')
-                    .map((s: any) => ({
-                        date: s.timestamp,
-                        refNo: s.billNo || s.liftNumber,
-                        quantity: Number(s.receivedQuantity || 0),
-                        party: s.vendorName || 'N/A',
-                        projectName: s.firmNameMatch || 'N/A',
-                        siteLocation: s.location || 'N/A'
-                    }));
+                    .map((s: any) => {
+                        const qty = Number(s.receivedQuantity || 0);
+                        return {
+                            date: s.timestamp,
+                            refNo: s.billNo || s.liftNumber,
+                            quantity: qty,
+                            rate: itemFallbackRate,
+                            amount: Number((qty * itemFallbackRate).toFixed(2)),
+                            party: s.vendorName || 'N/A',
+                            projectName: s.firmNameMatch || 'N/A',
+                            siteLocation: s.location || 'N/A'
+                        };
+                    });
 
                 const newTransfersReceiving = filteredTransfers
                     .filter((t: any) => t.productName === itemName && (selectedProjectId === 'All' || Number(t.to_firm_id || t.toFirmId) === Number(selectedProjectId)))
-                    .map((t: any) => ({
-                        date: t.timestamp,
-                        refNo: t.transferNo,
-                        quantity: Number(t.quantity || 0),
-                        party: t.fromProject,
-                        projectName: t.toProject || 'N/A'
-                    }));
+                    .map((t: any) => {
+                        const qty = Number(t.quantity || 0);
+                        return {
+                            date: t.timestamp,
+                            refNo: t.transferNo,
+                            quantity: qty,
+                            rate: itemFallbackRate,
+                            amount: Number((qty * itemFallbackRate).toFixed(2)),
+                            party: t.fromProject,
+                            projectName: t.toProject || 'N/A'
+                        };
+                    });
 
                 rows = [...legacyTransfers, ...newTransfersReceiving];
                 break;
             case 'Stock Transfer Given':
                 rows = filteredTransfers
                     .filter((t: any) => t.productName === itemName && (selectedProjectId === 'All' || Number(t.from_firm_id || t.fromFirmId) === Number(selectedProjectId)))
-                    .map((t: any) => ({
-                        date: t.timestamp,
-                        refNo: t.transferNo,
-                        quantity: Number(t.quantity || 0),
-                        party: t.fromProject,
-                        projectName: t.toProject || 'N/A'
-                    }));
+                    .map((t: any) => {
+                        const qty = Number(t.quantity || 0);
+                        return {
+                            date: t.timestamp,
+                            refNo: t.transferNo,
+                            quantity: qty,
+                            rate: itemFallbackRate,
+                            amount: Number((qty * itemFallbackRate).toFixed(2)),
+                            party: t.fromProject,
+                            projectName: t.toProject || 'N/A'
+                        };
+                    });
                 break;
         }
 
         setDetailDialog({ open: true, title, rows: rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) });
-    }, [filteredIndents, filteredStoreIns, filteredIssues, filteredTransfers, inventorySheet, selectedProjectId]);
+    }, [filteredIndents, filteredStoreIns, filteredIssues, filteredTransfers, inventorySheet, poMasterSheet, selectedProjectId]);
 
     const ClickableCell = useMemo(() => ({ value, label, row }: { value: number; label: string; row: any }) => (
         <button
@@ -525,6 +594,18 @@ export default () => {
                                     Quantity
                                 </DropdownMenuCheckboxItem>
                                 <DropdownMenuCheckboxItem
+                                    checked={visibleCols.rate}
+                                    onCheckedChange={(checked) => setVisibleCols(v => ({ ...v, rate: !!checked }))}
+                                >
+                                    Rate
+                                </DropdownMenuCheckboxItem>
+                                <DropdownMenuCheckboxItem
+                                    checked={visibleCols.amount}
+                                    onCheckedChange={(checked) => setVisibleCols(v => ({ ...v, amount: !!checked }))}
+                                >
+                                    Amount
+                                </DropdownMenuCheckboxItem>
+                                <DropdownMenuCheckboxItem
                                     checked={visibleCols.projectName}
                                     onCheckedChange={(checked) => setVisibleCols(v => ({ ...v, projectName: !!checked }))}
                                 >
@@ -553,6 +634,7 @@ export default () => {
                             )
                             : detailDialog.rows;
                         const totalQty = visibleRows.reduce((sum, r) => sum + (r.quantity || 0), 0);
+                        const totalAmount = visibleRows.reduce((sum, r) => sum + (r.amount || 0), 0);
                         return (
                             <>
                                 <div className="flex-1 overflow-auto mt-4 border rounded-lg">
@@ -569,6 +651,8 @@ export default () => {
                                                 )}
                                                 {visibleCols.siteLocation && !detailDialog.title.startsWith('Issued History') && <TableHead>Site Location</TableHead>}
                                                 {visibleCols.quantity && <TableHead className="text-right">Qty</TableHead>}
+                                                {visibleCols.rate && <TableHead className="text-right">Rate</TableHead>}
+                                                {visibleCols.amount && <TableHead className="text-right">Amount</TableHead>}
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -576,7 +660,7 @@ export default () => {
                                                 visibleRows.map((row, idx) => (
                                                     <TableRow key={idx}>
                                                         {visibleCols.date && (
-                                                            <TableCell className="whitespace-nowrap italic">
+                                                             <TableCell className="whitespace-nowrap italic">
                                                                 {row.date ? format(new Date(row.date), 'dd/MM/yyyy HH:mm') : 'N/A'}
                                                             </TableCell>
                                                         )}
@@ -585,11 +669,21 @@ export default () => {
                                                         {visibleCols.projectName && <TableCell className="whitespace-nowrap">{row.projectName}</TableCell>}
                                                         {visibleCols.siteLocation && !detailDialog.title.startsWith('Issued History') && <TableCell className="whitespace-nowrap">{row.siteLocation || 'N/A'}</TableCell>}
                                                         {visibleCols.quantity && <TableCell className="text-right font-bold">{row.quantity}</TableCell>}
+                                                        {visibleCols.rate && (
+                                                            <TableCell className="text-right font-medium whitespace-nowrap text-blue-600">
+                                                                {row.rate ? `₹${row.rate.toLocaleString('en-IN')}` : '₹0'}
+                                                            </TableCell>
+                                                        )}
+                                                        {visibleCols.amount && (
+                                                            <TableCell className="text-right font-bold whitespace-nowrap text-emerald-600">
+                                                                {row.amount ? `₹${row.amount.toLocaleString('en-IN')}` : '₹0'}
+                                                            </TableCell>
+                                                        )}
                                                     </TableRow>
                                                 ))
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground italic">
+                                                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground italic">
                                                         No transactions found
                                                     </TableCell>
                                                 </TableRow>
@@ -597,9 +691,17 @@ export default () => {
                                         </TableBody>
                                     </Table>
                                 </div>
-                                <div className="flex justify-end items-center gap-2 pt-2 text-sm border-t mt-2">
-                                    <span className="text-muted-foreground">Total Qty:</span>
-                                    <span className="font-bold text-base">{totalQty}</span>
+                                <div className="flex justify-end items-center gap-6 pt-2 text-sm border-t mt-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground">Total Qty:</span>
+                                        <span className="font-bold text-base">{totalQty.toLocaleString('en-IN')}</span>
+                                    </div>
+                                    {visibleCols.amount && totalAmount > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground">Total Amount:</span>
+                                            <span className="font-bold text-base text-emerald-600">₹{totalAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         );

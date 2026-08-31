@@ -49,6 +49,7 @@ export interface StoreInRecord {
     billNumber: string;
     unitOfMeasurement: string;
     priceAsPerPo: number;
+    rate?: number;
     priceAsPerPoCheck: string;
     // Stage 7 fields
     planned7: string;
@@ -154,6 +155,7 @@ export async function fetchStoreInRecords(permittedFirms?: string[]): Promise<St
             billNumber: r.bill_number || '',
             unitOfMeasurement: r.unit_of_measurement || '',
             priceAsPerPo: Number(r.rate) || 0,
+            rate: Number(r.rate) || 0,
             priceAsPerPoCheck: r.bill_received2 || '',
             vehicleNo: r.vehicle_no || '',
             driverName: r.driver_name || '',

@@ -74,6 +74,13 @@ export interface IndentRecord {
     expected_req_date?: string;
     group_head?: string;
     min_stock_qty?: number;
+    approved_rate?: string | number;
+    approvedRate?: number;
+    rate?: number;
+    rate1?: number;
+    rate2?: number;
+    rate3?: number;
+    vendor_rate?: number;
 }
 
 // ==================== FETCH FUNCTIONS ====================
@@ -165,6 +172,13 @@ export async function fetchIndentRecords(permittedFirms?: string[]): Promise<Ind
             expected_req_date: r.expected_req_date || '',
             group_head: r.group_head || '',
             min_stock_qty: Number(r.min_stock_qty) || 0,
+            approved_rate: r.approved_rate || '',
+            approvedRate: Number(r.approved_rate) || 0,
+            rate: Number(r.approved_rate) || Number(r.rate1) || Number(r.vendor_rate) || Number(r.negotiated_rate) || Number(r.price) || 0,
+            rate1: Number(r.rate1) || 0,
+            rate2: Number(r.rate2) || 0,
+            rate3: Number(r.rate3) || 0,
+            vendor_rate: Number(r.vendor_rate) || 0,
         }));
     } catch (error) {
         console.error('Error fetching indent records:', error);
