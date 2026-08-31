@@ -518,7 +518,7 @@ export default function PoojaPOFormat(props: POPdfProps) {
                             </Text>
                         </View>
                         <View style={styles.commercialBox4Last}>
-                            <Text style={styles.commercialLabel}>Site Incharge Details:</Text>
+                            <Text style={styles.commercialLabel}>Site Engineer Details 2:</Text>
                             <Text style={styles.commercialValue}>
                                 Name: {siteEngineerName2 || '--'}
                             </Text>

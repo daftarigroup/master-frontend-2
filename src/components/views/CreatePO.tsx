@@ -268,6 +268,12 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const normalize = (str: any) => {
+    if (!str) return '';
+    if (typeof str !== 'string') return String(str).trim().toLowerCase();
+    return str.trim().toLowerCase();
+};
+
 const CreatePO = () => {
     const { user } = useAuth();
     const { updateMasterSheet, updateAll } = useSheets();
@@ -281,7 +287,7 @@ const CreatePO = () => {
     const [readOnly, setReadOnly] = useState(-1);
     const [mode, setMode] = useState<'create' | 'revise'>('create');
     const [isEditingDestination, setIsEditingDestination] = useState(false);
-    const [destinationAddress, setDestinationAddress] = useState('Khasra No 297/2 & 297/6 Village AKoli, Near Tarpongi Toll Plaza, PO- Devri, Raipur - 493221 (CG)');
+    const [destinationAddress, setDestinationAddress] = useState('');
     const [firmCompanyName, setFirmCompanyName] = useState('Project Name');
     const [firmCompanyAddress, setFirmCompanyAddress] = useState('Shri Ram Business Park , Block - C, 2nd floor , Room No. 212');
     const [firmCompanyGstin, setFirmCompanyGstin] = useState('');
@@ -789,7 +795,11 @@ const CreatePO = () => {
         toast.success('Destination address updated');
     };
     const handleDestinationCancel = () => {
-        setDestinationAddress((details as MasterDetails)?.destinationAddress || '');
+        const firmKey = currentProjectName && (details as MasterDetails)?.firmCompanyMap
+            ? Object.keys((details as MasterDetails).firmCompanyMap!).find((k) => normalize(k) === normalize(currentProjectName))
+            : undefined;
+        const companyDetails = firmKey ? (details as MasterDetails).firmCompanyMap![firmKey] : null;
+        setDestinationAddress(companyDetails?.destinationAddress || (details as MasterDetails)?.destinationAddress || '');
         setIsEditingDestination(false);
     };
 
@@ -1550,7 +1560,7 @@ const CreatePO = () => {
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
-                                            <span>Site Incharge Details <span className="text-gray-400 font-normal"></span></span>
+                                            <span>Site Engineer Details 2<span className="text-gray-400 font-normal"></span></span>
                                             {mode === 'create' && (
                                                 <Button type="button" variant="ghost" size="sm" onClick={handleEngineerSave2} className="h-5 w-5 p-0 hover:bg-gray-200">
                                                     <Save size={12} className="text-blue-600" />

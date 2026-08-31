@@ -70,8 +70,37 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
     const [masterData, logoBase64] = await Promise.all([fetchMasterData(), getLogoBase64()]);
 
     const normalizeStr = (s: any) => String(s || '').trim().toLowerCase();
-    const firmCompany = first.firmNameMatch ? (masterData as any).firmCompanyMap?.[first.firmNameMatch] : undefined;
+    const firmKey = first.firmNameMatch
+        ? Object.keys((masterData as any).firmCompanyMap || {}).find((k) => normalizeStr(k) === normalizeStr(first.firmNameMatch))
+        : undefined;
+    const firmCompany = firmKey ? (masterData as any).firmCompanyMap?.[firmKey] : undefined;
     const vendor = (masterData as any).vendors?.find((v: any) => normalizeStr(v.vendorName) === normalizeStr(first.partyName));
+
+    // Resolve project destination address for delivery address
+    let resolvedDeliveryAddress =
+        (first as any).destinationAddress ||
+        (first as any).destination_address ||
+        (first as any).delivery_address ||
+        firmCompany?.destinationAddress ||
+        '';
+
+    if (!resolvedDeliveryAddress && (first as any).terms) {
+        try {
+            const parsed = typeof (first as any).terms === 'string' ? JSON.parse((first as any).terms) : (first as any).terms;
+            if (Array.isArray(parsed?.localTerms)) {
+                const delTerm = parsed.localTerms.find((lt: any) => normalizeStr(lt.title) === 'delivery address');
+                if (delTerm?.name) {
+                    resolvedDeliveryAddress = String(delTerm.name).replace(/^\\?"|\\?"$/g, '').trim();
+                }
+            }
+        } catch {
+            // ignore
+        }
+    }
+
+    if (!resolvedDeliveryAddress) {
+        resolvedDeliveryAddress = (masterData as any).destinationAddress || '';
+    }
 
     const mappedItems = targetRows.map((r) => ({
         rate: r.rate || 0,
@@ -91,7 +120,7 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
         supplierPhone: vendor?.phone || '',
         supplierEmail: first.companyEmail || vendor?.vendorEmail || '',
         projectName: first.firmNameMatch || '',
-        deliveryAddress: (masterData as any).destinationAddress || '',
+        deliveryAddress: resolvedDeliveryAddress,
         deliveryContactPerson: '',
         deliveryPhone: '',
         deliveryEmail: '',
