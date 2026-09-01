@@ -190,13 +190,30 @@ export default () => {
         const matchedItem = inventorySheet?.find(i => i.itemName === itemName);
         const itemFallbackRate = Number(matchedItem?.avgPrice || (matchedItem as any)?.individualRate || 0);
 
+        const normalize = (val?: string) => (val || '').trim().toLowerCase();
+        const isSameProduct = (prod?: string) => normalize(prod) === normalize(itemName);
+
         switch (type) {
             case 'Indented':
                 rows = filteredIndents
-                    .filter((i: any) => i.productName === itemName)
+                    .filter((i: any) => isSameProduct(i.productName || i.product))
                     .map((i: any) => {
-                        const poMatch = poMasterSheet?.find((p: any) => (i.poNumber && p.poNumber === i.poNumber) || (i.po_number && p.poNumber === i.po_number));
-                        const rate = Number(i.approvedRate || i.approved_rate || i.rate || i.rate1 || poMatch?.rate || i.negotiated_rate || i.price || itemFallbackRate || 0);
+                        const targetPo = i.poNumber || i.po_number;
+                        const poMatch = poMasterSheet?.find((p: any) =>
+                            Boolean(targetPo && p.poNumber && String(p.poNumber).trim() === String(targetPo).trim()) &&
+                            isSameProduct(p.product || p.productName)
+                        );
+                        const rate = Number(
+                            poMatch?.rate ||
+                            i.approvedRate ||
+                            i.approved_rate ||
+                            i.rate ||
+                            i.rate1 ||
+                            i.negotiated_rate ||
+                            i.price ||
+                            itemFallbackRate ||
+                            0
+                        );
                         const quantity = Number(i.quantity || 0);
                         return {
                             date: i.timestamp,
@@ -211,10 +228,24 @@ export default () => {
                 break;
             case 'Approved':
                 rows = filteredIndents
-                    .filter((i: any) => i.productName === itemName && Number(i.approvedQuantity || 0) > 0)
+                    .filter((i: any) => isSameProduct(i.productName || i.product) && Number(i.approvedQuantity || 0) > 0)
                     .map((i: any) => {
-                        const poMatch = poMasterSheet?.find((p: any) => (i.poNumber && p.poNumber === i.poNumber) || (i.po_number && p.poNumber === i.po_number));
-                        const rate = Number(i.approvedRate || i.approved_rate || i.rate || i.rate1 || poMatch?.rate || i.negotiated_rate || i.price || itemFallbackRate || 0);
+                        const targetPo = i.poNumber || i.po_number;
+                        const poMatch = poMasterSheet?.find((p: any) =>
+                            Boolean(targetPo && p.poNumber && String(p.poNumber).trim() === String(targetPo).trim()) &&
+                            isSameProduct(p.product || p.productName)
+                        );
+                        const rate = Number(
+                            poMatch?.rate ||
+                            i.approvedRate ||
+                            i.approved_rate ||
+                            i.rate ||
+                            i.rate1 ||
+                            i.negotiated_rate ||
+                            i.price ||
+                            itemFallbackRate ||
+                            0
+                        );
                         const quantity = Number(i.approvedQuantity || 0);
                         return {
                             date: i.timestamp,
@@ -229,11 +260,36 @@ export default () => {
                 break;
             case 'Lifting Quantity':
                 rows = filteredStoreIns
-                    .filter((s: any) => s.productName === itemName && Number(s.receivedQuantity || 0) > 0)
+                    .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.receivedQuantity || 0) > 0)
                     .map((s: any) => {
-                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => (ind.indentNumber && s.indentNo && ind.indentNumber === s.indentNo) || (ind.poNumber && s.poNumber && ind.poNumber === s.poNumber));
-                        const poMatch = poMasterSheet?.find((p: any) => (s.poNumber && p.poNumber === s.poNumber) || (s.billNo && p.poNumber === s.billNo));
-                        const poRate = Number(s.priceAsPerPo || s.rate || matchedIndent?.approvedRate || matchedIndent?.approved_rate || matchedIndent?.rate || matchedIndent?.rate1 || poMatch?.rate || itemFallbackRate || 0);
+                        // Find indent specifically for this product and indent/PO
+                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => {
+                            const prodMatch = isSameProduct(ind.productName || ind.product);
+                            const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                            const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                            return prodMatch && (indentMatch || poMatchNum);
+                        });
+
+                        // Find PO created for this indent/lift data and product
+                        const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+                        const poMatch = poMasterSheet?.find((p: any) => {
+                            const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
+                            const prodMatch = isSameProduct(p.product || p.productName);
+                            return poNumMatch && prodMatch;
+                        });
+
+                        // Take rate strictly from the PO created for this indent/lift data
+                        const poRate = Number(
+                            poMatch?.rate ||
+                            matchedIndent?.approvedRate ||
+                            matchedIndent?.approved_rate ||
+                            s.priceAsPerPo ||
+                            s.rate ||
+                            matchedIndent?.rate ||
+                            matchedIndent?.rate1 ||
+                            itemFallbackRate ||
+                            0
+                        );
                         const quantity = Number(s.receivedQuantity || 0);
                         return {
                             date: s.materialDate || s.planned6 || s.timestamp,
@@ -249,11 +305,33 @@ export default () => {
                 break;
             case 'In Transit':
                 rows = filteredStoreIns
-                    .filter((s: any) => s.productName === itemName && (Number(s.qty || 0) - Number(s.receivedQuantity || 0)) > 0)
+                    .filter((s: any) => isSameProduct(s.productName || s.product) && (Number(s.qty || 0) - Number(s.receivedQuantity || 0)) > 0)
                     .map((s: any) => {
-                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => (ind.indentNumber && s.indentNo && ind.indentNumber === s.indentNo) || (ind.poNumber && s.poNumber && ind.poNumber === s.poNumber));
-                        const poMatch = poMasterSheet?.find((p: any) => (s.poNumber && p.poNumber === s.poNumber) || (s.billNo && p.poNumber === s.billNo));
-                        const poRate = Number(s.priceAsPerPo || s.rate || matchedIndent?.approvedRate || matchedIndent?.approved_rate || matchedIndent?.rate || matchedIndent?.rate1 || poMatch?.rate || itemFallbackRate || 0);
+                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => {
+                            const prodMatch = isSameProduct(ind.productName || ind.product);
+                            const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                            const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                            return prodMatch && (indentMatch || poMatchNum);
+                        });
+
+                        const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+                        const poMatch = poMasterSheet?.find((p: any) => {
+                            const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
+                            const prodMatch = isSameProduct(p.product || p.productName);
+                            return poNumMatch && prodMatch;
+                        });
+
+                        const poRate = Number(
+                            poMatch?.rate ||
+                            matchedIndent?.approvedRate ||
+                            matchedIndent?.approved_rate ||
+                            s.priceAsPerPo ||
+                            s.rate ||
+                            matchedIndent?.rate ||
+                            matchedIndent?.rate1 ||
+                            itemFallbackRate ||
+                            0
+                        );
                         const quantity = Number(s.qty || 0) - Number(s.receivedQuantity || 0);
                         return {
                             date: s.timestamp,
@@ -269,7 +347,7 @@ export default () => {
                 break;
             case 'Issued':
                 rows = filteredIssues
-                    .filter((is: any) => is.productName === itemName && Number(is.givenQty || 0) > 0)
+                    .filter((is: any) => isSameProduct(is.productName || is.product) && Number(is.givenQty || 0) > 0)
                     .map((is: any) => {
                         const quantity = Number(is.givenQty || 0);
                         return {
@@ -285,7 +363,7 @@ export default () => {
                 break;
             case 'Issue Return':
                 rows = filteredIssues
-                    .filter((is: any) => is.productName === itemName && Number(is.rejected_damage_qty || 0) > 0)
+                    .filter((is: any) => isSameProduct(is.productName || is.product) && Number(is.rejected_damage_qty || 0) > 0)
                     .map((is: any) => {
                         const quantity = Number(is.rejected_damage_qty || 0);
                         return {
@@ -302,11 +380,33 @@ export default () => {
                 break;
             case 'Purchase Return':
                 rows = filteredStoreIns
-                    .filter((s: any) => s.productName === itemName && Number(s.returnQuantity || 0) > 0)
+                    .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.returnQuantity || 0) > 0)
                     .map((s: any) => {
-                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => (ind.indentNumber && s.indentNo && ind.indentNumber === s.indentNo) || (ind.poNumber && s.poNumber && ind.poNumber === s.poNumber));
-                        const poMatch = poMasterSheet?.find((p: any) => (s.poNumber && p.poNumber === s.poNumber));
-                        const poRate = Number(s.priceAsPerPo || s.rate || matchedIndent?.approvedRate || matchedIndent?.approved_rate || matchedIndent?.rate || poMatch?.rate || itemFallbackRate || 0);
+                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => {
+                            const prodMatch = isSameProduct(ind.productName || ind.product);
+                            const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                            const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                            return prodMatch && (indentMatch || poMatchNum);
+                        });
+
+                        const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+                        const poMatch = poMasterSheet?.find((p: any) => {
+                            const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
+                            const prodMatch = isSameProduct(p.product || p.productName);
+                            return poNumMatch && prodMatch;
+                        });
+
+                        const poRate = Number(
+                            poMatch?.rate ||
+                            matchedIndent?.approvedRate ||
+                            matchedIndent?.approved_rate ||
+                            s.priceAsPerPo ||
+                            s.rate ||
+                            matchedIndent?.rate ||
+                            matchedIndent?.rate1 ||
+                            itemFallbackRate ||
+                            0
+                        );
                         const quantity = Number(s.returnQuantity || 0);
                         return {
                             date: s.timestamp,
