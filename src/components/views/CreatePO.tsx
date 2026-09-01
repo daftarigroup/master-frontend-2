@@ -30,10 +30,23 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '../ui/textarea';
 import { pdf } from '@react-pdf/renderer';
 import POPdf, { type POPdfProps } from '../element/POPdf';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '../ui/dialog';
 import { PDFViewer } from '@react-pdf/renderer';
 import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { fetchIndents, fetchPoMaster, fetchMasterData, insertPoRecords, updateIndentsAfterPoCreation } from '@/services/poService';
+import {
+    fetchIndents,
+    fetchPoMaster,
+    fetchMasterData,
+    insertPoRecords,
+    updateIndentsAfterPoCreation,
+} from '@/services/poService';
 import { upsertSiteEngineer, fetchTermsAndConditions } from '@/services/masterService';
 import { emailApi } from '@/lib/apiClient';
 
@@ -54,16 +67,18 @@ function getFinancialYear(): string {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth(); // 0-indexed, April is 3
-    
+
     let startYear, endYear;
-    if (month >= 3) { // April to December
+    if (month >= 3) {
+        // April to December
         startYear = year;
         endYear = year + 1;
-    } else { // January to March
+    } else {
+        // January to March
         startYear = year - 1;
         endYear = year;
     }
-    
+
     return `${startYear.toString().slice(-2)}-${endYear.toString().slice(-2)}`;
 }
 
@@ -71,15 +86,15 @@ function generatePoNumber(poNumbers: string[]): string {
     const financialYear = getFinancialYear();
     const newPrefix = `${financialYear}/`;
     const oldPrefix = `STORE-PO-${financialYear}-`;
-    
+
     if (!poNumbers || poNumbers.length === 0) {
         return `${newPrefix}01`;
     }
 
     // Extract all numbers for the current financial year
     const existingNumbers = poNumbers
-        .filter(po => po && typeof po === 'string' && po.trim() !== '')
-        .map(po => {
+        .filter((po) => po && typeof po === 'string' && po.trim() !== '')
+        .map((po) => {
             const poStr = po.trim();
 
             // 1. Check for new format: YY-YY/NN or YY-YY/NN-RR
@@ -100,7 +115,7 @@ function generatePoNumber(poNumbers: string[]): string {
 
             return 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
 
     // Find highest number and add 1
     const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
@@ -118,19 +133,21 @@ function incrementPoRevision(poNumber: string, allPOs: any[]): string {
 
     const fyPart = parts[0]; // YY-YY
     const rest = parts[1]; // NN or NN-RR
-    
+
     const baseNumber = rest.split('-')[0]; // NN
     const basePo = `${fyPart}/${baseNumber}`;
 
     // Find all POs that belong to this base number
     const allPoNumbers = allPOs
-        .filter((po: any) => po.poNumber && typeof po.poNumber === 'string' && po.poNumber.trim() !== '')
+        .filter(
+            (po: any) => po.poNumber && typeof po.poNumber === 'string' && po.poNumber.trim() !== ''
+        )
         .map((po: any) => po.poNumber.trim());
 
-    const relatedPos = allPoNumbers.filter(num => num === basePo || num.startsWith(basePo + '-'));
+    const relatedPos = allPoNumbers.filter((num) => num === basePo || num.startsWith(basePo + '-'));
 
     // Extract existing revision suffixes
-    const revisionNumbers = relatedPos.map(num => {
+    const revisionNumbers = relatedPos.map((num) => {
         if (num === basePo) return 0;
         const suffixPart = num.replace(basePo + '-', '');
         const n = parseInt(suffixPart, 10);
@@ -205,15 +222,18 @@ interface MasterDetails {
         regularConditions: string[];
         thirdPartyConditions: string[];
     }[];
-    firmCompanyMap: Record<string, {
-        companyName: string;
-        companyAddress: string;
-        destinationAddress: string;
-        companyGstin: string;
-        companyPan: string;
-        billingAddress?: string;
-        companyContactPerson?: string;
-    }>;
+    firmCompanyMap: Record<
+        string,
+        {
+            companyName: string;
+            companyAddress: string;
+            destinationAddress: string;
+            companyGstin: string;
+            companyPan: string;
+            billingAddress?: string;
+            companyContactPerson?: string;
+        }
+    >;
     companyName: string;
     companyPhone: string;
     companyGstin: string;
@@ -225,7 +245,6 @@ interface MasterDetails {
     paymentTerms: string[];
     siteEngineers: { id: number; name: string; number: string; email: string }[];
 }
-
 
 const schema = z.object({
     poNumber: z.string().nonempty(),
@@ -258,9 +277,9 @@ const schema = z.object({
     deliveryDate: z.coerce.date(),
     deliveryDays: z.coerce.number().optional(),
     deliveryType: z.enum(['for', 'exfactory']).optional(),
-    siteEngineerName: z.string().min(1, 'Site Engineer Details 1 Name is required'),
-    siteEngineerEmail: z.string().min(1, 'Site Engineer Details 1 Email is required'),
-    siteEngineerPhoneNo: z.string().min(1, 'Site Engineer Details 1 Phone is required'),
+    siteEngineerName: z.string().min(1, 'Site Incharge Details 1 Name is required'),
+    siteEngineerEmail: z.string().min(1, 'Site Incharge Details 1 Email is required'),
+    siteEngineerPhoneNo: z.string().min(1, 'Site Incharge Details 1 Phone is required'),
     siteEngineerName2: z.string().optional(),
     siteEngineerEmail2: z.string().optional(),
     siteEngineerPhoneNo2: z.string().optional(),
@@ -289,15 +308,23 @@ const CreatePO = () => {
     const [isEditingDestination, setIsEditingDestination] = useState(false);
     const [destinationAddress, setDestinationAddress] = useState('');
     const [firmCompanyName, setFirmCompanyName] = useState('Project Name');
-    const [firmCompanyAddress, setFirmCompanyAddress] = useState('Shri Ram Business Park , Block - C, 2nd floor , Room No. 212');
+    const [firmCompanyAddress, setFirmCompanyAddress] = useState(
+        'Shri Ram Business Park , Block - C, 2nd floor , Room No. 212'
+    );
     const [firmCompanyGstin, setFirmCompanyGstin] = useState('');
     const [firmCompanyPan, setFirmCompanyPan] = useState('');
     const [currentProjectName, setCurrentProjectName] = useState('Project Name');
     const [showPreview, setShowPreview] = useState(false);
     const [previewData, setPreviewData] = useState<POPdfProps | null>(null);
-    const [masterTerms, setMasterTerms] = useState<{ id: number; title: string; name: string }[]>([]);
+    const [masterTerms, setMasterTerms] = useState<{ id: number; title: string; name: string }[]>(
+        []
+    );
     const [localTerms, setLocalTerms] = useState<{ id: number; title: string; name: string }[]>([]);
-    const [editingTerm, setEditingTerm] = useState<{ id: number; title: string; name: string } | null>(null);
+    const [editingTerm, setEditingTerm] = useState<{
+        id: number;
+        title: string;
+        name: string;
+    } | null>(null);
     const [showAddTerm, setShowAddTerm] = useState(false);
     const [newTerm, setNewTerm] = useState({ title: '', name: '' });
 
@@ -307,9 +334,10 @@ const CreatePO = () => {
 
         try {
             setDataLoading(true);
-            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
-                ? undefined
-                : user.firm_access;
+            const permittedFirms =
+                user?.administrate || !user?.firm_access || user?.firm_access.length === 0
+                    ? undefined
+                    : user.firm_access;
             const [indents, poMaster, masterData] = await Promise.all([
                 fetchIndents(permittedFirms),
                 fetchPoMaster(permittedFirms),
@@ -353,10 +381,12 @@ const CreatePO = () => {
     }, [loadData]);
 
     useEffect(() => {
-        fetchTermsAndConditions().then(data => {
-            setMasterTerms(data);
-            setLocalTerms(data);
-        }).catch(() => {});
+        fetchTermsAndConditions()
+            .then((data) => {
+                setMasterTerms(data);
+                setLocalTerms(data);
+            })
+            .catch(() => {});
     }, []);
 
     const handleEngineerSave = async () => {
@@ -409,8 +439,6 @@ const CreatePO = () => {
         }
     };
 
-
-
     useEffect(() => {
         if (details && (details as any).destinationAddress) {
             setDestinationAddress(cleanAddress((details as any).destinationAddress));
@@ -440,8 +468,6 @@ const CreatePO = () => {
             siteEngineerPhoneNo2: '',
         },
     });
-
-
 
     const indents = form.watch('indents');
     const vendor = form.watch('supplierName');
@@ -487,26 +513,59 @@ const CreatePO = () => {
 
         const matchingIndents = indentSheet.filter((i: IndentSheetItem) => {
             const vendorName = i.approvedVendorName;
-            const hasVendor = vendorName && (typeof vendorName === 'string' || typeof vendorName === 'number') && String(vendorName).trim() !== '';
+            const hasVendor =
+                vendorName &&
+                (typeof vendorName === 'string' || typeof vendorName === 'number') &&
+                String(vendorName).trim() !== '';
             const normalizedVendorName = normalize(vendorName);
             const normalizedSelectedVendor = normalize(vendor);
 
-            const hasPoNumber = Boolean((i as any).poNumber && String((i as any).poNumber).trim() !== '') || Boolean((i as any).po_number && String((i as any).po_number).trim() !== '');
-            const isManagementDone = i.actual4 !== '' || i.planned4 !== '' || (i as any).po_requred === 'Yes' || i.poRequired === 'Yes' || !!vendorName;
+            const hasPoNumber =
+                Boolean((i as any).poNumber && String((i as any).poNumber).trim() !== '') ||
+                Boolean((i as any).po_number && String((i as any).po_number).trim() !== '');
+            const isManagementDone =
+                i.actual4 !== '' ||
+                i.planned4 !== '' ||
+                (i as any).po_requred === 'Yes' ||
+                i.poRequired === 'Yes' ||
+                !!vendorName;
 
-            return hasVendor && isManagementDone && !hasPoNumber && normalizedVendorName === normalizedSelectedVendor;
+            return (
+                hasVendor &&
+                isManagementDone &&
+                !hasPoNumber &&
+                normalizedVendorName === normalizedSelectedVendor
+            );
         });
 
         if (selectedVendor) {
-            form.setValue('supplierAddress', selectedVendor.address || (matchingIndents[0] as any)?.supplierAddress || '', { shouldValidate: true });
-            form.setValue('gstin', selectedVendor.gstin || (matchingIndents[0] as any)?.supplierGstin || '', { shouldValidate: true });
-            form.setValue('companyEmail', selectedVendor.vendorEmail || (matchingIndents[0] as any)?.companyEmail || '', { shouldValidate: true });
+            form.setValue(
+                'supplierAddress',
+                selectedVendor.address || (matchingIndents[0] as any)?.supplierAddress || '',
+                { shouldValidate: true }
+            );
+            form.setValue(
+                'gstin',
+                selectedVendor.gstin || (matchingIndents[0] as any)?.supplierGstin || '',
+                { shouldValidate: true }
+            );
+            form.setValue(
+                'companyEmail',
+                selectedVendor.vendorEmail || (matchingIndents[0] as any)?.companyEmail || '',
+                { shouldValidate: true }
+            );
         } else if (matchingIndents.length > 0) {
-            form.setValue('supplierAddress', (matchingIndents[0] as any)?.supplierAddress || '', { shouldValidate: true });
-            form.setValue('gstin', (matchingIndents[0] as any)?.supplierGstin || '', { shouldValidate: true });
-            form.setValue('companyEmail', (matchingIndents[0] as any)?.companyEmail || '', { shouldValidate: true });
+            form.setValue('supplierAddress', (matchingIndents[0] as any)?.supplierAddress || '', {
+                shouldValidate: true,
+            });
+            form.setValue('gstin', (matchingIndents[0] as any)?.supplierGstin || '', {
+                shouldValidate: true,
+            });
+            form.setValue('companyEmail', (matchingIndents[0] as any)?.companyEmail || '', {
+                shouldValidate: true,
+            });
         } else {
-            console.warn("⚠️ Vendor details not found in master list or indents:", vendor);
+            console.warn('⚠️ Vendor details not found in master list or indents:', vendor);
             form.setValue('supplierAddress', '', { shouldValidate: true });
             form.setValue('gstin', '', { shouldValidate: true });
             form.setValue('companyEmail', '', { shouldValidate: true });
@@ -520,12 +579,25 @@ const CreatePO = () => {
                 (key) => normalize(key) === normalize(firmName)
             );
 
-            const companyDetails = firmKey ? (details as MasterDetails).firmCompanyMap![firmKey] : null;
+            const companyDetails = firmKey
+                ? (details as MasterDetails).firmCompanyMap![firmKey]
+                : null;
 
-            const compName = companyDetails?.companyName || (details as MasterDetails)?.companyName || firmName || 'Project Name';
-            const compAddr = companyDetails?.billingAddress || companyDetails?.companyAddress || (details as MasterDetails)?.billingAddress || (details as MasterDetails)?.companyAddress || '';
-            const compGstin = companyDetails?.companyGstin || (details as MasterDetails)?.companyGstin || '';
-            const compPan = companyDetails?.companyPan || (details as MasterDetails)?.companyPan || '';
+            const compName =
+                companyDetails?.companyName ||
+                (details as MasterDetails)?.companyName ||
+                firmName ||
+                'Project Name';
+            const compAddr =
+                companyDetails?.billingAddress ||
+                companyDetails?.companyAddress ||
+                (details as MasterDetails)?.billingAddress ||
+                (details as MasterDetails)?.companyAddress ||
+                '';
+            const compGstin =
+                companyDetails?.companyGstin || (details as MasterDetails)?.companyGstin || '';
+            const compPan =
+                companyDetails?.companyPan || (details as MasterDetails)?.companyPan || '';
 
             setFirmCompanyName(compName);
             setFirmCompanyAddress(cleanAddress(compAddr));
@@ -534,10 +606,21 @@ const CreatePO = () => {
 
             if (companyDetails) {
                 setDestinationAddress(
-                    cleanAddress(companyDetails.destinationAddress || (matchingIndents[0] as any)?.destinationAddress || (matchingIndents[0] as any)?.destination_address || '')
+                    cleanAddress(
+                        companyDetails.destinationAddress ||
+                            (matchingIndents[0] as any)?.destinationAddress ||
+                            (matchingIndents[0] as any)?.destination_address ||
+                            ''
+                    )
                 );
             } else {
-                setDestinationAddress(cleanAddress((matchingIndents[0] as any)?.destinationAddress || (matchingIndents[0] as any)?.destination_address || ''));
+                setDestinationAddress(
+                    cleanAddress(
+                        (matchingIndents[0] as any)?.destinationAddress ||
+                            (matchingIndents[0] as any)?.destination_address ||
+                            ''
+                    )
+                );
             }
         }
 
@@ -548,8 +631,7 @@ const CreatePO = () => {
 
                 if (i.taxValue1 && !isNaN(Number(i.taxValue1)) && Number(i.taxValue1) > 0) {
                     gstValue = Number(i.taxValue1);
-                }
-                else if (i.taxValue4 && !isNaN(Number(i.taxValue4)) && Number(i.taxValue4) > 0) {
+                } else if (i.taxValue4 && !isNaN(Number(i.taxValue4)) && Number(i.taxValue4) > 0) {
                     gstValue = Number(i.taxValue4);
                 }
 
@@ -571,7 +653,11 @@ const CreatePO = () => {
         );
 
         if (mode === 'create' && matchingIndents.length > 0) {
-            const rawDelivery = (matchingIndents[0] as any)?.deliveryDate || (matchingIndents[0] as any)?.delivery_date || (matchingIndents[0] as any)?.expected_req_date || (matchingIndents[0] as any)?.expectedReqDate;
+            const rawDelivery =
+                (matchingIndents[0] as any)?.deliveryDate ||
+                (matchingIndents[0] as any)?.delivery_date ||
+                (matchingIndents[0] as any)?.expected_req_date ||
+                (matchingIndents[0] as any)?.expectedReqDate;
             if (rawDelivery) {
                 const parsedDel = parseCustomDate(rawDelivery);
                 if (!isNaN(parsedDel.getTime())) {
@@ -581,7 +667,6 @@ const CreatePO = () => {
         }
 
         setTimeout(() => form.trigger(['supplierAddress', 'gstin']), 100);
-
     }, [vendor, details, indentSheet, poMasterSheet, mode, form]);
 
     // Mode change effect
@@ -604,7 +689,9 @@ const CreatePO = () => {
             });
         } else {
             if (poMasterSheet && poMasterSheet.length > 0) {
-                const poNumbers = poMasterSheet.map((p) => p.poNumber).filter(po => po && po.trim() !== '');
+                const poNumbers = poMasterSheet
+                    .map((p) => p.poNumber)
+                    .filter((po) => po && po.trim() !== '');
                 const newPoNumber = generatePoNumber(poNumbers);
                 form.reset({
                     poNumber: newPoNumber,
@@ -659,9 +746,15 @@ const CreatePO = () => {
                 form.setValue('supplierName', firstPoItem.partyName || '');
 
                 if (vendor) {
-                    form.setValue('supplierAddress', firstPoItem.supplierAddress || vendor.address || '');
+                    form.setValue(
+                        'supplierAddress',
+                        firstPoItem.supplierAddress || vendor.address || ''
+                    );
                     form.setValue('gstin', firstPoItem.supplierGstin || vendor.gstin || '');
-                    form.setValue('companyEmail', firstPoItem.companyEmail || vendor.vendorEmail || '');
+                    form.setValue(
+                        'companyEmail',
+                        firstPoItem.companyEmail || vendor.vendorEmail || ''
+                    );
                 } else {
                     form.setValue('supplierAddress', firstPoItem.supplierAddress || '');
                     form.setValue('gstin', firstPoItem.supplierGstin || '');
@@ -670,16 +763,25 @@ const CreatePO = () => {
 
                 form.setValue('ourEnqNo', firstPoItem.enquiryNumber || '');
                 const enqDate = parseCustomDate(firstPoItem.enquiryDate);
-                form.setValue('enquiryDate', isNaN(enqDate.getTime()) ? undefined as any : enqDate);
+                form.setValue(
+                    'enquiryDate',
+                    isNaN(enqDate.getTime()) ? (undefined as any) : enqDate
+                );
                 const delDate = parseCustomDate(firstPoItem.deliveryDate);
                 form.setValue('deliveryDate', isNaN(delDate.getTime()) ? new Date() : delDate);
                 form.setValue('deliveryDays', firstPoItem.deliveryDays || 0);
-                form.setValue('deliveryType', (firstPoItem.deliveryType === 'for' || firstPoItem.deliveryType === 'exfactory') ? firstPoItem.deliveryType : undefined);
+                form.setValue(
+                    'deliveryType',
+                    firstPoItem.deliveryType === 'for' || firstPoItem.deliveryType === 'exfactory'
+                        ? firstPoItem.deliveryType
+                        : undefined
+                );
 
                 const poIndents = poItems.map((poItem) => {
-                    const originalIndent = indentSheet.find(i =>
-                        i.indentNumber === poItem.internalCode &&
-                        i.productName === poItem.product
+                    const originalIndent = indentSheet.find(
+                        (i) =>
+                            i.indentNumber === poItem.internalCode &&
+                            i.productName === poItem.product
                     );
                     return {
                         id: originalIndent?.id || 0,
@@ -710,9 +812,14 @@ const CreatePO = () => {
 
                 // 2. Also fetch from the JSONB 'terms' column
                 if (firstPoItem.terms && typeof firstPoItem.terms === 'object') {
-                    Object.keys(firstPoItem.terms).forEach(key => {
+                    Object.keys(firstPoItem.terms).forEach((key) => {
                         const val = (firstPoItem.terms as any)[key];
-                        if (val && typeof val === 'string' && val.trim() !== '' && !terms.includes(val.trim())) {
+                        if (
+                            val &&
+                            typeof val === 'string' &&
+                            val.trim() !== '' &&
+                            !terms.includes(val.trim())
+                        ) {
                             terms.push(val.trim());
                         }
                     });
@@ -721,9 +828,10 @@ const CreatePO = () => {
                 form.setValue('terms', terms);
 
                 // Update Commercial Details for Revise Mode
-                const firmName = firstPoItem.firmNameMatch || poIndents[0]?.indentNumber.split('/')[0] || '';
+                const firmName =
+                    firstPoItem.firmNameMatch || poIndents[0]?.indentNumber.split('/')[0] || '';
                 setCurrentProjectName(firmName || 'Project Name');
-                
+
                 if (firmName && (details as MasterDetails).firmCompanyMap) {
                     const normalize = (str: any) => {
                         if (!str) return '';
@@ -735,12 +843,27 @@ const CreatePO = () => {
                         (key) => normalize(key) === normalize(firmName)
                     );
 
-                    const companyDetails = firmKey ? (details as MasterDetails).firmCompanyMap![firmKey] : null;
+                    const companyDetails = firmKey
+                        ? (details as MasterDetails).firmCompanyMap![firmKey]
+                        : null;
 
-                    const compName = companyDetails?.companyName || (details as MasterDetails)?.companyName || firmName || 'Project Name';
-                    const compAddr = companyDetails?.billingAddress || companyDetails?.companyAddress || (details as MasterDetails)?.billingAddress || (details as MasterDetails)?.companyAddress || '';
-                    const compGstin = companyDetails?.companyGstin || (details as MasterDetails)?.companyGstin || '';
-                    const compPan = companyDetails?.companyPan || (details as MasterDetails)?.companyPan || '';
+                    const compName =
+                        companyDetails?.companyName ||
+                        (details as MasterDetails)?.companyName ||
+                        firmName ||
+                        'Project Name';
+                    const compAddr =
+                        companyDetails?.billingAddress ||
+                        companyDetails?.companyAddress ||
+                        (details as MasterDetails)?.billingAddress ||
+                        (details as MasterDetails)?.companyAddress ||
+                        '';
+                    const compGstin =
+                        companyDetails?.companyGstin ||
+                        (details as MasterDetails)?.companyGstin ||
+                        '';
+                    const compPan =
+                        companyDetails?.companyPan || (details as MasterDetails)?.companyPan || '';
 
                     setFirmCompanyName(compName);
                     setFirmCompanyAddress(cleanAddress(compAddr));
@@ -749,25 +872,60 @@ const CreatePO = () => {
 
                     if (companyDetails) {
                         setDestinationAddress(
-                            cleanAddress(firstPoItem.destinationAddress || companyDetails.destinationAddress || (firstPoItem as any)?.destination_address || '')
+                            cleanAddress(
+                                firstPoItem.destinationAddress ||
+                                    companyDetails.destinationAddress ||
+                                    (firstPoItem as any)?.destination_address ||
+                                    ''
+                            )
                         );
                     } else {
-                        setDestinationAddress(cleanAddress(firstPoItem.destinationAddress || (firstPoItem as any)?.destination_address || ''));
+                        setDestinationAddress(
+                            cleanAddress(
+                                firstPoItem.destinationAddress ||
+                                    (firstPoItem as any)?.destination_address ||
+                                    ''
+                            )
+                        );
                     }
                 }
 
-                // Populate Site Engineer Details in Revise Mode
-                form.setValue('siteEngineerName', firstPoItem.siteEngineerName || (firstPoItem as any).site_engineer_name || '');
-                form.setValue('siteEngineerEmail', firstPoItem.siteEngineerEmail || (firstPoItem as any).site_engineer_email || '');
-                form.setValue('siteEngineerPhoneNo', firstPoItem.siteEngineerPhoneNo || (firstPoItem as any).site_engineer_phoneNo || '');
-                form.setValue('siteEngineerName2', firstPoItem.siteEngineerName2 || (firstPoItem as any).site_engineer_name_2 || '');
-                form.setValue('siteEngineerEmail2', firstPoItem.siteEngineerEmail2 || (firstPoItem as any).site_engineer_email_2 || '');
-                form.setValue('siteEngineerPhoneNo2', firstPoItem.siteEngineerPhoneNo2 || (firstPoItem as any).site_engineer_phoneNo_2 || '');
+                // Populate Site Incharge Details in Revise Mode
+                form.setValue(
+                    'siteEngineerName',
+                    firstPoItem.siteEngineerName || (firstPoItem as any).site_engineer_name || ''
+                );
+                form.setValue(
+                    'siteEngineerEmail',
+                    firstPoItem.siteEngineerEmail || (firstPoItem as any).site_engineer_email || ''
+                );
+                form.setValue(
+                    'siteEngineerPhoneNo',
+                    firstPoItem.siteEngineerPhoneNo ||
+                        (firstPoItem as any).site_engineer_phoneNo ||
+                        ''
+                );
+                form.setValue(
+                    'siteEngineerName2',
+                    firstPoItem.siteEngineerName2 || (firstPoItem as any).site_engineer_name_2 || ''
+                );
+                form.setValue(
+                    'siteEngineerEmail2',
+                    firstPoItem.siteEngineerEmail2 ||
+                        (firstPoItem as any).site_engineer_email_2 ||
+                        ''
+                );
+                form.setValue(
+                    'siteEngineerPhoneNo2',
+                    firstPoItem.siteEngineerPhoneNo2 ||
+                        (firstPoItem as any).site_engineer_phoneNo_2 ||
+                        ''
+                );
             }
         }
     }, [poNumber, mode, poMasterSheet, details, indentSheet, form]);
 
-    // Auto-populate Site Engineer Details
+    // Auto-populate Site Incharge Details
     const watchedSiteEngineerName = form.watch('siteEngineerName');
     useEffect(() => {
         if (!watchedSiteEngineerName || !details?.siteEngineers) return;
@@ -795,11 +953,18 @@ const CreatePO = () => {
         toast.success('Destination address updated');
     };
     const handleDestinationCancel = () => {
-        const firmKey = currentProjectName && (details as MasterDetails)?.firmCompanyMap
-            ? Object.keys((details as MasterDetails).firmCompanyMap!).find((k) => normalize(k) === normalize(currentProjectName))
-            : undefined;
+        const firmKey =
+            currentProjectName && (details as MasterDetails)?.firmCompanyMap
+                ? Object.keys((details as MasterDetails).firmCompanyMap!).find(
+                      (k) => normalize(k) === normalize(currentProjectName)
+                  )
+                : undefined;
         const companyDetails = firmKey ? (details as MasterDetails).firmCompanyMap![firmKey] : null;
-        setDestinationAddress(companyDetails?.destinationAddress || (details as MasterDetails)?.destinationAddress || '');
+        setDestinationAddress(
+            companyDetails?.destinationAddress ||
+                (details as MasterDetails)?.destinationAddress ||
+                ''
+        );
         setIsEditingDestination(false);
     };
 
@@ -833,7 +998,7 @@ const CreatePO = () => {
         const subtotal = calculateSubtotal(mappedItems);
         const totalGst = calculateTotalGst(mappedItems);
 
-        const selectedVendor = details?.vendors?.find(v => v.vendorName === values.supplierName);
+        const selectedVendor = details?.vendors?.find((v) => v.vendorName === values.supplierName);
         const projectName = currentProjectName;
 
         // Parse terms from form values
@@ -841,12 +1006,12 @@ const CreatePO = () => {
         const parsedTerms = [
             ...userTerms.map((text, index) => ({
                 num: (index + 1).toString(),
-                text: text
+                text: text,
             })),
             ...localTerms.map((t, index) => ({
                 num: (userTerms.length + index + 1).toString(),
-                text: `${t.title}: ${t.name}`
-            }))
+                text: `${t.title}: ${t.name}`,
+            })),
         ];
 
         return {
@@ -863,7 +1028,10 @@ const CreatePO = () => {
             supplierContactPerson: selectedVendor?.personName || '',
             supplierPhone: selectedVendor?.phone || '',
             supplierEmail: values.companyEmail || '',
-            poNumber: mode === 'create' ? values.poNumber : incrementPoRevision(values.poNumber, poMasterSheet),
+            poNumber:
+                mode === 'create'
+                    ? values.poNumber
+                    : incrementPoRevision(values.poNumber, poMasterSheet),
             poDate: formatDate(values.poDate),
             deliveryDate: formatDate(values.deliveryDate),
             projectName: projectName,
@@ -918,7 +1086,10 @@ const CreatePO = () => {
 
     async function onSubmit(values: FormData) {
         try {
-            const poNumber = mode === 'create' ? values.poNumber : incrementPoRevision(values.poNumber, poMasterSheet);
+            const poNumber =
+                mode === 'create'
+                    ? values.poNumber
+                    : incrementPoRevision(values.poNumber, poMasterSheet);
             const mappedItems = values.indents.map((indent) => ({
                 quantity: indent.quantity || 0,
                 rate: indent.rate || 0,
@@ -930,20 +1101,25 @@ const CreatePO = () => {
             const totalGst = calculateTotalGst(mappedItems);
 
             const logoBase64 = await getLogoBase64();
-            const normalizeVendorStr = (s: any) => String(s || '').trim().toLowerCase();
-            const selectedVendor = details?.vendors?.find(v => normalizeVendorStr(v.vendorName) === normalizeVendorStr(values.supplierName));
+            const normalizeVendorStr = (s: any) =>
+                String(s || '')
+                    .trim()
+                    .toLowerCase();
+            const selectedVendor = details?.vendors?.find(
+                (v) => normalizeVendorStr(v.vendorName) === normalizeVendorStr(values.supplierName)
+            );
             const projectName = currentProjectName;
 
             const userTerms = values.terms || [];
             const parsedTerms = [
                 ...userTerms.map((text, index) => ({
                     num: (index + 1).toString(),
-                    text: text
+                    text: text,
                 })),
                 ...localTerms.map((t, index) => ({
                     num: (userTerms.length + index + 1).toString(),
-                    text: `${t.title}: ${t.name}`
-                }))
+                    text: `${t.title}: ${t.name}`,
+                })),
             ];
 
             const pdfProps: POPdfProps = {
@@ -1037,7 +1213,9 @@ const CreatePO = () => {
             const url = '';
 
             const missingFirmId = values.indents.some((v) => {
-                const indent = indentSheet.find((i: IndentSheetItem) => i.indentNumber === v.indentNumber);
+                const indent = indentSheet.find(
+                    (i: IndentSheetItem) => i.indentNumber === v.indentNumber
+                );
                 return !indent?.firm_id;
             });
             if (missingFirmId) {
@@ -1047,17 +1225,24 @@ const CreatePO = () => {
 
             const combinedTerms = [
                 ...userTerms,
-                ...localTerms.map((t) => `${t.title}: ${t.name}`)
+                ...localTerms.map((t) => `${t.title}: ${t.name}`),
             ].filter(Boolean);
 
             const rows: PoMasterSheet[] = values.indents.map((v) => {
-                const indent = indentSheet.find((i: IndentSheetItem) => i.indentNumber === v.indentNumber);
+                const indent = indentSheet.find(
+                    (i: IndentSheetItem) => i.indentNumber === v.indentNumber
+                );
 
-                const safePoDateStr = (values.poDate instanceof Date && !isNaN(values.poDate.getTime()))
-                    ? values.poDate.toISOString()
-                    : (values.poDate ? parseCustomDate(values.poDate).toISOString() : new Date().toISOString());
+                const safePoDateStr =
+                    values.poDate instanceof Date && !isNaN(values.poDate.getTime())
+                        ? values.poDate.toISOString()
+                        : values.poDate
+                          ? parseCustomDate(values.poDate).toISOString()
+                          : new Date().toISOString();
 
-                const formattedPoCreatedDate = values.poDate ? formatDate(values.poDate) : formatDate(new Date());
+                const formattedPoCreatedDate = values.poDate
+                    ? formatDate(values.poDate)
+                    : formatDate(new Date());
 
                 return {
                     discountPercent: v.discount || 0,
@@ -1095,8 +1280,25 @@ const CreatePO = () => {
                     deliveryType: values.deliveryType || '',
                     firmNameMatch: (indent as any)?.firmNameMatch ?? '',
                     firm_id: indent?.firm_id,
-                    advancePercent: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (v.numberOfDays || 0) : 0,
-                    advanceAmount: (v.paymentTerm?.toLowerCase().includes('partly') && (v.paymentTerm?.toLowerCase().includes('advance') || v.paymentTerm?.toLowerCase().includes('pi'))) ? (calculateTotal(v.rate || 0, v.gst || 0, v.discount || 0, v.quantity || 0) * (v.numberOfDays || 0)) / 100 : 0,
+                    advancePercent:
+                        v.paymentTerm?.toLowerCase().includes('partly') &&
+                        (v.paymentTerm?.toLowerCase().includes('advance') ||
+                            v.paymentTerm?.toLowerCase().includes('pi'))
+                            ? v.numberOfDays || 0
+                            : 0,
+                    advanceAmount:
+                        v.paymentTerm?.toLowerCase().includes('partly') &&
+                        (v.paymentTerm?.toLowerCase().includes('advance') ||
+                            v.paymentTerm?.toLowerCase().includes('pi'))
+                            ? (calculateTotal(
+                                  v.rate || 0,
+                                  v.gst || 0,
+                                  v.discount || 0,
+                                  v.quantity || 0
+                              ) *
+                                  (v.numberOfDays || 0)) /
+                              100
+                            : 0,
                     destinationAddress: destinationAddress,
                     supplierAddress: values.supplierAddress || selectedVendor?.address || '',
                     supplierGstin: values.gstin || selectedVendor?.gstin || '',
@@ -1112,7 +1314,7 @@ const CreatePO = () => {
             await insertPoRecords(rows);
 
             // Update indents to mark PO as created (set actual4 and delivery_date)
-            const indentIds = values.indents.map(v => v.id).filter(id => id > 0);
+            const indentIds = values.indents.map((v) => v.id).filter((id) => id > 0);
             // Use ISO string for database compatibility to avoid "out of range" error
             const databaseDeliveryDate = values.deliveryDate.toISOString();
             if (indentIds.length > 0) {
@@ -1120,7 +1322,8 @@ const CreatePO = () => {
             }
 
             // Send generated PO PDF via email to selected vendor
-            const vendorEmail = values.companyEmail || selectedVendor?.vendorEmail || selectedVendor?.email || '';
+            const vendorEmail =
+                values.companyEmail || selectedVendor?.vendorEmail || selectedVendor?.email || '';
             if (vendorEmail && vendorEmail.trim() && vendorEmail.includes('@')) {
                 try {
                     const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
@@ -1158,7 +1361,9 @@ const CreatePO = () => {
                     toast.success(`Purchase Order saved and emailed to ${vendorEmail.trim()}`);
                 } catch (emailErr: any) {
                     console.error('Failed to send PO email to vendor:', emailErr);
-                    toast.warning(`PO saved successfully, but email sending failed: ${emailErr?.message || 'Check email service'}`);
+                    toast.warning(
+                        `PO saved successfully, but email sending failed: ${emailErr?.message || 'Check email service'}`
+                    );
                 }
             } else {
                 toast.success(`Successfully ${mode}d purchase order (Vendor email missing)`);
@@ -1196,7 +1401,10 @@ const CreatePO = () => {
             </div>
             <div className="w-full max-w-6xl px-2 sm:px-4 py-2">
                 <div className="w-full">
-                    <Tabs defaultValue="create" onValueChange={(v) => setMode(v === 'create' ? v : 'revise')}>
+                    <Tabs
+                        defaultValue="create"
+                        onValueChange={(v) => setMode(v === 'create' ? v : 'revise')}
+                    >
                         <TabsList className="h-10 w-full rounded-none">
                             <TabsTrigger value="create">Create</TabsTrigger>
                             <TabsTrigger value="revise">Revise</TabsTrigger>
@@ -1204,7 +1412,10 @@ const CreatePO = () => {
                     </Tabs>
                 </div>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="flex flex-col items-center w-full">
+                    <form
+                        onSubmit={form.handleSubmit(onSubmit, onError)}
+                        className="flex flex-col items-center w-full"
+                    >
                         <div className="space-y-4 p-3 sm:p-6 w-full max-w-full overflow-hidden bg-white shadow-md rounded-sm">
                             {/* Header Section */}
                             <div className="flex flex-col items-center justify-center gap-1 bg-blue-50/80 p-3 sm:p-4 rounded-md text-center w-full">
@@ -1215,7 +1426,9 @@ const CreatePO = () => {
                                     <p className="text-xs sm:text-sm text-muted-foreground leading-normal max-w-2xl">
                                         Address: {details?.companyAddress || ''}
                                     </p>
-                                    <p className="text-xs sm:text-sm text-muted-foreground font-medium">Phone No: {details?.companyPhone || ''} </p>
+                                    <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                                        Phone No: {details?.companyPhone || ''}{' '}
+                                    </p>
                                 </div>
                             </div>
                             <hr />
@@ -1225,163 +1438,329 @@ const CreatePO = () => {
                             {/* Form Fields */}
                             <div className="grid gap-4 sm:gap-5 px-1 sm:px-4 py-2 text-foreground/80">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5">
-                                    <FormField control={form.control} name="poNumber" render={({ field }) => (
-                                        <FormItem>
-                                            {mode === 'create' ? (
-                                                <>
-                                                    <FormLabel>PO Number</FormLabel>
-                                                    <FormControl>
-                                                        <Input className="h-9" readOnly placeholder="Enter PO number" {...field} />
-                                                    </FormControl>
-                                                </>
-                                            ) : (
-                                                <FormControl>
-                                                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                                    <FormField
+                                        control={form.control}
+                                        name="poNumber"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                {mode === 'create' ? (
+                                                    <>
                                                         <FormLabel>PO Number</FormLabel>
                                                         <FormControl>
-                                                            <SelectTrigger size="sm" className="w-full">
-                                                                <SelectValue placeholder="Select PO" />
-                                                            </SelectTrigger>
+                                                            <Input
+                                                                className="h-9"
+                                                                readOnly
+                                                                placeholder="Enter PO number"
+                                                                {...field}
+                                                            />
                                                         </FormControl>
-                                                        <SelectContent>
-                                                            {filterUniquePoNumbers(poMasterSheet)
-                                                                .filter(i => i.poNumber && i.poNumber.trim() !== '')
-                                                                .map((i, k) => (
-                                                                    <SelectItem key={k} value={i.poNumber}>
-                                                                        {i.poNumber}
-                                                                    </SelectItem>
-                                                                ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                                    </>
+                                                ) : (
+                                                    <FormControl>
+                                                        <Select
+                                                            onValueChange={field.onChange}
+                                                            value={field.value || ''}
+                                                        >
+                                                            <FormLabel>PO Number</FormLabel>
+                                                            <FormControl>
+                                                                <SelectTrigger
+                                                                    size="sm"
+                                                                    className="w-full"
+                                                                >
+                                                                    <SelectValue placeholder="Select PO" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {filterUniquePoNumbers(
+                                                                    poMasterSheet
+                                                                )
+                                                                    .filter(
+                                                                        (i) =>
+                                                                            i.poNumber &&
+                                                                            i.poNumber.trim() !== ''
+                                                                    )
+                                                                    .map((i, k) => (
+                                                                        <SelectItem
+                                                                            key={k}
+                                                                            value={i.poNumber}
+                                                                        >
+                                                                            {i.poNumber}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormControl>
+                                                )}
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="poDate"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>PO Date</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        className="h-9"
+                                                        type="date"
+                                                        value={
+                                                            field.value &&
+                                                            !isNaN(field.value.getTime())
+                                                                ? field.value
+                                                                      .toISOString()
+                                                                      .split('T')[0]
+                                                                : ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            field.onChange(
+                                                                e.target.value
+                                                                    ? new Date(e.target.value)
+                                                                    : undefined
+                                                            )
+                                                        }
+                                                    />
                                                 </FormControl>
-                                            )}
-                                        </FormItem>
-                                    )} />
-                                    <FormField control={form.control} name="poDate" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>PO Date</FormLabel>
-                                            <FormControl>
-                                                <Input className="h-9" type="date" value={field.value && !isNaN(field.value.getTime()) ? field.value.toISOString().split('T')[0] : ''}
-                                                    onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )} />
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
-                                    <FormField control={form.control} name="supplierName" render={({ field }) => (
-                                        <FormItem>
-                                            {mode === 'create' ? (
-                                                <FormControl>
-                                                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                                    <FormField
+                                        control={form.control}
+                                        name="supplierName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                {mode === 'create' ? (
+                                                    <FormControl>
+                                                        <Select
+                                                            onValueChange={field.onChange}
+                                                            value={field.value || ''}
+                                                        >
+                                                            <FormLabel>Supplier Name</FormLabel>
+                                                            <FormControl>
+                                                                <SelectTrigger
+                                                                    size="sm"
+                                                                    className="w-full"
+                                                                >
+                                                                    <SelectValue placeholder="Select supplier" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {(() => {
+                                                                    const pendingApprovedVendors =
+                                                                        Array.from(
+                                                                            new Set(
+                                                                                indentSheet
+                                                                                    .filter(
+                                                                                        (
+                                                                                            i: IndentSheetItem
+                                                                                        ) => {
+                                                                                            const vendorName =
+                                                                                                i.approvedVendorName;
+                                                                                            const hasVendor =
+                                                                                                vendorName &&
+                                                                                                String(
+                                                                                                    vendorName
+                                                                                                ).trim() !==
+                                                                                                    '';
+                                                                                            const hasPoNumber =
+                                                                                                Boolean(
+                                                                                                    (
+                                                                                                        i as any
+                                                                                                    )
+                                                                                                        .poNumber &&
+                                                                                                    String(
+                                                                                                        (
+                                                                                                            i as any
+                                                                                                        )
+                                                                                                            .poNumber
+                                                                                                    ).trim() !==
+                                                                                                        ''
+                                                                                                ) ||
+                                                                                                Boolean(
+                                                                                                    (
+                                                                                                        i as any
+                                                                                                    )
+                                                                                                        .po_number &&
+                                                                                                    String(
+                                                                                                        (
+                                                                                                            i as any
+                                                                                                        )
+                                                                                                            .po_number
+                                                                                                    ).trim() !==
+                                                                                                        ''
+                                                                                                );
+                                                                                            const isManagementDone =
+                                                                                                i.actual4 !==
+                                                                                                    '' ||
+                                                                                                i.planned4 !==
+                                                                                                    '' ||
+                                                                                                (
+                                                                                                    i as any
+                                                                                                )
+                                                                                                    .po_requred ===
+                                                                                                    'Yes' ||
+                                                                                                i.poRequired ===
+                                                                                                    'Yes' ||
+                                                                                                !!vendorName;
+                                                                                            return (
+                                                                                                hasVendor &&
+                                                                                                isManagementDone &&
+                                                                                                !hasPoNumber
+                                                                                            );
+                                                                                        }
+                                                                                    )
+                                                                                    .map((i) =>
+                                                                                        String(
+                                                                                            i.approvedVendorName
+                                                                                        ).trim()
+                                                                                    )
+                                                                            )
+                                                                        );
+
+                                                                    if (
+                                                                        pendingApprovedVendors.length ===
+                                                                        0
+                                                                    ) {
+                                                                        return (
+                                                                            <SelectItem
+                                                                                value="none"
+                                                                                disabled
+                                                                            >
+                                                                                No pending suppliers
+                                                                                available
+                                                                            </SelectItem>
+                                                                        );
+                                                                    }
+
+                                                                    return pendingApprovedVendors.map(
+                                                                        (vendorName, k) => (
+                                                                            <SelectItem
+                                                                                key={k}
+                                                                                value={vendorName}
+                                                                            >
+                                                                                {vendorName}
+                                                                            </SelectItem>
+                                                                        )
+                                                                    );
+                                                                })()}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormControl>
+                                                ) : (
+                                                    <>
                                                         <FormLabel>Supplier Name</FormLabel>
                                                         <FormControl>
-                                                            <SelectTrigger size="sm" className="w-full">
-                                                                <SelectValue placeholder="Select supplier" />
-                                                            </SelectTrigger>
+                                                            <Input
+                                                                className="h-9"
+                                                                readOnly
+                                                                placeholder="Enter supplier name"
+                                                                {...field}
+                                                            />
                                                         </FormControl>
-                                                        <SelectContent>
-                                                            {(() => {
-                                                                const pendingApprovedVendors = Array.from(
-                                                                    new Set(
-                                                                        indentSheet
-                                                                            .filter((i: IndentSheetItem) => {
-                                                                                const vendorName = i.approvedVendorName;
-                                                                                const hasVendor = vendorName && String(vendorName).trim() !== '';
-                                                                                const hasPoNumber = Boolean((i as any).poNumber && String((i as any).poNumber).trim() !== '') || Boolean((i as any).po_number && String((i as any).po_number).trim() !== '');
-                                                                                const isManagementDone = i.actual4 !== '' || i.planned4 !== '' || (i as any).po_requred === 'Yes' || i.poRequired === 'Yes' || !!vendorName;
-                                                                                return hasVendor && isManagementDone && !hasPoNumber;
-                                                                            })
-                                                                            .map((i) => String(i.approvedVendorName).trim())
-                                                                    )
-                                                                );
-
-                                                                if (pendingApprovedVendors.length === 0) {
-                                                                    return <SelectItem value="none" disabled>No pending suppliers available</SelectItem>;
-                                                                }
-
-                                                                return pendingApprovedVendors.map((vendorName, k) => (
-                                                                    <SelectItem key={k} value={vendorName}>
-                                                                        {vendorName}
-                                                                    </SelectItem>
-                                                                ));
-                                                            })()}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </FormControl>
-                                            ) : (
-                                                <>
-                                                    <FormLabel>Supplier Name</FormLabel>
-                                                    <FormControl>
-                                                        <Input className="h-9" readOnly placeholder="Enter supplier name" {...field} />
-                                                    </FormControl>
-                                                </>
-                                            )}
-                                        </FormItem>
-                                    )} />
+                                                    </>
+                                                )}
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
                                     {/* Supplier Address - Changed to always be editable */}
-                                    <FormField control={form.control} name="supplierAddress" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Supplier Address</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    className="h-9"
-                                                    readOnly={false}
-                                                    placeholder="Enter supplier address"
-                                                    {...field}
-                                                    value={field.value || ''}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )} />
+                                    <FormField
+                                        control={form.control}
+                                        name="supplierAddress"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Supplier Address</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        className="h-9"
+                                                        readOnly={false}
+                                                        placeholder="Enter supplier address"
+                                                        {...field}
+                                                        value={field.value || ''}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
 
                                     {/* GSTIN - Changed to always be editable */}
-                                    <FormField control={form.control} name="gstin" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>GSTIN</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    className="h-9"
-                                                    readOnly={false}
-                                                    placeholder="Enter GSTIN"
-                                                    {...field}
-                                                    value={field.value || ''}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )} />
+                                    <FormField
+                                        control={form.control}
+                                        name="gstin"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>GSTIN</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        className="h-9"
+                                                        readOnly={false}
+                                                        placeholder="Enter GSTIN"
+                                                        {...field}
+                                                        value={field.value || ''}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
 
                                     {/* Company Email - Changed to always be editable */}
-                                    <FormField control={form.control} name="companyEmail" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Company Email</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    className="h-9"
-                                                    type="email"
-                                                    readOnly={false}
-                                                    placeholder="Enter company email"
-                                                    {...field}
-                                                    value={field.value || ''}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )} />
+                                    <FormField
+                                        control={form.control}
+                                        name="companyEmail"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Company Email</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        className="h-9"
+                                                        type="email"
+                                                        readOnly={false}
+                                                        placeholder="Enter company email"
+                                                        {...field}
+                                                        value={field.value || ''}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
-                                    <FormField control={form.control} name="deliveryDate" render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Delivery Date</FormLabel>
-                                            <FormControl>
-                                                <Input className="h-9" type="date" value={field.value && !isNaN(field.value.getTime()) ? field.value.toISOString().split('T')[0] : ''}
-                                                    onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )} />
+                                    <FormField
+                                        control={form.control}
+                                        name="deliveryDate"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Delivery Date</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        className="h-9"
+                                                        type="date"
+                                                        value={
+                                                            field.value &&
+                                                            !isNaN(field.value.getTime())
+                                                                ? field.value
+                                                                      .toISOString()
+                                                                      .split('T')[0]
+                                                                : ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            field.onChange(
+                                                                e.target.value
+                                                                    ? new Date(e.target.value)
+                                                                    : undefined
+                                                            )
+                                                        }
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
                             </div>
 
@@ -1391,10 +1770,14 @@ const CreatePO = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
-                                        <CardTitle className="text-center truncate text-[12px]">Project Name</CardTitle>
+                                        <CardTitle className="text-center truncate text-[12px]">
+                                            Project Name
+                                        </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-3 text-sm flex items-center justify-center min-h-[70px]">
-                                        <p className="text-[14px] font-bold text-center leading-tight text-gray-700">{currentProjectName}</p>
+                                        <p className="text-[14px] font-bold text-center leading-tight text-gray-700">
+                                            {currentProjectName}
+                                        </p>
                                     </CardContent>
                                 </Card>
 
@@ -1403,13 +1786,27 @@ const CreatePO = () => {
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
                                             Delivery Address
                                             {vendor && (
-                                                <Button type="button" variant="ghost" size="sm"
-                                                    onClick={isEditingDestination ? handleDestinationSave : handleDestinationEdit}
-                                                    className="h-5 w-5 p-0 hover:bg-gray-200">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={
+                                                        isEditingDestination
+                                                            ? handleDestinationSave
+                                                            : handleDestinationEdit
+                                                    }
+                                                    className="h-5 w-5 p-0 hover:bg-gray-200"
+                                                >
                                                     {isEditingDestination ? (
-                                                        <Save size={12} className="text-green-600" />
+                                                        <Save
+                                                            size={12}
+                                                            className="text-green-600"
+                                                        />
                                                     ) : (
-                                                        <Pencil size={12} className="text-gray-600" />
+                                                        <Pencil
+                                                            size={12}
+                                                            className="text-gray-600"
+                                                        />
                                                     )}
                                                 </Button>
                                             )}
@@ -1420,18 +1817,35 @@ const CreatePO = () => {
                                             <>
                                                 {isEditingDestination ? (
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <Input value={destinationAddress} onChange={(e) => setDestinationAddress(e.target.value)}
-                                                            className="h-7 text-sm" placeholder="Enter destination address"
+                                                        <Input
+                                                            value={destinationAddress}
+                                                            onChange={(e) =>
+                                                                setDestinationAddress(
+                                                                    e.target.value
+                                                                )
+                                                            }
+                                                            className="h-7 text-sm"
+                                                            placeholder="Enter destination address"
                                                             onKeyDown={(e) => {
                                                                 if (e.key === 'Enter') {
                                                                     handleDestinationSave();
                                                                 } else if (e.key === 'Escape') {
                                                                     handleDestinationCancel();
                                                                 }
-                                                            }} autoFocus />
-                                                        <Button type="button" variant="ghost" size="sm" onClick={handleDestinationCancel}
-                                                            className="h-6 w-6 p-0 hover:bg-red-100">
-                                                            <Trash size={12} className="text-red-500" />
+                                                            }}
+                                                            autoFocus
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={handleDestinationCancel}
+                                                            className="h-6 w-6 p-0 hover:bg-red-100"
+                                                        >
+                                                            <Trash
+                                                                size={12}
+                                                                className="text-red-500"
+                                                            />
                                                         </Button>
                                                     </div>
                                                 ) : (
@@ -1439,18 +1853,29 @@ const CreatePO = () => {
                                                 )}
                                             </>
                                         ) : (
-                                            <p className="text-gray-400 text-center">Select Supplier</p>
+                                            <p className="text-gray-400 text-center">
+                                                Select Supplier
+                                            </p>
                                         )}
                                     </CardContent>
                                 </Card>
 
-                                {/* Card 3: Site Engineer Details 1 */}
+                                {/* Card 3: Site Incharge Details 1 */}
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
-                                            <span>Site Engineer Details 1 <span className="text-red-500">*</span></span>
+                                            <span>
+                                                Site Incharge Details 1{' '}
+                                                <span className="text-red-500">*</span>
+                                            </span>
                                             {mode === 'create' && (
-                                                <Button type="button" variant="ghost" size="sm" onClick={handleEngineerSave} className="h-5 w-5 p-0 hover:bg-gray-200">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleEngineerSave}
+                                                    className="h-5 w-5 p-0 hover:bg-gray-200"
+                                                >
                                                     <Save size={12} className="text-blue-600" />
                                                 </Button>
                                             )}
@@ -1458,101 +1883,169 @@ const CreatePO = () => {
                                     </CardHeader>
                                     <CardContent className="p-3 space-y-1">
                                         {/* Name Field */}
-                                        <FormField control={form.control} name="siteEngineerName" render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Name <span className="text-red-500">*</span></FormLabel>
-                                                <FormControl>
-                                                    <div className="flex-1">
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-7 text-[11px]" 
-                                                            placeholder="Enter Name" 
-                                                            list="siteEngineerNameList" 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                field.onChange(val);
-                                                                const eng = details?.siteEngineers.find(e => e.name.toLowerCase().trim() === val.toLowerCase().trim());
-                                                                if (eng) {
-                                                                    form.setValue('siteEngineerPhoneNo', eng.number);
-                                                                    form.setValue('siteEngineerEmail', eng.email);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <datalist id="siteEngineerNameList">
-                                                            {(details?.siteEngineers || []).map((eng) => (
-                                                                <option key={eng.number} value={eng.name} />
-                                                            ))}
-                                                        </datalist>
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="siteEngineerName"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">
+                                                        Name <span className="text-red-500">*</span>
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex-1">
+                                                            <Input
+                                                                {...field}
+                                                                className="h-7 text-[11px]"
+                                                                placeholder="Enter Name"
+                                                                list="siteEngineerNameList"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    field.onChange(val);
+                                                                    const eng =
+                                                                        details?.siteEngineers.find(
+                                                                            (e) =>
+                                                                                e.name
+                                                                                    .toLowerCase()
+                                                                                    .trim() ===
+                                                                                val
+                                                                                    .toLowerCase()
+                                                                                    .trim()
+                                                                        );
+                                                                    if (eng) {
+                                                                        form.setValue(
+                                                                            'siteEngineerPhoneNo',
+                                                                            eng.number
+                                                                        );
+                                                                        form.setValue(
+                                                                            'siteEngineerEmail',
+                                                                            eng.email
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <datalist id="siteEngineerNameList">
+                                                                {(details?.siteEngineers || []).map(
+                                                                    (eng) => (
+                                                                        <option
+                                                                            key={eng.number}
+                                                                            value={eng.name}
+                                                                        />
+                                                                    )
+                                                                )}
+                                                            </datalist>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
 
                                         {/* Phone Field */}
-                                        <FormField control={form.control} name="siteEngineerPhoneNo" render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Phone <span className="text-red-500">*</span></FormLabel>
-                                                <FormControl>
-                                                    <div className="flex-1">
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-7 text-[11px]" 
-                                                            placeholder="Enter Phone" 
-                                                            list="siteEngineerPhoneList" 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                field.onChange(val);
-                                                                const eng = details?.siteEngineers.find(e => e.number === val);
-                                                                if (eng) {
-                                                                    form.setValue('siteEngineerName', eng.name);
-                                                                    form.setValue('siteEngineerEmail', eng.email);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <datalist id="siteEngineerPhoneList">
-                                                            {(details?.siteEngineers || []).map((eng) => (
-                                                                <option key={eng.number} value={eng.number}>
-                                                                    {eng.name}
-                                                                </option>
-                                                            ))}
-                                                        </datalist>
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="siteEngineerPhoneNo"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">
+                                                        Phone{' '}
+                                                        <span className="text-red-500">*</span>
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex-1">
+                                                            <Input
+                                                                {...field}
+                                                                className="h-7 text-[11px]"
+                                                                placeholder="Enter Phone"
+                                                                list="siteEngineerPhoneList"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    field.onChange(val);
+                                                                    const eng =
+                                                                        details?.siteEngineers.find(
+                                                                            (e) => e.number === val
+                                                                        );
+                                                                    if (eng) {
+                                                                        form.setValue(
+                                                                            'siteEngineerName',
+                                                                            eng.name
+                                                                        );
+                                                                        form.setValue(
+                                                                            'siteEngineerEmail',
+                                                                            eng.email
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <datalist id="siteEngineerPhoneList">
+                                                                {(details?.siteEngineers || []).map(
+                                                                    (eng) => (
+                                                                        <option
+                                                                            key={eng.number}
+                                                                            value={eng.number}
+                                                                        >
+                                                                            {eng.name}
+                                                                        </option>
+                                                                    )
+                                                                )}
+                                                            </datalist>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
 
                                         {/* Email Field */}
-                                        <FormField control={form.control} name="siteEngineerEmail" render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Email <span className="text-red-500">*</span></FormLabel>
-                                                <FormControl>
-                                                    <div className="flex-1">
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-7 text-[11px]" 
-                                                            placeholder="Enter Email" 
-                                                            list="siteEngineerEmailList" 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                field.onChange(val);
-                                                                const eng = details?.siteEngineers.find(e => e.email === val);
-                                                                if (eng) {
-                                                                    form.setValue('siteEngineerName', eng.name);
-                                                                    form.setValue('siteEngineerPhoneNo', eng.number);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <datalist id="siteEngineerEmailList">
-                                                            {(details?.siteEngineers || []).map((eng) => (
-                                                                <option key={eng.number} value={eng.email}>
-                                                                    {eng.name}
-                                                                </option>
-                                                            ))}
-                                                        </datalist>
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="siteEngineerEmail"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">
+                                                        Email{' '}
+                                                        <span className="text-red-500">*</span>
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex-1">
+                                                            <Input
+                                                                {...field}
+                                                                className="h-7 text-[11px]"
+                                                                placeholder="Enter Email"
+                                                                list="siteEngineerEmailList"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    field.onChange(val);
+                                                                    const eng =
+                                                                        details?.siteEngineers.find(
+                                                                            (e) => e.email === val
+                                                                        );
+                                                                    if (eng) {
+                                                                        form.setValue(
+                                                                            'siteEngineerName',
+                                                                            eng.name
+                                                                        );
+                                                                        form.setValue(
+                                                                            'siteEngineerPhoneNo',
+                                                                            eng.number
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <datalist id="siteEngineerEmailList">
+                                                                {(details?.siteEngineers || []).map(
+                                                                    (eng) => (
+                                                                        <option
+                                                                            key={eng.number}
+                                                                            value={eng.email}
+                                                                        >
+                                                                            {eng.name}
+                                                                        </option>
+                                                                    )
+                                                                )}
+                                                            </datalist>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
                                     </CardContent>
                                 </Card>
 
@@ -1560,9 +2053,18 @@ const CreatePO = () => {
                                 <Card className="p-0 gap-0 shadow-xs rounded-[3px]">
                                     <CardHeader className="bg-muted px-4 py-1.5">
                                         <CardTitle className="text-center flex items-center justify-between text-[12px]">
-                                            <span>Site Engineer Details 2<span className="text-gray-400 font-normal"></span></span>
+                                            <span>
+                                                Site Incharge Details 2
+                                                <span className="text-gray-400 font-normal"></span>
+                                            </span>
                                             {mode === 'create' && (
-                                                <Button type="button" variant="ghost" size="sm" onClick={handleEngineerSave2} className="h-5 w-5 p-0 hover:bg-gray-200">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleEngineerSave2}
+                                                    className="h-5 w-5 p-0 hover:bg-gray-200"
+                                                >
                                                     <Save size={12} className="text-blue-600" />
                                                 </Button>
                                             )}
@@ -1570,101 +2072,167 @@ const CreatePO = () => {
                                     </CardHeader>
                                     <CardContent className="p-3 space-y-1">
                                         {/* Name Field 2 */}
-                                        <FormField control={form.control} name="siteEngineerName2" render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Name</FormLabel>
-                                                <FormControl>
-                                                    <div className="flex-1">
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-7 text-[11px]" 
-                                                            placeholder="Enter Name" 
-                                                            list="siteEngineerName2List" 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                field.onChange(val);
-                                                                const eng = details?.siteEngineers.find(e => e.name.toLowerCase().trim() === val.toLowerCase().trim());
-                                                                if (eng) {
-                                                                    form.setValue('siteEngineerPhoneNo2', eng.number);
-                                                                    form.setValue('siteEngineerEmail2', eng.email);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <datalist id="siteEngineerName2List">
-                                                            {(details?.siteEngineers || []).map((eng) => (
-                                                                <option key={eng.number} value={eng.name} />
-                                                            ))}
-                                                        </datalist>
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="siteEngineerName2"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">
+                                                        Name
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex-1">
+                                                            <Input
+                                                                {...field}
+                                                                className="h-7 text-[11px]"
+                                                                placeholder="Enter Name"
+                                                                list="siteEngineerName2List"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    field.onChange(val);
+                                                                    const eng =
+                                                                        details?.siteEngineers.find(
+                                                                            (e) =>
+                                                                                e.name
+                                                                                    .toLowerCase()
+                                                                                    .trim() ===
+                                                                                val
+                                                                                    .toLowerCase()
+                                                                                    .trim()
+                                                                        );
+                                                                    if (eng) {
+                                                                        form.setValue(
+                                                                            'siteEngineerPhoneNo2',
+                                                                            eng.number
+                                                                        );
+                                                                        form.setValue(
+                                                                            'siteEngineerEmail2',
+                                                                            eng.email
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <datalist id="siteEngineerName2List">
+                                                                {(details?.siteEngineers || []).map(
+                                                                    (eng) => (
+                                                                        <option
+                                                                            key={eng.number}
+                                                                            value={eng.name}
+                                                                        />
+                                                                    )
+                                                                )}
+                                                            </datalist>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
 
                                         {/* Phone Field 2 */}
-                                        <FormField control={form.control} name="siteEngineerPhoneNo2" render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Phone</FormLabel>
-                                                <FormControl>
-                                                    <div className="flex-1">
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-7 text-[11px]" 
-                                                            placeholder="Enter Phone" 
-                                                            list="siteEngineerPhone2List" 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                field.onChange(val);
-                                                                const eng = details?.siteEngineers.find(e => e.number === val);
-                                                                if (eng) {
-                                                                    form.setValue('siteEngineerName2', eng.name);
-                                                                    form.setValue('siteEngineerEmail2', eng.email);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <datalist id="siteEngineerPhone2List">
-                                                            {(details?.siteEngineers || []).map((eng) => (
-                                                                <option key={eng.number} value={eng.number}>
-                                                                    {eng.name}
-                                                                </option>
-                                                            ))}
-                                                        </datalist>
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="siteEngineerPhoneNo2"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">
+                                                        Phone
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex-1">
+                                                            <Input
+                                                                {...field}
+                                                                className="h-7 text-[11px]"
+                                                                placeholder="Enter Phone"
+                                                                list="siteEngineerPhone2List"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    field.onChange(val);
+                                                                    const eng =
+                                                                        details?.siteEngineers.find(
+                                                                            (e) => e.number === val
+                                                                        );
+                                                                    if (eng) {
+                                                                        form.setValue(
+                                                                            'siteEngineerName2',
+                                                                            eng.name
+                                                                        );
+                                                                        form.setValue(
+                                                                            'siteEngineerEmail2',
+                                                                            eng.email
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <datalist id="siteEngineerPhone2List">
+                                                                {(details?.siteEngineers || []).map(
+                                                                    (eng) => (
+                                                                        <option
+                                                                            key={eng.number}
+                                                                            value={eng.number}
+                                                                        >
+                                                                            {eng.name}
+                                                                        </option>
+                                                                    )
+                                                                )}
+                                                            </datalist>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
 
                                         {/* Email Field 2 */}
-                                        <FormField control={form.control} name="siteEngineerEmail2" render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">Email</FormLabel>
-                                                <FormControl>
-                                                    <div className="flex-1">
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-7 text-[11px]" 
-                                                            placeholder="Enter Email" 
-                                                            list="siteEngineerEmail2List" 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                field.onChange(val);
-                                                                const eng = details?.siteEngineers.find(e => e.email === val);
-                                                                if (eng) {
-                                                                    form.setValue('siteEngineerName2', eng.name);
-                                                                    form.setValue('siteEngineerPhoneNo2', eng.number);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <datalist id="siteEngineerEmail2List">
-                                                            {(details?.siteEngineers || []).map((eng) => (
-                                                                <option key={eng.number} value={eng.email}>
-                                                                    {eng.name}
-                                                                </option>
-                                                            ))}
-                                                        </datalist>
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="siteEngineerEmail2"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormLabel className="w-14 text-[10px] font-bold text-gray-500 uppercase shrink-0">
+                                                        Email
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex-1">
+                                                            <Input
+                                                                {...field}
+                                                                className="h-7 text-[11px]"
+                                                                placeholder="Enter Email"
+                                                                list="siteEngineerEmail2List"
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    field.onChange(val);
+                                                                    const eng =
+                                                                        details?.siteEngineers.find(
+                                                                            (e) => e.email === val
+                                                                        );
+                                                                    if (eng) {
+                                                                        form.setValue(
+                                                                            'siteEngineerName2',
+                                                                            eng.name
+                                                                        );
+                                                                        form.setValue(
+                                                                            'siteEngineerPhoneNo2',
+                                                                            eng.number
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <datalist id="siteEngineerEmail2List">
+                                                                {(details?.siteEngineers || []).map(
+                                                                    (eng) => (
+                                                                        <option
+                                                                            key={eng.number}
+                                                                            value={eng.email}
+                                                                        >
+                                                                            {eng.name}
+                                                                        </option>
+                                                                    )
+                                                                )}
+                                                            </datalist>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
                                     </CardContent>
                                 </Card>
                             </div>
@@ -1673,14 +2241,22 @@ const CreatePO = () => {
 
                             {/* Description */}
                             <div>
-                                <FormField control={form.control} name="description" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Description</FormLabel>
-                                        <FormControl>
-                                            <Textarea placeholder="Enter message" className="resize-y" {...field} />
-                                        </FormControl>
-                                    </FormItem>
-                                )} />
+                                <FormField
+                                    control={form.control}
+                                    name="description"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Description</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Enter message"
+                                                    className="resize-y"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
 
                             <hr />
@@ -1706,64 +2282,154 @@ const CreatePO = () => {
                                         <TableBody>
                                             {itemsArray.fields.map((field, index) => {
                                                 const formValue = form.watch(`indents.${index}`);
-                                                const amount = calculateTotal(formValue?.rate || 0, formValue?.gst || 0, formValue?.discount || 0, formValue?.quantity || 0);
+                                                const amount = calculateTotal(
+                                                    formValue?.rate || 0,
+                                                    formValue?.gst || 0,
+                                                    formValue?.discount || 0,
+                                                    formValue?.quantity || 0
+                                                );
 
                                                 return (
                                                     <TableRow key={field.id}>
                                                         <TableCell>{index + 1}</TableCell>
-                                                        <TableCell className="font-medium">{formValue?.indentNumber || 'N/A'}</TableCell>
-                                                        <TableCell>{formValue?.productName || 'No Product'}</TableCell>
-                                                        <TableCell>
-                                                            <FormField control={form.control} name={`indents.${index}.quantity`} render={({ field }) => (
-                                                                <FormItem className="flex justify-center">
-                                                                    <FormControl>
-                                                                        <Input type="number" step="any" className="h-9 w-20 text-center bg-gray-50" value={field.value || 0} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                </FormItem>
-                                                            )} />
+                                                        <TableCell className="font-medium">
+                                                            {formValue?.indentNumber || 'N/A'}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <FormField control={form.control} name={`indents.${index}.unit`} render={({ field }) => (
-                                                                <FormItem className="flex justify-center">
-                                                                    <FormControl>
-                                                                        <Input readOnly className="h-9 w-16 text-center bg-gray-50 cursor-not-allowed" value={field.value || ''} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                </FormItem>
-                                                            )} />
+                                                            {formValue?.productName || 'No Product'}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <FormField control={form.control} name={`indents.${index}.rate`} render={({ field }) => (
-                                                                <FormItem className="flex justify-center">
-                                                                    <FormControl>
-                                                                        <Input type="number" step="any" readOnly className="h-9 w-24 text-center bg-gray-50 cursor-not-allowed" value={field.value || 0} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                </FormItem>
-                                                            )} />
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`indents.${index}.quantity`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="flex justify-center">
+                                                                        <FormControl>
+                                                                            <Input
+                                                                                type="number"
+                                                                                step="any"
+                                                                                className="h-9 w-20 text-center bg-gray-50"
+                                                                                value={
+                                                                                    field.value || 0
+                                                                                }
+                                                                                onChange={
+                                                                                    field.onChange
+                                                                                }
+                                                                            />
+                                                                        </FormControl>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
                                                         </TableCell>
                                                         <TableCell>
-                                                            <FormField control={form.control} name={`indents.${index}.gst`} render={({ field }) => (
-                                                                <FormItem className="flex items-center justify-center gap-1">
-                                                                    <FormControl>
-                                                                        <Input type="number" className="h-9 w-16 text-center bg-background" value={field.value || 0} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                    <span>%</span>
-                                                                </FormItem>
-                                                            )} />
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`indents.${index}.unit`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="flex justify-center">
+                                                                        <FormControl>
+                                                                            <Input
+                                                                                readOnly
+                                                                                className="h-9 w-16 text-center bg-gray-50 cursor-not-allowed"
+                                                                                value={
+                                                                                    field.value ||
+                                                                                    ''
+                                                                                }
+                                                                                onChange={
+                                                                                    field.onChange
+                                                                                }
+                                                                            />
+                                                                        </FormControl>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
                                                         </TableCell>
                                                         <TableCell>
-                                                            <FormField control={form.control} name={`indents.${index}.discount`} render={({ field }) => (
-                                                                <FormItem className="flex items-center justify-center gap-1">
-                                                                    <FormControl>
-                                                                        <Input type="number" className="h-9 w-16 text-center bg-background" value={field.value || 0} onChange={field.onChange} />
-                                                                    </FormControl>
-                                                                    <span>%</span>
-                                                                </FormItem>
-                                                            )} />
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`indents.${index}.rate`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="flex justify-center">
+                                                                        <FormControl>
+                                                                            <Input
+                                                                                type="number"
+                                                                                step="any"
+                                                                                readOnly
+                                                                                className="h-9 w-24 text-center bg-gray-50 cursor-not-allowed"
+                                                                                value={
+                                                                                    field.value || 0
+                                                                                }
+                                                                                onChange={
+                                                                                    field.onChange
+                                                                                }
+                                                                            />
+                                                                        </FormControl>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
                                                         </TableCell>
-                                                        <TableCell className="font-medium">₹{amount.toFixed(2)}</TableCell>
                                                         <TableCell>
-                                                            <Button type="button" variant="ghost" size="sm" onClick={() => itemsArray.remove(index)}>
-                                                                <Trash size={16} className="text-red-500" />
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`indents.${index}.gst`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="flex items-center justify-center gap-1">
+                                                                        <FormControl>
+                                                                            <Input
+                                                                                type="number"
+                                                                                className="h-9 w-16 text-center bg-background"
+                                                                                value={
+                                                                                    field.value || 0
+                                                                                }
+                                                                                onChange={
+                                                                                    field.onChange
+                                                                                }
+                                                                            />
+                                                                        </FormControl>
+                                                                        <span>%</span>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`indents.${index}.discount`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="flex items-center justify-center gap-1">
+                                                                        <FormControl>
+                                                                            <Input
+                                                                                type="number"
+                                                                                className="h-9 w-16 text-center bg-background"
+                                                                                value={
+                                                                                    field.value || 0
+                                                                                }
+                                                                                onChange={
+                                                                                    field.onChange
+                                                                                }
+                                                                            />
+                                                                        </FormControl>
+                                                                        <span>%</span>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell className="font-medium">
+                                                            ₹{amount.toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    itemsArray.remove(index)
+                                                                }
+                                                            >
+                                                                <Trash
+                                                                    size={16}
+                                                                    className="text-red-500"
+                                                                />
                                                             </Button>
                                                         </TableCell>
                                                     </TableRow>
@@ -1831,31 +2497,57 @@ const CreatePO = () => {
                                         return (
                                             <div className="flex items-center" key={field.id}>
                                                 <span className="px-3">{index + 1}.</span>
-                                                <FormField control={form.control} name={`terms.${index}`} render={({ field: termField }) => (
-                                                    <FormItem className="w-full">
-                                                        <FormControl>
-                                                            <Input className={cn('border-transparent rounded-xs h-6 shadow-none', !write ? '' : 'border-b border-b-foreground')}
-                                                                readOnly={!write} {...termField} />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )} />
-                                                <Button variant="ghost" type="button" onClick={(e) => {
-                                                    e.preventDefault();
-                                                    if (write) {
-                                                        setReadOnly(-1);
-                                                    } else if (readOnly === -1) {
-                                                        setReadOnly(index);
-                                                    } else {
-                                                        toast.error(`Please save term ${readOnly + 1} before editing`);
-                                                    }
-                                                }}>
-                                                    {!write ? <Pencil size={20} /> : <Save size={20} />}
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`terms.${index}`}
+                                                    render={({ field: termField }) => (
+                                                        <FormItem className="w-full">
+                                                            <FormControl>
+                                                                <Input
+                                                                    className={cn(
+                                                                        'border-transparent rounded-xs h-6 shadow-none',
+                                                                        !write
+                                                                            ? ''
+                                                                            : 'border-b border-b-foreground'
+                                                                    )}
+                                                                    readOnly={!write}
+                                                                    {...termField}
+                                                                />
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        if (write) {
+                                                            setReadOnly(-1);
+                                                        } else if (readOnly === -1) {
+                                                            setReadOnly(index);
+                                                        } else {
+                                                            toast.error(
+                                                                `Please save term ${readOnly + 1} before editing`
+                                                            );
+                                                        }
+                                                    }}
+                                                >
+                                                    {!write ? (
+                                                        <Pencil size={20} />
+                                                    ) : (
+                                                        <Save size={20} />
+                                                    )}
                                                 </Button>
-                                                <Button variant="ghost" type="button" onClick={(e) => {
-                                                    e.preventDefault();
-                                                    if (readOnly === index) setReadOnly(-1);
-                                                    termsArray.remove(index);
-                                                }}>
+                                                <Button
+                                                    variant="ghost"
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        if (readOnly === index) setReadOnly(-1);
+                                                        termsArray.remove(index);
+                                                    }}
+                                                >
                                                     <Trash className="text-red-300" size={20} />
                                                 </Button>
                                             </div>
@@ -1867,38 +2559,63 @@ const CreatePO = () => {
                                     {localTerms.length > 0 && (
                                         <div className="space-y-1 mb-1">
                                             {localTerms.map((t, i) => (
-                                                <div key={t.id} className="flex items-center gap-2 text-sm">
-                                                    <span className="text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
-                                                    <span className="flex-1"><span className="font-medium">{t.title}: </span>{t.name}</span>
-                                                    <Button variant="ghost" size="icon" type="button"
+                                                <div
+                                                    key={t.id}
+                                                    className="flex items-center gap-2 text-sm"
+                                                >
+                                                    <span className="text-muted-foreground shrink-0 w-5 text-right">
+                                                        {i + 1}.
+                                                    </span>
+                                                    <span className="flex-1">
+                                                        <span className="font-medium">
+                                                            {t.title}:{' '}
+                                                        </span>
+                                                        {t.name}
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        type="button"
                                                         className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
-                                                        onClick={() => setEditingTerm({ ...t })}>
+                                                        onClick={() => setEditingTerm({ ...t })}
+                                                    >
                                                         <Pencil size={13} />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" type="button"
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        type="button"
                                                         className="h-6 w-6 text-muted-foreground hover:text-red-500 shrink-0"
-                                                        onClick={() => setLocalTerms(prev => prev.filter(x => x.id !== t.id))}>
+                                                        onClick={() =>
+                                                            setLocalTerms((prev) =>
+                                                                prev.filter((x) => x.id !== t.id)
+                                                            )
+                                                        }
+                                                    >
                                                         <X size={13} />
                                                     </Button>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
-                                    <Button className="w-48" variant="outline" type="button" onClick={(e) => {
-                                        e.preventDefault();
-                                        setNewTerm({ title: '', name: '' });
-                                        setShowAddTerm(true);
-                                    }}>
+                                    <Button
+                                        className="w-48"
+                                        variant="outline"
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setNewTerm({ title: '', name: '' });
+                                            setShowAddTerm(true);
+                                        }}
+                                    >
                                         Add Term
                                     </Button>
                                 </div>
-
                             </div>
 
                             <hr />
 
-                            <div className="text-center flex justify-between gap-5 px-7 items-center">
-                            </div>
+                            <div className="text-center flex justify-between gap-5 px-7 items-center"></div>
                         </div>
 
                         {/* Submit Buttons — stacked + sticky to the viewport bottom on mobile */}
@@ -1916,14 +2633,22 @@ const CreatePO = () => {
                                 Preview
                             </Button>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                {form.formState.isSubmitting && <Loader size={20} color="white" aria-label="Loading Spinner" />}
+                                {form.formState.isSubmitting && (
+                                    <Loader size={20} color="white" aria-label="Loading Spinner" />
+                                )}
                                 Save And Send PO
                             </Button>
                         </div>
 
                         <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex flex-col gap-2 p-3 bg-background border-t shadow-[0_-2px_8px_-2px_rgba(0,0,0,0.08)]">
-                            <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
-                                {form.formState.isSubmitting && <Loader size={20} color="white" aria-label="Loading Spinner" />}
+                            <Button
+                                type="submit"
+                                disabled={form.formState.isSubmitting}
+                                className="w-full"
+                            >
+                                {form.formState.isSubmitting && (
+                                    <Loader size={20} color="white" aria-label="Loading Spinner" />
+                                )}
                                 Save And Send PO
                             </Button>
                             <div className="grid grid-cols-2 gap-2">
@@ -1945,28 +2670,53 @@ const CreatePO = () => {
                         <div className="sm:hidden h-24" />
 
                         {/* Edit Term Dialog */}
-                        <Dialog open={!!editingTerm} onOpenChange={open => { if (!open) setEditingTerm(null); }}>
+                        <Dialog
+                            open={!!editingTerm}
+                            onOpenChange={(open) => {
+                                if (!open) setEditingTerm(null);
+                            }}
+                        >
                             <DialogContent className="sm:max-w-lg">
                                 <DialogHeader>
                                     <DialogTitle>Edit Term</DialogTitle>
-                                    <DialogDescription className="sr-only">Edit purchase order term details</DialogDescription>
+                                    <DialogDescription className="sr-only">
+                                        Edit purchase order term details
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-4 py-2">
                                     <div className="grid gap-1.5">
-                                        <label htmlFor="edit-term-title" className="text-sm font-medium">Heading</label>
+                                        <label
+                                            htmlFor="edit-term-title"
+                                            className="text-sm font-medium"
+                                        >
+                                            Heading
+                                        </label>
                                         <Input
                                             id="edit-term-title"
                                             value={editingTerm?.title ?? ''}
-                                            onChange={e => setEditingTerm(prev => prev ? { ...prev, title: e.target.value } : prev)}
+                                            onChange={(e) =>
+                                                setEditingTerm((prev) =>
+                                                    prev ? { ...prev, title: e.target.value } : prev
+                                                )
+                                            }
                                             placeholder="e.g. Payment Terms"
                                         />
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <label htmlFor="edit-term-name" className="text-sm font-medium">Condition</label>
+                                        <label
+                                            htmlFor="edit-term-name"
+                                            className="text-sm font-medium"
+                                        >
+                                            Condition
+                                        </label>
                                         <Textarea
                                             id="edit-term-name"
                                             value={editingTerm?.name ?? ''}
-                                            onChange={e => setEditingTerm(prev => prev ? { ...prev, name: e.target.value } : prev)}
+                                            onChange={(e) =>
+                                                setEditingTerm((prev) =>
+                                                    prev ? { ...prev, name: e.target.value } : prev
+                                                )
+                                            }
                                             placeholder="e.g. Payment within 30 days of invoice"
                                             rows={6}
                                             className="resize-y"
@@ -1974,13 +2724,28 @@ const CreatePO = () => {
                                     </div>
                                 </div>
                                 <DialogFooter className="gap-2">
-                                    <Button variant="outline" type="button" onClick={() => setEditingTerm(null)}>Cancel</Button>
-                                    <Button type="button" onClick={() => {
-                                        if (editingTerm) {
-                                            setLocalTerms(prev => prev.map(x => x.id === editingTerm.id ? editingTerm : x));
-                                            setEditingTerm(null);
-                                        }
-                                    }}>Save</Button>
+                                    <Button
+                                        variant="outline"
+                                        type="button"
+                                        onClick={() => setEditingTerm(null)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={() => {
+                                            if (editingTerm) {
+                                                setLocalTerms((prev) =>
+                                                    prev.map((x) =>
+                                                        x.id === editingTerm.id ? editingTerm : x
+                                                    )
+                                                );
+                                                setEditingTerm(null);
+                                            }
+                                        }}
+                                    >
+                                        Save
+                                    </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
@@ -1990,40 +2755,82 @@ const CreatePO = () => {
                             <DialogContent className="sm:max-w-md">
                                 <DialogHeader>
                                     <DialogTitle>Add Term</DialogTitle>
-                                    <DialogDescription className="sr-only">Add a new purchase order term</DialogDescription>
+                                    <DialogDescription className="sr-only">
+                                        Add a new purchase order term
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="grid gap-4 py-2">
                                     <div className="grid gap-1.5">
-                                        <label htmlFor="add-term-title" className="text-sm font-medium">Heading</label>
+                                        <label
+                                            htmlFor="add-term-title"
+                                            className="text-sm font-medium"
+                                        >
+                                            Heading
+                                        </label>
                                         <input
                                             id="add-term-title"
                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                                             value={newTerm.title}
-                                            onChange={e => setNewTerm(prev => ({ ...prev, title: e.target.value }))}
+                                            onChange={(e) =>
+                                                setNewTerm((prev) => ({
+                                                    ...prev,
+                                                    title: e.target.value,
+                                                }))
+                                            }
                                             placeholder="e.g. Payment Terms"
                                         />
                                     </div>
                                     <div className="grid gap-1.5">
-                                        <label htmlFor="add-term-name" className="text-sm font-medium">Condition</label>
+                                        <label
+                                            htmlFor="add-term-name"
+                                            className="text-sm font-medium"
+                                        >
+                                            Condition
+                                        </label>
                                         <input
                                             id="add-term-name"
                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                                             value={newTerm.name}
-                                            onChange={e => setNewTerm(prev => ({ ...prev, name: e.target.value }))}
+                                            onChange={(e) =>
+                                                setNewTerm((prev) => ({
+                                                    ...prev,
+                                                    name: e.target.value,
+                                                }))
+                                            }
                                             placeholder="e.g. Payment within 30 days of invoice"
                                         />
                                     </div>
                                 </div>
                                 <DialogFooter className="gap-2">
-                                    <Button variant="outline" type="button" onClick={() => setShowAddTerm(false)}>Cancel</Button>
-                                    <Button type="button" onClick={() => {
-                                        if (!newTerm.title.trim() || !newTerm.name.trim()) {
-                                            toast.error('Please fill in both heading and condition');
-                                            return;
-                                        }
-                                        setLocalTerms(prev => [...prev, { id: Date.now(), title: newTerm.title.trim(), name: newTerm.name.trim() }]);
-                                        setShowAddTerm(false);
-                                    }}>Add</Button>
+                                    <Button
+                                        variant="outline"
+                                        type="button"
+                                        onClick={() => setShowAddTerm(false)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!newTerm.title.trim() || !newTerm.name.trim()) {
+                                                toast.error(
+                                                    'Please fill in both heading and condition'
+                                                );
+                                                return;
+                                            }
+                                            setLocalTerms((prev) => [
+                                                ...prev,
+                                                {
+                                                    id: Date.now(),
+                                                    title: newTerm.title.trim(),
+                                                    name: newTerm.name.trim(),
+                                                },
+                                            ]);
+                                            setShowAddTerm(false);
+                                        }}
+                                    >
+                                        Add
+                                    </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
@@ -2033,7 +2840,9 @@ const CreatePO = () => {
                             <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] p-0 gap-0">
                                 <DialogHeader className="px-6 py-4 border-b">
                                     <DialogTitle>PO Preview</DialogTitle>
-                                    <DialogDescription className="sr-only">Purchase order PDF preview</DialogDescription>
+                                    <DialogDescription className="sr-only">
+                                        Purchase order PDF preview
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="w-full h-[calc(95vh-70px)]">
                                     {previewData && (

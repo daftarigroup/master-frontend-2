@@ -742,7 +742,7 @@ export async function deleteMasterData(id: number, type?: string): Promise<{ suc
     }
 }
 /**
- * Fetch all site engineer details
+ * Fetch all Site Incharge Details
  */
 export async function fetchSiteEngineers() {
     try {
