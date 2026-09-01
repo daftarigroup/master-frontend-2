@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowRightLeft, Building2, Package, Send, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import { useSheets } from '@/context/SheetsContext';
 import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
@@ -120,13 +120,10 @@ export default () => {
             // 1. Create ISSUE record for Source Project (Giver)
             const issueRecord = {
                 timestamp,
-                issue_no: transferNo,
-                issue_to: `Transfer to ${values.toProject}`,
-                uom: selectedItem?.uom || '',
-                product_name: values.itemName,
-                quantity: values.quantity,
-                // department: 'Stock Transfer',
-                group_head: selectedItem?.groupHead || '',
+                indent_number: transferNo,
+                item_name: values.itemName,
+                unit: selectedItem?.uom || '',
+                issue_type: 'Transfer',
                 planned1: timestamp,
                 actual1: timestamp,
                 status: 'Approved',
@@ -137,8 +134,7 @@ export default () => {
                 remark: values.remark || 'Internal Stock Transfer',
             };
 
-            const { error: issueError } = await supabase.from('issue').insert([issueRecord]);
-            if (issueError) throw issueError;
+            await storeApi.insert('issue', [issueRecord]);
 
             // 2. Create STORE IN record for Destination Project (Receiver)
             const storeInRecord = {
@@ -160,8 +156,7 @@ export default () => {
                 hod_actual: timestamp,
             };
 
-            const { error: storeInError } = await supabase.from('store_in').insert([storeInRecord]);
-            if (storeInError) throw storeInError;
+            await storeApi.insert('store_in', [storeInRecord]);
 
             toast.success("Stock transfer successful!");
             form.reset({

@@ -49,10 +49,9 @@ import type {
 } from '@/types';
 import type { PaymentsSheet } from '@/types/sheets';
 
-import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { useLocation } from 'react-router-dom';
 
 // ============================================================
 // Domain context interfaces — each component subscribes only
@@ -127,6 +126,8 @@ interface SheetsState extends
 
 const IndentContext = createContext<IndentContextType | null>(null);
 const PurchaseContext = createContext<PurchaseContextType | null>(null);
+import { useProject } from './ProjectContext';
+
 const IssueContext = createContext<IssueContextType | null>(null);
 const PaymentContext = createContext<PaymentContextType | null>(null);
 const AppContext = createContext<AppContextType | null>(null);
@@ -136,8 +137,16 @@ const AppContext = createContext<AppContextType | null>(null);
 // ============================================================
 
 export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
-    const { user } = useAuth();
-    const location = useLocation();
+    const { user, loggedIn } = useAuth();
+    const { selectedProject } = useProject();
+
+    // Compute effective permitted firms for filtering based on active project
+    const effectivePermittedFirms = useMemo(() => {
+        if (!selectedProject || selectedProject.id === 'all') {
+            return (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
+        }
+        return [String(selectedProject.id)];
+    }, [user, selectedProject]);
 
     // --- Raw state ---
     const [indentSheet, setIndentSheet] = useState<IndentSheet[]>([]);
@@ -175,11 +184,33 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
     // memoized context values stay stable between renders
     // ============================================================
 
+    // ============================================================
+    // Per-fetch AbortController registry + in-flight dedup set.
+    // abortRefs holds the active controller for each sheet key so that
+    // updateAll() can cancel every in-flight request before issuing
+    // new ones — preventing stale project data from overwriting current data.
+    // inFlight prevents duplicate concurrent fetches of the same sheet.
+    // ============================================================
+    const abortRefs = useRef<Map<string, AbortController>>(new Map());
+    const inFlight  = useRef<Set<string>>(new Set());
+
+    /** Cancel any in-flight fetch for `key` and return a fresh AbortController. */
+    const freshController = useCallback((key: string): AbortController => {
+        abortRefs.current.get(key)?.abort();
+        const ctrl = new AbortController();
+        abortRefs.current.set(key, ctrl);
+        return ctrl;
+    }, []);
+
     const updateStoreInSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('storeIn')) return;
+        inFlight.current.add('storeIn');
         if (!silent) setStoreInLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('storeIn');
+        const permittedFirms = effectivePermittedFirms;
         fetchStoreInRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 const mapped = res.map((r: any) => ({
                     ...r,
                     vendorType: r.vendor_type || '',
@@ -189,16 +220,22 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                 setStoreInLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching STORE IN from Supabase:', error);
                 setStoreInLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('storeIn'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateIssueSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('issue')) return;
+        inFlight.current.add('issue');
         if (!silent) setIssueLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('issue');
+        const permittedFirms = effectivePermittedFirms;
         fetchIssueRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 const mapped = res.map(r => ({
                     id: r.id,
                     issueNo: r.issue_no,
@@ -230,16 +267,22 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                 setIssueLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching ISSUE from Supabase:', error);
                 setIssueLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('issue'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateIndentSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('indent')) return;
+        inFlight.current.add('indent');
         if (!silent) setIndentLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('indent');
+        const permittedFirms = effectivePermittedFirms;
         fetchIndentRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 const mapped = res.map(r => ({
                     indentNumber: r.indent_number,
                     indenterName: r.indenter_name,
@@ -285,16 +328,22 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                 setIndentLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching INDENT from Supabase:', error);
                 setIndentLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('indent'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateReceivedSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('received')) return;
+        inFlight.current.add('received');
         if (!silent) setReceivedLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('received');
+        const permittedFirms = effectivePermittedFirms;
         fetchStoreInRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 const mapped = res.filter(r => r.actual6 !== '').map(r => ({
                     timestamp: r.timestamp,
                     indentNumber: r.indentNo,
@@ -315,115 +364,163 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                 setReceivedLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching RECEIVED from Supabase:', error);
                 setReceivedLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('received'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updatePoMasterSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('poMaster')) return;
+        inFlight.current.add('poMaster');
         if (!silent) setPoMasterLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('poMaster');
+        const permittedFirms = effectivePermittedFirms;
         fetchPoMaster(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 setPoMasterSheet(res as unknown as PoMasterSheet[]);
                 setPoMasterLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching PO MASTER from Supabase:', error);
                 setPoMasterLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('poMaster'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateInventorySheet = useCallback((silent = false) => {
+        if (inFlight.current.has('inventory')) return;
+        inFlight.current.add('inventory');
         if (!silent) setInventoryLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('inventory');
+        const permittedFirms = effectivePermittedFirms;
         fetchInventoryRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 setInventorySheet(res as unknown as InventorySheet[]);
                 setInventoryLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching INVENTORY from Supabase:', error);
                 setInventoryLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('inventory'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateMasterSheet = useCallback(() => {
-        const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
+        if (inFlight.current.has('master')) return;
+        inFlight.current.add('master');
+        const ctrl = freshController('master');
+        const permittedFirms = effectivePermittedFirms;
         fetchMasterOptions(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 setMasterSheet(res as unknown as MasterSheet);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching MASTER from Supabase:', error);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('master'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateFullkittingSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('fullkitting')) return;
+        inFlight.current.add('fullkitting');
         if (!silent) setFullkittingLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('fullkitting');
+        const permittedFirms = effectivePermittedFirms;
         fetchFullkittingRecords(permittedFirms)
-            .then((res) => {
-                const mapped = res.map(r => ({
+            .then((res: any[]) => {
+                if (ctrl.signal.aborted) return;
+                const mapped = res.map((r: any) => ({
                     ...r,
                     vehicleNo: r.vehicalNo,
                 }));
                 setFullkittingSheet(mapped as unknown as FullkittingSheet[]);
                 setFullkittingLoading(false);
             })
-            .catch((error) => {
-                console.error('Error fetching Fullkitting from Supabase:', error);
+            .catch((error: any) => {
+                if (ctrl.signal.aborted) return;
+                console.error('Error fetching Fullkitting from REST API:', error);
                 setFullkittingLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('fullkitting'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updatePaymentsSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('payments')) return;
+        inFlight.current.add('payments');
         if (!silent) setPaymentsLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('payments');
+        const permittedFirms = effectivePermittedFirms;
         fetchPayments(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 setPaymentsSheet(res as unknown as PaymentsSheet[]);
                 setPaymentsLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching PAYMENTS from Supabase:', error);
                 setPaymentsLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('payments'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updatePaymentHistorySheet = useCallback((silent = false) => {
+        if (inFlight.current.has('paymentHistory')) return;
+        inFlight.current.add('paymentHistory');
         if (!silent) setPaymentHistoryLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('paymentHistory');
+        const permittedFirms = effectivePermittedFirms;
         fetchPaymentHistory(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 setPaymentHistorySheet(res as unknown as PaymentHistory[]);
                 setPaymentHistoryLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching PAYMENT HISTORY from Supabase:', error);
                 setPaymentHistoryLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('paymentHistory'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateStockTransferSheet = useCallback((silent = false) => {
+        if (inFlight.current.has('stockTransfer')) return;
+        inFlight.current.add('stockTransfer');
         if (!silent) setIssueLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('stockTransfer');
+        const permittedFirms = effectivePermittedFirms;
         fetchStockTransferRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 setStockTransferSheet(res);
                 setIssueLoading(false);
             })
             .catch((err) => {
+                if (ctrl.signal.aborted) return;
                 console.error(err);
                 setIssueLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('stockTransfer'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updateTallyEntrySheet = useCallback((silent = false) => {
+        if (inFlight.current.has('tallyEntry')) return;
+        inFlight.current.add('tallyEntry');
         if (!silent) setTallyEntryLoading(true);
-        const permittedFirms = user?.firm_access || [];
+        const ctrl = freshController('tallyEntry');
+        const permittedFirms = effectivePermittedFirms;
         fetchTallyEntryRecords(permittedFirms)
             .then((res) => {
+                if (ctrl.signal.aborted) return;
                 const mapped = res.map(r => ({
                     timestamp: r.timestamp,
                     indentNo: r.indentNumber,
@@ -487,16 +584,24 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                 setTallyEntryLoading(false);
             })
             .catch((error) => {
+                if (ctrl.signal.aborted) return;
                 console.error('Error fetching TALLY ENTRY from Supabase:', error);
                 setTallyEntryLoading(false);
-            });
-    }, [user]);
+            })
+            .finally(() => inFlight.current.delete('tallyEntry'));
+    }, [effectivePermittedFirms, freshController]);
 
     const updatePcReportSheet = useCallback(() => {
         // Computed automatically via useMemo — no manual refresh needed
     }, []);
 
     const updateAll = useCallback((silent = false) => {
+        // Cancel every in-flight fetch from a previous context (e.g. previous project)
+        // before kicking off new ones, so stale responses cannot overwrite current data.
+        abortRefs.current.forEach((ctrl) => ctrl.abort());
+        abortRefs.current.clear();
+        inFlight.current.clear(); // reset dedup so the new round can actually start
+
         if (!silent) setAllLoading(true);
         updateMasterSheet();
         updateReceivedSheet(silent);
@@ -525,15 +630,31 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
     //     tabs eliminates the "5 open tabs all hammering the DB" problem.
     //  2. When the tab comes back into focus, refresh immediately if the data
     //     would have gone stale while the tab was in the background.
-    //  3. Interval is 2 minutes — targeted update*Sheet() calls already handle
+    //  3. Interval is 60 seconds — targeted update*Sheet() calls already handle
     //     immediate consistency after user actions; this is just a safety net
     //     for changes made by other users.
+
+    // Guard: skip the first render so the project-change effect does NOT
+    // duplicate the initial fetch that the interval effect already performs.
+    const isFirstMount = useRef(true);
+
+    // Re-fetch all data whenever selected project CHANGES (not on first mount).
+    useEffect(() => {
+        if (isFirstMount.current) {
+            // First render: the interval effect below handles the initial load.
+            isFirstMount.current = false;
+            return;
+        }
+        if (user?.username) {
+            updateAll(false);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedProject?.id, user?.username]);
+
+    // Interval + visibility-aware polling (also owns the ONE initial full load).
     useEffect(() => {
         if (!user?.username) return;
 
-        // NOTE(badge-fix 2026-08-05): Reduced from 2 minutes to 60s to halve worst-case cross-user
-        // badge staleness. At 12 requests/cycle this is ~144 reqs/user/hr — safe for AWS RDS + Express
-        // pooling. Does NOT make badges truly realtime (that needs WebSocket/SSE) — it's a mitigation.
         const INTERVAL_MS = 60 * 1000; // 60 seconds
         let intervalId: ReturnType<typeof setInterval> | null = null;
         let lastRefreshedAt = 0;
@@ -568,7 +689,7 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
             }
         };
 
-        // Initial full load
+        // Initial full load — this is the SINGLE canonical first fetch.
         try {
             updateAll();
             lastRefreshedAt = Date.now();
@@ -589,13 +710,12 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, [updateAll]);
 
-    // --- Route Change Refetch ---
-    // Refetch all store sheets silently whenever navigating to a new route/stage
-    useEffect(() => {
-        if (user?.username) {
-            updateAll(true);
-        }
-    }, [location.pathname, user?.username, updateAll]);
+    // NOTE: Route-change refetch intentionally removed.
+    // Navigating between pages does NOT trigger data fetches.
+    // Freshness is maintained by the 60-second polling interval above
+    // and by explicit project-switch refetch. Individual components
+    // that need fresh data after a mutation should call their specific
+    // update*Sheet() function directly.
 
     // ============================================================
     // Memoized context values — each value object only changes

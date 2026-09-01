@@ -4,6 +4,7 @@ import { FileBarChart2, Loader2, FolderSearch } from 'lucide-react';
 import { expensesApi, creditsApi } from '../services/pettyCash.api';
 import { fetchMasterOptions } from '@/services/masterService';
 import { toDateOnly } from '../utils/helpers';
+import { useProject } from '@/context/ProjectContext';
 import ReportCharts from './ReportCharts';
 import ReportTable from './ReportTable';
 
@@ -17,7 +18,17 @@ const EMPTY_FILTERS = {
 };
 
 export const Reports: React.FC = () => {
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const { selectedProject } = useProject();
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    projectName: selectedProject && selectedProject.id !== 'all' ? selectedProject.name : '',
+  }));
+
+  useEffect(() => {
+    if (selectedProject && selectedProject.id !== 'all') {
+      setFilters((prev) => ({ ...prev, projectName: selectedProject.name }));
+    }
+  }, [selectedProject]);
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [employeeOptions, setEmployeeOptions] = useState<string[]>([]);
   const [groupHeadOptions, setGroupHeadOptions] = useState<string[]>([]);

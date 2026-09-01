@@ -1,10 +1,11 @@
 import { Package2, FileText, Building, DollarSign, Calendar, Upload, CheckCircle, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import { useEffect, useState } from 'react';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -102,6 +103,7 @@ export default function PIApprovals() {
         allLoading: poMasterLoading
     } = useSheets();
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const [pendingData, setPendingData] = useState<PIPendingData[]>([]);
     const [selectedItem, setSelectedItem] = useState<PIPendingData | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
@@ -161,9 +163,10 @@ export default function PIApprovals() {
             const poBasedPendingItems = safePoMasterSheet
                 .filter((record: any) => {
                     // Firm filtering
-                    const permittedFirms = (user?.firm_access || []);
+                    const permittedFirms = effectivePermittedFirms || [];
                     const itemFirm = (record.firmNameMatch || '').trim();
-                    const firmMatch = permittedFirms.includes('all') || 
+                    const firmMatch = !effectivePermittedFirms || 
+                                     permittedFirms.includes('all') || 
                                      permittedFirms.some(f => f.toLowerCase() === itemFirm.toLowerCase());
                     if (!firmMatch) return false;
 
@@ -262,9 +265,10 @@ export default function PIApprovals() {
             const paymentBasedItems = safePaymentsSheet
                 .filter((payment: any) => {
                     const status = String(payment?.status || '').toLowerCase();
-                    const permittedFirms = (user?.firm_access || []);
+                    const permittedFirms = effectivePermittedFirms || [];
                     const itemFirm = (payment?.firmNameMatch || payment?.firm_name || '').trim();
-                    const firmMatch = permittedFirms.includes('all') || 
+                    const firmMatch = !effectivePermittedFirms || 
+                                     permittedFirms.includes('all') || 
                                      permittedFirms.some(f => f.toLowerCase() === itemFirm.toLowerCase());
 
                     // Show payments that are pending and not yet scheduled
@@ -420,7 +424,7 @@ export default function PIApprovals() {
             console.error('❌ Error in HOD Approval logic:', error);
             setPendingData([]);
         }
-    }, [poMasterSheet, paymentsSheet, storeInSheet, paymentHistorySheet, user?.firm_access]);
+    }, [poMasterSheet, paymentsSheet, storeInSheet, paymentHistorySheet, effectivePermittedFirms]);
 
     const pendingColumns: ColumnDef<PIPendingData>[] = [
         {
@@ -719,21 +723,14 @@ export default function PIApprovals() {
 
             if (isPaymentBased) {
                 // ✅ FOR PAYMENT-BASED ITEMS: Update the existing payment record
-                const { error: updatePaymentError } = await supabase
-                    .from('payments')
-                    .update({
-                        planned: formattedDateOnly,
-                        status: 'Approved',
-                        status1: 'approved',
-                        pay_amount: payAmount,
-                        file: values.file || '',
-                        remark: finalRemark,
-                    })
-                    .eq('id', selectedItem.rowIndex);
-
-                if (updatePaymentError) {
-                    throw updatePaymentError;
-                }
+                await storeApi.update('payments', selectedItem.rowIndex, {
+                    planned: formattedDateOnly,
+                    status: 'Approved',
+                    status1: 'approved',
+                    pay_amount: payAmount,
+                    file: values.file || '',
+                    remark: finalRemark,
+                });
 
                 toast.success(`✅ Payment approved for: ${selectedItem.partyName}`);
             } else {
@@ -765,28 +762,15 @@ export default function PIApprovals() {
                     payment_form: selectedItem.paymentForm || 'po_based',
                 };
 
-                // ✅ Insert to PAYMENTS table in Supabase
-                const { error: insertError } = await supabase
-                    .from('payments')
-                    .insert([paymentData]);
+                // ✅ Insert to PAYMENTS table via REST API
+                await storeApi.insert('payments', [paymentData]);
 
-                if (insertError) {
-                    throw insertError;
-                }
-
-                // ✅ Update PO MASTER table with new totals and status
-                const { error: updateError } = await supabase
-                    .from('po_master')
-                    .update({
-                        total_paid_amount: newTotalPaid,
-                        outstanding_amount: newOutstanding,
-                        status: newStatus,
-                    })
-                    .in('id', selectedItem.rowIds);
-
-                if (updateError) {
-                    throw updateError;
-                }
+                // ✅ Update PO MASTER table with new totals and status via REST API
+                await storeApi.updateWhere('po_master', { in__id: selectedItem.rowIds.join(',') }, {
+                    total_paid_amount: newTotalPaid,
+                    outstanding_amount: newOutstanding,
+                    status: newStatus,
+                });
 
                 toast.success(`Payment submitted for PO: ${selectedItem.poNumber}`);
             }

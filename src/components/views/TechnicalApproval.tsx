@@ -37,6 +37,7 @@ import {
 import { resetIndentStage } from '@/services/indentService';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { useProject } from '@/context/ProjectContext';
 
 
 
@@ -86,6 +87,7 @@ type HistoryUpdateValues = z.infer<typeof historyUpdateSchema>;
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
 
     const [selectedIndent, setSelectedIndent] = useState<RateApprovalData | null>(null);
     const [selectedHistory, setSelectedHistory] = useState<HistoryData | null>(null);
@@ -99,7 +101,7 @@ export default () => {
     const fetchPendingApprovals = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchPendingTechnicalApprovals(user?.firm_access);
+            const data = await fetchPendingTechnicalApprovals(effectivePermittedFirms);
             setTableData(data as any);
         } catch (err) {
             console.error('Error fetching pending approvals:', err);
@@ -109,17 +111,10 @@ export default () => {
         }
     };
 
-    useEffect(() => {
-        if (user?.username) {
-            fetchPendingApprovals();
-        }
-    }, [user?.username, user?.firm_access]);
-
-
     const fetchCompletedApprovals = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchCompletedTechnicalApprovals(user?.firm_access);
+            const data = await fetchCompletedTechnicalApprovals(effectivePermittedFirms);
             setHistoryData(data as any);
         } catch (err) {
             console.error('Error fetching completed approvals:', err);
@@ -134,7 +129,7 @@ export default () => {
             fetchPendingApprovals();
             fetchCompletedApprovals();
         }
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, effectivePermittedFirms]);
 
     const columns: ColumnDef<RateApprovalData>[] = [
         {

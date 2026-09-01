@@ -37,6 +37,7 @@ import { filterByFirmAccess } from '@/lib/firmAccess';
 import { getPublicFileUrl, formatDateTime, parseCustomDate } from '@/lib/utils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { useProject } from '@/context/ProjectContext';
 
 interface StoreInPendingData {
     id?: number;
@@ -82,6 +83,7 @@ type RecieveItemsData = StoreInPendingData;
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
 
     const [allData, setAllData] = useState<StoreInRecord[]>([]);
     const [tableData, setTableData] = useState<RecieveItemsData[]>([]);
@@ -94,7 +96,7 @@ export default () => {
     const fetchAllData = async () => {
         setDataLoading(true);
         try {
-            const records = await fetchStoreInRecords();
+            const records = await fetchStoreInRecords(effectivePermittedFirms);
             setAllData(records);
         } catch (error) {
             console.error('Failed to fetch store-in records:', error);
@@ -106,12 +108,12 @@ export default () => {
 
     useEffect(() => {
         fetchAllData();
-    }, []);
+    }, [effectivePermittedFirms]);
 
     useEffect(() => {
         const filteredByFirm = filterByFirmAccess(
             allData,
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i: any) => i.firm_id, name: (i: any) => i.firmNameMatch }
         );
 
@@ -161,7 +163,7 @@ export default () => {
                 .filter((i) => i.planned11 !== '' && i.actual11 !== '')
                 .map(mapItem)
         );
-    }, [allData, user?.username, user?.firm_access]);
+    }, [allData, user?.username, effectivePermittedFirms]);
 
 
     useEffect(() => {

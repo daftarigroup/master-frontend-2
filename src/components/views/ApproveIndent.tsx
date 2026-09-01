@@ -48,14 +48,16 @@ import {
     resetIndentStage,
     type IndentRecord
 } from '@/services/indentService';
-import { supabase } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { useProject } from '@/context/ProjectContext';
 
 
 export default function ApproveIndent() {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateAll } = useSheets();
     const [allData, setAllData] = useState<IndentRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
@@ -110,7 +112,7 @@ export default function ApproveIndent() {
     const fetchData = async () => {
         setDataLoading(true);
         try {
-            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
+            const permittedFirms = effectivePermittedFirms;
             const records = await fetchIndentRecords(permittedFirms);
             
             // Secondary frontend check for absolute security/robustness
@@ -131,7 +133,7 @@ export default function ApproveIndent() {
 
     useEffect(() => {
         fetchData();
-    }, [user?.firm_access, user?.administrate]);
+    }, [effectivePermittedFirms, user?.administrate]);
 
     const pendingData = useMemo(() => {
         return allData.filter(i => !i.actual1);
@@ -183,10 +185,9 @@ export default function ApproveIndent() {
 
             let rows = allData.filter(r => r.indent_number === indentNo);
             if (rows.length === 0) {
-                const { data } = await supabase
-                    .from('indent')
-                    .select('*')
-                    .eq('indent_number', indentNo);
+                const data: any[] = await storeApi.fetch('indent', {
+                    indent_number: indentNo,
+                });
                 if (data && data.length > 0) {
                     rows = data as any;
                 }

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 
 export interface StockTransferRecord {
@@ -18,7 +18,7 @@ export interface StockTransferRecord {
 }
 
 /**
- * Fetch all stock transfer records from Supabase
+ * Fetch all stock transfer records from REST API
  * @param permittedFirms Optional array of firm IDs to filter by
  */
 export async function fetchStockTransferRecords(permittedFirms?: string[]) {
@@ -26,22 +26,21 @@ export async function fetchStockTransferRecords(permittedFirms?: string[]) {
         if (hasNoFirmAccess(permittedFirms)) return [];
         const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('stock_transfers')
-            .select('*')
-            .order('timestamp', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'timestamp.desc',
+        };
 
         if (firms) {
             const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
             if (ids.length === 0) return [];
-            query = query.or(`from_firm_id.in.(${ids.join(',')}),to_firm_id.in.(${ids.join(',')})`);
+            params['or__in__from_firm_id'] = ids.join(',');
+            params['or__in__to_firm_id'] = ids.join(',');
         }
 
-        const { data, error } = await query;
+        const res: any = await apiClient.get('/store/entity/stock_transfers', { params });
+        const data = res?.data || [];
 
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        return data.map((r: any) => ({
             id: r.id,
             timestamp: r.timestamp,
             transferNo: r.transfer_no,

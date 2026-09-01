@@ -39,6 +39,7 @@ import { Pill } from '../ui/pill';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { useProject } from '@/context/ProjectContext';
 
 interface StoreInPendingData {
     liftNumber: string;
@@ -126,6 +127,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateAll } = useSheets();
 
     const [storeInRecords, setStoreInRecords] = useState<StoreInRecord[]>([]);
@@ -149,7 +151,7 @@ export default () => {
     const fetchAllData = async () => {
         setDataLoading(true);
         try {
-            const records = await fetchStoreInRecords();
+            const records = await fetchStoreInRecords(effectivePermittedFirms);
             setStoreInRecords(records);
         } catch (error) {
             console.error('Failed to fetch store-in records:', error);
@@ -161,12 +163,12 @@ export default () => {
 
     useEffect(() => {
         fetchAllData();
-    }, [user?.firm_access]);
+    }, [effectivePermittedFirms]);
 
     useEffect(() => {
         const filteredByFirm = filterByFirmAccess(
             storeInRecords,
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i: any) => i.firm_id, name: (i: any) => i.firmNameMatch }
         );
 

@@ -5,6 +5,8 @@ import { fetchDelegationTasks, type DelegationTaskRow } from '@/services/delegat
 import { fetchHolidays, type HolidayRow } from '@/services/holidayService';
 import { fetchWorkingDays, type WorkingDayRow } from '@/services/workingCalendarService';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 
 /**
  * Isolated data context for the Checklist & Delegation system module.
@@ -28,6 +30,7 @@ const ChecklistContext = createContext<ChecklistContextState | null>(null);
 
 export const ChecklistProvider = ({ children }: { children: React.ReactNode }) => {
     const { loggedIn } = useAuth();
+    const { effectivePermittedFirms, selectedProject } = useProject();
     const location = useLocation();
     const [checklistTasks, setChecklistTasks] = useState<ChecklistTaskRow[]>([]);
     const [delegationTasks, setDelegationTasks] = useState<DelegationTaskRow[]>([]);
@@ -46,8 +49,18 @@ export const ChecklistProvider = ({ children }: { children: React.ReactNode }) =
                 fetchHolidays().catch(() => []),
                 fetchWorkingDays().catch(() => []),
             ]);
-            setChecklistTasks(checklist);
-            setDelegationTasks(delegation);
+
+            const filteredChecklist = filterByFirmAccess(checklist, effectivePermittedFirms, {
+                id: (t) => t.firm_id ?? undefined,
+                name: (t) => t.firm_name ?? undefined,
+            });
+            const filteredDelegation = filterByFirmAccess(delegation, effectivePermittedFirms, {
+                id: (t) => t.firm_id ?? undefined,
+                name: (t) => t.firm_name ?? undefined,
+            });
+
+            setChecklistTasks(filteredChecklist);
+            setDelegationTasks(filteredDelegation);
             setHolidays(holidayRows);
             setWorkingDays(workingDayRows);
         } catch (err: any) {
@@ -56,14 +69,14 @@ export const ChecklistProvider = ({ children }: { children: React.ReactNode }) =
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [effectivePermittedFirms]);
 
     useEffect(() => {
         const token = localStorage.getItem('checklistToken');
         if (loggedIn && token) {
             refresh();
         }
-    }, [loggedIn, location.pathname, refresh]);
+    }, [loggedIn, location.pathname, refresh, selectedProject?.id]);
 
     return (
         <ChecklistContext.Provider

@@ -5,6 +5,7 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { formatDateTime, parseCustomDate, formatDate, getPublicFileUrl } from '@/lib/utils';
 import { isAllowedFirm } from '@/lib/firmAccess';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -204,6 +205,7 @@ export default function PcReportTable() {
   const [selectedRow, setSelectedRow] = useState<ProcessedTallyData | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const { user } = useAuth();
+  const { effectivePermittedFirms } = useProject();
   const [activeTab, setActiveTab] = useState('ALL');
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<{ item: ProcessedTallyData; stage?: string } | null>(null);
@@ -230,7 +232,7 @@ export default function PcReportTable() {
           id: (item as any).firm_id,
           name: item.firmNameMatch
         },
-        user?.firm_access
+        effectivePermittedFirms
       );
     });
 
@@ -327,7 +329,7 @@ export default function PcReportTable() {
         receivedQuantity: item.receivedQuantity,
       };
     }).filter((item): item is ProcessedTallyData => item !== null);
-  }, [tallyEntrySheet, user?.firm_access]);
+  }, [tallyEntrySheet, effectivePermittedFirms]);
 
   // Filter and GROUP data based on active tab
   const filteredData = useMemo(() => {
@@ -1040,29 +1042,31 @@ export default function PcReportTable() {
 
         <Tabs defaultValue="all" className="w-full">
           {/* Tabs Navigation */}
-          <TabsList className="grid grid-cols-2 md:grid-cols-6 mb-6">
-            <TabsTrigger value="all" onClick={() => setActiveTab('ALL')}>
-              All Pending
-            </TabsTrigger>
-            <TabsTrigger value="audit" onClick={() => setActiveTab('AUDIT')}>
-              Audit
-            </TabsTrigger>
-            <TabsTrigger value="rectify" onClick={() => setActiveTab('RECTIFY')}>
-              Rectify
-            </TabsTrigger>
-            <TabsTrigger value="reaudit" onClick={() => setActiveTab('REAUDIT')}>
-              Reaudit
-            </TabsTrigger>
-            <TabsTrigger value="tally" onClick={() => setActiveTab('TALLY_ENTRY')}>
-              Tally Entry
-            </TabsTrigger>
-            <TabsTrigger value="again_audit" onClick={() => setActiveTab('AGAIN_AUDIT')}>
-              Again Audit
-            </TabsTrigger>
-            <TabsTrigger value="completed" onClick={() => setActiveTab('COMPLETED')}>
-              Completed
-            </TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto custom-scrollbar pb-1 mb-4">
+            <TabsList className="inline-flex w-max sm:w-full h-auto p-1 gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-900 border border-border/70 rounded-xl justify-start">
+              <TabsTrigger value="all" onClick={() => setActiveTab('ALL')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                All Pending
+              </TabsTrigger>
+              <TabsTrigger value="audit" onClick={() => setActiveTab('AUDIT')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                Audit
+              </TabsTrigger>
+              <TabsTrigger value="rectify" onClick={() => setActiveTab('RECTIFY')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                Rectify
+              </TabsTrigger>
+              <TabsTrigger value="reaudit" onClick={() => setActiveTab('REAUDIT')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                Reaudit
+              </TabsTrigger>
+              <TabsTrigger value="tally" onClick={() => setActiveTab('TALLY_ENTRY')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                Tally Entry
+              </TabsTrigger>
+              <TabsTrigger value="again_audit" onClick={() => setActiveTab('AGAIN_AUDIT')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                Again Audit
+              </TabsTrigger>
+              <TabsTrigger value="completed" onClick={() => setActiveTab('COMPLETED')} className="rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium shrink-0">
+                Completed
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Tabs Content */}
           <TabsContent value="all">

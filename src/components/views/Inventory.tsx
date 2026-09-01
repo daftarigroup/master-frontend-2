@@ -6,9 +6,9 @@ import DataTable from '../element/DataTable';
 import { useSheets } from '@/context/SheetsContext';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import type { InventoryRecord } from '@/services/inventoryService';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 import type { InventorySheet } from '@/types/sheets';
 import {
@@ -18,6 +18,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { useProject } from '@/context/ProjectContext';
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
@@ -61,8 +62,18 @@ export default () => {
         stockTransferSheet
     } = useSheets();
     const { user } = useAuth();
+    const { selectedProjectId: globalProjectId } = useProject();
 
-    const [selectedProjectId, setSelectedProjectId] = useState<string>('All');
+    const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
+        return globalProjectId && globalProjectId !== 'all' ? String(globalProjectId) : 'All';
+    });
+
+    useEffect(() => {
+        if (globalProjectId) {
+            setSelectedProjectId(globalProjectId === 'all' ? 'All' : String(globalProjectId));
+        }
+    }, [globalProjectId]);
+
     const selectedFirm = useMemo(() => {
         if (selectedProjectId === 'All') return null;
         return (masterSheet?.firmObjects || []).find((f) => String(f.id) === selectedProjectId) || null;
@@ -927,7 +938,7 @@ export default () => {
                                                 }
 
                                                 // Insert into dedicated stock_transfers table
-                                                const { error } = await supabase.from('stock_transfers').insert([{
+                                                await storeApi.insert('stock_transfers', [{
                                                     transfer_no: ref,
                                                     from_project: transferDialog.fromProject,
                                                     from_firm_id: fromFirmId,
@@ -940,8 +951,6 @@ export default () => {
                                                     remark: 'Internal Stock Transfer',
                                                     timestamp
                                                 }]);
-
-                                                if (error) throw error;
 
                                                 toast.success("Transfer Successful!");
                                                 setTransferDialog(prev => ({ ...prev, open: false, itemName: '', quantity: 0, toProject: '' }));

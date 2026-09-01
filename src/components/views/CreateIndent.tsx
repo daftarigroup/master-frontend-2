@@ -19,6 +19,7 @@ import { fetchIndentRecords, deleteIndentRecord, type IndentRecord } from '@/ser
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { uploadFile } from '@/lib/fetchers';
 
 import { formatDate, formatDateTimeFull, cn } from '@/lib/utils';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -28,7 +29,7 @@ import { ClipboardList, Trash, Search, PlusCircle, Download, Calendar as Calenda
 import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
 import { useState, useEffect } from 'react';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 import { pdf } from '@react-pdf/renderer';
@@ -247,20 +248,15 @@ export default () => {
         if (!searchTermFirmName.trim()) return;
         setIsAddingProject(true);
         try {
-            const { data, error } = await supabase
-                .from('firm')
-                .insert([{ firm_name: searchTermFirmName.trim() }])
-                .select('id')
-                .single();
-
-            if (error) throw error;
+            const data: any = await storeApi.insert('firm', { firm_name: searchTermFirmName.trim() });
+            const inserted = Array.isArray(data) ? data[0] : data;
 
             toast.success(`Project "${searchTermFirmName}" added successfully!`);
             // Refresh firms list from context
             updateMasterSheet();
             // Automatically select the newly added project
             form.setValue('firmName', searchTermFirmName.trim());
-            if (data) form.setValue('firmId', data.id);
+            if (inserted?.id) form.setValue('firmId', inserted.id);
             handleFirmNameSelect(searchTermFirmName.trim());
             setSearchTermFirmName('');
 
@@ -281,11 +277,7 @@ export default () => {
         }
         setIsAddingAreaOfUse(true);
         try {
-            const { error } = await supabase
-                .from('area_of_use')
-                .insert([{ name: value.trim() }]);
-
-            if (error) throw error;
+            await storeApi.insert('area_of_use', { name: value.trim() });
 
             toast.success(`Area "${value}" added successfully!`);
             form.setValue(`products.${index}.areaOfUse`, value.trim());
@@ -304,17 +296,11 @@ export default () => {
         if (!searchTerm.trim()) return;
         setIsAddingDept(true);
         try {
-            const { error } = await supabase
-                .from('department')
-                .insert([{ name: searchTerm.trim() }]);
-
-            if (error) throw error;
+            await storeApi.insert('department', { name: searchTerm.trim() });
 
             toast.success(`Department "${searchTerm}" added successfully!`);
             // Refresh options from context
             updateMasterSheet();
-            // Automatically select the newly added department for this row
-            // form.setValue(`products.${index}.department`, searchTerm.trim());
             setSearchTerm('');
         } catch (error) {
             console.error('Error adding department:', error);
@@ -377,11 +363,6 @@ export default () => {
             const firmName = form.getValues('firmName');
             const firmId = form.getValues('firmId') || options?.firmObjects?.find((f: { name: string; id: number }) => f.name === firmName)?.id;
 
-            if (!supabaseEnabled) {
-                toast.error('Supabase is not enabled');
-                return;
-            }
-
             if (!firmId) {
                 toast.error('Project ID is required for inventory');
                 return;
@@ -406,55 +387,33 @@ export default () => {
             }
 
             // Sync the 'indented' count in the DB as per original logic
-            const { data: inventoryData, error: fetchError } = await supabase
-                .from('inventory')
-                .select('indented')
-                .eq('item_name', productName)
-                .eq('group_head', groupHead)
-                .eq('firm_id', firmId)
-                .maybeSingle();
-
-            if (fetchError) {
-                console.error('Error fetching inventory for indented update:', fetchError);
-                return;
-            }
+            const inventoryRecords: any[] = await storeApi.fetch('inventory', {
+                item_name: productName,
+                group_head: groupHead,
+                firm_id: firmId,
+            });
+            const inventoryData = inventoryRecords?.[0];
 
             if (inventoryData) {
                 // Update the indented column by adding quantityToAdd
                 const currentIndented = Number(inventoryData.indented) || 0;
                 const newIndented = currentIndented + quantityToAdd;
 
-
-                const { error: updateError } = await supabase
-                    .from('inventory')
-                    .update({ indented: newIndented, firm_id: firmId || null, firm_name: firmName || '' })
-                    .eq('item_name', productName)
-                    .eq('group_head', groupHead)
-                    .eq('firm_id', firmId);
-
-                if (updateError) {
-                    console.error('Error updating inventory:', updateError);
-                    toast.error('Failed to update inventory');
-                } else {
-                }
+                await storeApi.update('inventory', inventoryData.id, {
+                    indented: newIndented,
+                    firm_id: firmId || null,
+                    firm_name: firmName || ''
+                });
             } else {
                 // If no inventory record exists, create one with indented = quantityToAdd
-                const { error: insertError } = await supabase
-                    .from('inventory')
-                    .insert({
-                        item_name: productName,
-                        group_head: groupHead,
-                        indented: quantityToAdd,
-                        firm_name: firmName || '',
-                        firm_id: firmId || null,
-                        timestamp: new Date().toISOString(),
-                    });
-
-                if (insertError) {
-                    console.error('Error creating inventory record:', insertError);
-                    toast.error('Failed to create inventory record');
-                } else {
-                }
+                await storeApi.insert('inventory', {
+                    item_name: productName,
+                    group_head: groupHead,
+                    indented: quantityToAdd,
+                    firm_name: firmName || '',
+                    firm_id: firmId || null,
+                    timestamp: new Date().toISOString(),
+                });
             }
         } catch (error) {
             console.error('Error in handleProductSelect:', error);
@@ -468,13 +427,12 @@ export default () => {
 
         // 1. Fetch directly from DB to get absolute latest SI-XXXX across all records
         try {
-            const { data, error } = await supabase
-                .from('indent')
-                .select('indent_number')
-                .order('id', { ascending: false })
-                .limit(500);
+            const data: any[] = await storeApi.fetch('indent', {
+                order: 'id.desc',
+                limit: 500,
+            });
 
-            if (!error && data) {
+            if (data) {
                 for (const row of data) {
                     const match = String(row.indent_number || '').match(/^SI-(\d+)$/i);
                     if (match) {
@@ -510,24 +468,14 @@ export default () => {
         return `SI-${String(maxNum + 1).padStart(4, '0')}`;
     };
 
-    // Helper: Upload file to Supabase Storage
-    const uploadFileToSupabase = async (file: File, indentNumber: string): Promise<string> => {
+    // Helper: Upload file to storage
+    const uploadFileToStorage = async (file: File, _indentNumber: string): Promise<string> => {
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${indentNumber}_${Date.now()}.${fileExt}`;
-            const filePath = `indent-attachments/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('indent_attachment')
-                .upload(filePath, file);
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('indent_attachment')
-                .getPublicUrl(filePath);
-
-            return publicUrl;
+            return await uploadFile({
+                file,
+                folderId: 'indent_attachment',
+                subFolder: 'indent-attachments',
+            });
         } catch (error) {
             console.error('File upload error:', error);
             throw error;
@@ -552,10 +500,9 @@ export default () => {
 
             let rows = historyData.filter(r => r.indent_number === indentNo);
             if (rows.length === 0) {
-                const { data } = await supabase
-                    .from('indent')
-                    .select('*')
-                    .eq('indent_number', indentNo);
+                const data: any[] = await storeApi.fetch('indent', {
+                    indent_number: indentNo,
+                });
                 if (data && data.length > 0) {
                     rows = data as any;
                 }
@@ -601,11 +548,6 @@ export default () => {
 
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
-            if (!supabaseEnabled) {
-                toast.error('Supabase is not enabled. Please configure Supabase.');
-                return;
-            }
-
             const firmId = data.firmId || options?.firmObjects?.find((f: { name: string; id: number }) => f.name === data.firmName)?.id;
             if (!firmId) {
                 toast.error('Project ID is required to create an indent');
@@ -617,7 +559,7 @@ export default () => {
             const attachmentUrls = await Promise.all(
                 data.products.map(product =>
                     product.attachment instanceof File
-                        ? uploadFileToSupabase(product.attachment, nextIndentNumber).catch(err => {
+                        ? uploadFileToStorage(product.attachment, nextIndentNumber).catch(err => {
                             console.error('File upload failed:', err);
                             toast.warning('Attachment upload failed, continuing without it');
                             return '';
@@ -658,8 +600,7 @@ export default () => {
                 status: 'Pending',
             }));
 
-            const { error } = await supabase.from('indent').insert(rows);
-            if (error) throw error;
+            await storeApi.insert('indent', rows);
 
             // 3. Show success immediately — user is unblocked
             toast.success(`Indent ${nextIndentNumber} created successfully!`);

@@ -7,10 +7,11 @@ import { Pill } from '../ui/pill';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { applyFirmAccessFilter } from '@/lib/firmAccess';
+import { useProject } from '@/context/ProjectContext';
+import { apiClient } from '@/lib/apiClient';
+import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getPublicFileUrl } from '@/lib/utils';
 import { resetPoStage } from '@/services/poService';
 import { openPoPdfPreview } from '@/lib/poPdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
@@ -46,25 +47,7 @@ interface ReceivedRecord {
 }
 
 function getAttachmentUrl(attachment?: string): string {
-    if (!attachment || typeof attachment !== 'string') return '';
-    let url = attachment.trim().replace(/^["']|["']$/g, '');
-    if (!url) return '';
-
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
-        return url;
-    }
-
-    if (url.startsWith('po_image/')) {
-        const { data } = supabase.storage.from('po_image').getPublicUrl(url.replace(/^po_image\//, ''));
-        return data.publicUrl;
-    }
-    if (url.startsWith('indent-pdfs/')) {
-        const { data } = supabase.storage.from('indent-pdfs').getPublicUrl(url.replace(/^indent-pdfs\//, ''));
-        return data.publicUrl;
-    }
-
-    const { data } = supabase.storage.from('po_image').getPublicUrl(url);
-    return data.publicUrl;
+    return getPublicFileUrl(attachment);
 }
 
 /**
@@ -78,38 +61,32 @@ function comparePoNumbersDescending(poA?: string, poB?: string): number {
     if (!cleanA) return 1;
     if (!cleanB) return -1;
 
-    // Matches strings like "26-27/49", "PO-26-27/49", "26-27-49", "PO/49", "49"
-    const matchA = cleanA.match(/^(.*?)(?:[/_-])?(\d+)$/);
-    const matchB = cleanB.match(/^(.*?)(?:[/_-])?(\d+)$/);
+    // Pattern: [prefix/year/]<sequenceNumber> (e.g. "26-27/49", "PO-2026-0012", "123")
+    const matchA = cleanA.match(/(?:.*\/)?(\d+)$/);
+    const matchB = cleanB.match(/(?:.*\/)?(\d+)$/);
 
     if (matchA && matchB) {
-        const prefixA = (matchA[1] || '').trim();
-        const prefixB = (matchB[1] || '').trim();
-        const numA = parseInt(matchA[2], 10);
-        const numB = parseInt(matchB[2], 10);
+        const numA = parseInt(matchA[1], 10);
+        const numB = parseInt(matchB[1], 10);
 
-        if (prefixA.toLowerCase() === prefixB.toLowerCase()) {
-            if (numB !== numA) return numB - numA;
-        } else {
-            const prefixComp = prefixB.localeCompare(prefixA, undefined, { numeric: true, sensitivity: 'base' });
-            if (prefixComp !== 0) return prefixComp;
-            if (numB !== numA) return numB - numA;
+        if (numA !== numB) {
+            return numB - numA; // Higher numeric sequence comes first
         }
     }
 
     return cleanB.localeCompare(cleanA, undefined, { numeric: true, sensitivity: 'base' });
 }
 
-export default function POHistory() {
+export default function Order() {
     const { user } = useAuth();
-
+    const { effectivePermittedFirms } = useProject();
     const [historyData, setHistoryData] = useState<HistoryData[]>([]);
     const [dataLoading, setDataLoading] = useState(false);
     const [statusFilter, setStatusFilter] = useState<string>('All');
     const [openingPo, setOpeningPo] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<HistoryData | null>(null);
 
-    const handleOpenPdf = async (poNumber: string, _rawPdfUrl?: string) => {
+    const handleOpenPdf = async (poNumber: string) => {
         try {
             setOpeningPo(poNumber);
             await openPoPdfPreview(poNumber);
@@ -122,45 +99,37 @@ export default function POHistory() {
     };
 
     const fetchPOHistory = useCallback(async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
 
-            // Fetch PO Master data
-            let poQuery = supabase
-                .from('po_master')
-                .select('po_number, approved_by, pdf, prepared_by, total_po_amount, party_name, timestamp, po_created_date, firm_id')
-                .order('timestamp', { ascending: false });
-
-            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
-                ? undefined
-                : user.firm_access;
-
-            const filteredQuery = applyFirmAccessFilter(poQuery, permittedFirms);
-            if (!filteredQuery) {
+            if (hasNoFirmAccess(effectivePermittedFirms)) {
                 setHistoryData([]);
+                setDataLoading(false);
                 return;
             }
 
-            const { data: poMasterData, error: poError } = await filteredQuery;
-            if (poError) throw poError;
+            const firms = normalizeFirmAccess(effectivePermittedFirms);
+            const queryParams: Record<string, any> = {};
 
-            // Fetch indent data to check PO status
-            const { data: indentData, error: indentError } = await supabase
-                .from('indent')
-                .select('indent_number, po_number')
-                .not('po_number', 'is', null);
+            if (firms) {
+                const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+                const names = firms.filter(f => !/^\d+$/.test(f));
+                if (ids.length > 0) {
+                    queryParams['in__firm_id'] = ids.join(',');
+                } else if (names.length > 0) {
+                    queryParams['in__firm_name'] = names.join(',');
+                }
+            }
 
-            if (indentError) throw indentError;
+            const [poRes, indentRes, storeInRes]: any[] = await Promise.all([
+                apiClient.get('/store/entity/po_master', { params: { ...queryParams, order: 'timestamp.desc' } }),
+                apiClient.get('/store/entity/indent', { params: { ...queryParams, neq__po_number: '' } }),
+                apiClient.get('/store/entity/store_in', { params: { ...queryParams, neq__po_number: '' } }),
+            ]);
 
-            // Fetch store_in data to check if PO materials have been received
-            const { data: receivedData, error: receivedError } = await supabase
-                .from('store_in')
-                .select('po_number')
-                .not('po_number', 'is', null);
-
-            if (receivedError) throw receivedError;
+            const poMasterData = poRes?.data || [];
+            const indentData = indentRes?.data || [];
+            const receivedData = storeInRes?.data || [];
 
             // Create sets for quick lookup
             const indentPoNumbers = new Set(
@@ -226,7 +195,7 @@ export default function POHistory() {
         } finally {
             setDataLoading(false);
         }
-    }, [user?.firm_access, user?.administrate]);
+    }, [effectivePermittedFirms, user?.administrate]);
 
     useEffect(() => {
         fetchPOHistory();
@@ -259,7 +228,7 @@ export default function POHistory() {
                 return (
                     <button
                         type="button"
-                        onClick={() => handleOpenPdf(poNum, rawAttachment)}
+                        onClick={() => handleOpenPdf(poNum)}
                         disabled={isOpening}
                         className="text-primary hover:underline font-medium cursor-pointer disabled:opacity-50"
                     >

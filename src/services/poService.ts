@@ -1,18 +1,65 @@
-import { supabase } from '@/lib/supabase';
+import { apiClient, storeApi } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
-import { apiClient } from '@/lib/apiClient';
 
 /**
- * Fetch all indent data from Supabase
- * Used for populating PO creation form with indent details
- * @param permittedFirms Optional array of firm IDs to filter by
+ * PO Service
+ * Handles indent fetching, PO creation, and PO master operations via REST API
  */
+
+export interface IndentRecord {
+    id: number;
+    planned4: string;
+    actual4: string;
+    approvedVendorName: string;
+    firmName: string;
+    firm_id?: number;
+    indentNumber: string;
+    productName: string;
+    specifications: string;
+    taxValue1: number;
+    taxValue4: number;
+    approvedQuantity: number;
+    indentQuantity?: number;
+    pendingPoQty?: number;
+    uom: string;
+    approvedRate: number;
+    quotationNumber?: string;
+    quotationDate?: string;
+    approvedPaymentTerm?: string;
+    approvedAdvancePercent?: string | number;
+    vendorType: string;
+    poRequired: string;
+    poNumber: string;
+    po_number?: string;
+    poDate?: string;
+    deliveryDate?: string;
+    withTax?: string;
+    areaOfUse?: string;
+    totalRate?: number;
+    totalAmount?: number;
+    negotiatedRate?: number;
+    negotiatedAmount?: number;
+    attachment?: string;
+    attachment3?: string;
+    taxValue?: number;
+    paymentTerms?: string;
+    rate?: number;
+    rate1?: number;
+    rate2?: number;
+    rate3?: number;
+    vendorRate?: number;
+    noDay?: number;
+    timestamp?: string;
+}
 
 export interface PoMasterRecord {
     timestamp: string;
+    poCreatedDate?: string;
+    po_created_date?: string;
+    poDate?: string;
     partyName: string;
     supplierAddress: string;
-    supplierGstin: string; 
+    supplierGstin: string;
     poNumber: string;
     internalCode: string;
     product: string;
@@ -27,11 +74,11 @@ export interface PoMasterRecord {
     discountPercent: number;
     amount: number;
     totalPoAmount: number;
-    pdf: string;
-    quotationNumber: string;
-    quotationDate: string;
-    enquiryNumber: string;
-    enquiryDate: string;
+    pdf?: string;
+    quotationNumber?: string;
+    quotationDate?: string;
+    enquiryNumber?: string;
+    enquiryDate?: string;
     term1?: string;
     term2?: string;
     term3?: string;
@@ -52,27 +99,107 @@ export interface PoMasterRecord {
     term18?: string;
     term19?: string;
     term20?: string;
-    deliveryDate: string;
-    paymentTerms: string;
-    numberOfDays: number;
-    deliveryDays: number;
-    deliveryType: string;
-    firmNameMatch: string;
-    emailSendStatus: string;
-    preparedBy: string;
+    terms?: string;
+    deliveryDate?: string;
+    paymentTerms?: string;
+    numberOfDays?: number;
+    deliveryDays?: number;
+    deliveryType?: string;
+    firmNameMatch?: string;
     firm_id?: number;
     status?: string;
     totalPaidAmount?: number;
     outstandingAmount?: number;
+    emailSendStatus?: string;
+    preparedBy?: string;
+    approvedBy?: string;
     siteEngineerName?: string;
     siteEngineerEmail?: string;
     siteEngineerPhoneNo?: string;
+    site_engineer_name?: string;
+    site_engineer_email?: string;
+    site_engineer_phoneNo?: string;
     siteEngineerName2?: string;
     siteEngineerEmail2?: string;
     siteEngineerPhoneNo2?: string;
-    po_created_date?: string;
-    poDate?: string;
-    terms?: string;
+    site_engineer_name_2?: string;
+    site_engineer_email_2?: string;
+    site_engineer_phoneNo_2?: string;
+    advancePercent?: number;
+    advanceAmount?: number;
+}
+
+export interface MasterOptions {
+    vendors: {
+        vendorName: string;
+        gstin: string;
+        address: string;
+        vendorEmail: string;
+        personName: string;
+        phone: string;
+    }[];
+    paymentTerms: string[];
+    companyName: string;
+    companyPhone: string;
+    companyGstin: string;
+    companyPan: string;
+    companyEmail: string;
+    companyAddress: string;
+    billingAddress: string;
+    destinationAddress: string;
+    companyContactPerson: string;
+    defaultTerms: string[];
+    firmCompanyMap: Record<string, {
+        companyName: string;
+        companyAddress: string;
+        destinationAddress: string;
+        billingAddress: string;
+        companyGstin: string;
+        companyPan: string;
+    }>;
+    items: {
+        itemName: string;
+        regularConditions: string[];
+        thirdPartyConditions: string[];
+    }[];
+    siteEngineers: {
+        name: string;
+        number: string;
+        email: string;
+    }[];
+}
+
+export interface PoCreationData {
+    selectedIndents: IndentRecord[];
+    vendorName: string;
+    vendorGstin: string;
+    vendorAddress: string;
+    vendorEmail: string;
+    vendorContactPerson: string;
+    vendorContactNo: string;
+    poNumber: string;
+    poDate: string;
+    quotationNumber: string;
+    quotationDate: string;
+    enquiryNumber: string;
+    enquiryDate: string;
+    deliveryDate: string;
+    paymentTerms: string;
+    deliveryType: string;
+    numberOfDays: number;
+    deliveryDays: number;
+    companyEmail: string;
+    billingAddress: string;
+    destinationAddress: string;
+    siteEngineerName: string;
+    siteEngineerEmail: string;
+    siteEngineerPhoneNo: string;
+    siteEngineerName2?: string;
+    siteEngineerEmail2?: string;
+    siteEngineerPhoneNo2?: string;
+    terms: string[];
+    advancePercent?: number;
+    advanceAmount?: number;
 }
 
 export async function fetchIndents(permittedFirms?: string[]) {
@@ -80,27 +207,30 @@ export async function fetchIndents(permittedFirms?: string[]) {
         if (hasNoFirmAccess(permittedFirms)) return [];
         const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('indent')
-            .select('*')
-            .order('indent_number', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'indent_number.desc',
+        };
 
         if (firms) {
             const ids = firms.filter((firm) => /^\d+$/.test(firm)).map(Number);
-            if (ids.length === 0) return [];
-            query = query.in('firm_id', ids);
+            const names = firms.filter((firm) => !/^\d+$/.test(firm));
+            if (ids.length > 0) {
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm_name'] = names.join(',');
+            } else {
+                return [];
+            }
         }
 
-        const { data, error } = await query;
+        const res: any = await apiClient.get('/store/entity/indent', { params });
+        const data = res?.data || [];
 
-        if (error) throw error;
-
-        return (data || []).map((r: any) => {
+        return data.map((r: any) => {
             const rawPending = Number(r.pending_po_qty) || 0;
             const rawApproved = Number(r.approved_quantity) || 0;
             const rawQuantity = Number(r.quantity) || 0;
 
-            // Priority: approved_quantity > pending_po_qty > original_quantity
             const finalQty = rawApproved > 0 ? rawApproved : (rawPending > 0 ? rawPending : rawQuantity);
 
             return {
@@ -116,8 +246,8 @@ export async function fetchIndents(permittedFirms?: string[]) {
                 specifications: r.specifications || '',
                 taxValue1: r.tax_value1 || 0,
                 taxValue4: r.tax_value4 || 0,
-                approvedQuantity: finalQty, // This will be shown in 'Qty' column
-                indentQuantity: rawQuantity, // Original requested quantity
+                approvedQuantity: finalQty,
+                indentQuantity: rawQuantity,
                 pendingPoQty: rawPending,
                 uom: r.uom || '',
                 approvedRate: r.approved_rate || 0,
@@ -137,42 +267,34 @@ export async function fetchIndents(permittedFirms?: string[]) {
     }
 }
 
-/**
- * Fetch all PO Master records from Supabase
- * Used for generating PO numbers and revising existing POs
- * @param permittedFirms Optional array of firm IDs to filter by
- */
 export async function fetchPoMaster(permittedFirms?: string[]) {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
         const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('po_master')
-            .select('*')
-            .order('timestamp', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'timestamp.desc',
+        };
 
         if (firms) {
             const ids = firms.filter((firm) => /^\d+$/.test(firm)).map(Number);
             const names = firms.filter((firm) => !/^\d+$/.test(firm));
             
             if (ids.length > 0) {
-                query = query.in('firm_id', ids);
+                params['in__firm_id'] = ids.join(',');
             } else if (names.length > 0) {
-                query = query.in('firm_name', names);
+                params['in__firm_name'] = names.join(',');
             } else {
                 return [];
             }
         }
 
+        const res: any = await apiClient.get('/store/entity/po_master', { params });
+        const data = res?.data || [];
 
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        return data.map((r: any) => ({
             timestamp: r.timestamp,
-            po_created_date: r.po_created_date || r.timestamp || '',
+            poCreatedDate: r.po_created_date || r.timestamp || '',
             poDate: r.po_created_date || r.timestamp || '',
             partyName: r.party_name || '',
             supplierAddress: r.supplier_address || '',
@@ -185,10 +307,10 @@ export async function fetchPoMaster(permittedFirms?: string[]) {
             unit: r.unit || '',
             rate: Number(r.rate) || 0,
             gst: Number(r.gst) || 0,
-            gstPercent: Number(r.gst) || 0, // gst field is used for percentage
+            gstPercent: Number(r.gst) || 0,
             companyEmail: r.company_email || '',
             discount: Number(r.discount) || 0,
-            discountPercent: Number(r.discount) || 0, // discount field is used for percentage
+            discountPercent: Number(r.discount) || 0,
             amount: Number(r.amount) || 0,
             totalPoAmount: Number(r.total_po_amount) || 0,
             pdf: r.pdf || '',
@@ -249,21 +371,19 @@ export async function fetchPoMaster(permittedFirms?: string[]) {
     }
 }
 
-/**
- * Fetch PO records for a specific PO number or internal code
- */
 export async function fetchPoMasterByPoNumber(poNumber: string): Promise<PoMasterRecord[]> {
     try {
-        const { data, error } = await supabase
-            .from('po_master')
-            .select('*')
-            .or(`po_number.eq.${poNumber},internal_code.eq.${poNumber}`);
-
-        if (error) throw error;
+        const res: any = await apiClient.get('/store/entity/po_master', {
+            params: {
+                or__po_number: poNumber,
+                or__internal_code: poNumber,
+            },
+        });
+        const data = res?.data || [];
 
         return (data || []).map((r: any) => ({
             timestamp: r.timestamp,
-            po_created_date: r.po_created_date || r.timestamp || '',
+            poCreatedDate: r.po_created_date || r.timestamp || '',
             poDate: r.po_created_date || r.timestamp || '',
             partyName: r.party_name || '',
             supplierAddress: r.supplier_address || '',
@@ -326,6 +446,12 @@ export async function fetchPoMasterByPoNumber(poNumber: string): Promise<PoMaste
             siteEngineerName2: r.site_engineer_name_2 || '',
             siteEngineerEmail2: r.site_engineer_email_2 || '',
             siteEngineerPhoneNo2: r.site_engineer_phoneNo_2 || '',
+            site_engineer_name: r.site_engineer_name || '',
+            site_engineer_email: r.site_engineer_email || '',
+            site_engineer_phoneNo: r.site_engineer_phoneNo || '',
+            site_engineer_name_2: r.site_engineer_name_2 || '',
+            site_engineer_email_2: r.site_engineer_email_2 || '',
+            site_engineer_phoneNo_2: r.site_engineer_phoneNo_2 || '',
         }));
     } catch (error) {
         console.error('Error fetching PO master by PO number:', error);
@@ -333,9 +459,6 @@ export async function fetchPoMasterByPoNumber(poNumber: string): Promise<PoMaste
     }
 }
 
-/**
- * Fetch master data (vendors, company info, terms, etc.) with in-memory caching
- */
 let masterDataCache: any = null;
 let masterDataPromise: Promise<any> | null = null;
 
@@ -346,31 +469,28 @@ export async function fetchMasterData(forceRefresh = false) {
     masterDataPromise = (async () => {
         try {
             const [
-                companiesResult,
-                firmsResult,
-                vendorsResult,
-                itemsResult,
-                termsResult,
-                seResult,
-            ] = await Promise.all([
-                supabase.from('company').select('company_name, destination_address, gstin, pan, email, phone, address, contact_person, billing_address').order('company_name'),
-                supabase.from('firm').select('*, company:company_id(*)').order('firm_name'),
-                supabase.from('vendors').select('vendor_name, gstin, address, email, phone, person_name, payment_term').order('vendor_name'),
-                supabase.from('item').select('*, group_head:group_head_id(name), uom:uom_id(name)').order('item_name'),
-                supabase.from('default_po_terms').select('term_text').eq('active', true).order('sort_order', { ascending: true }),
-                supabase.from('site_engineer_details').select('name, number, email'),
+                companiesRes,
+                firmsRes,
+                vendorsRes,
+                itemsRes,
+                termsRes,
+                seRes,
+            ]: any[] = await Promise.all([
+                apiClient.get('/store/entity/company', { params: { order: 'company_name.asc' } }),
+                apiClient.get('/store/entity/firm', { params: { order: 'firm_name.asc' } }),
+                apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc' } }),
+                apiClient.get('/store/entity/item', { params: { order: 'item_name.asc' } }),
+                apiClient.get('/store/entity/default_po_terms', { params: { active: true, order: 'sort_order.asc' } }),
+                apiClient.get('/store/entity/site_engineer_details'),
             ]);
 
-            const firstError = [companiesResult, firmsResult, vendorsResult, itemsResult, termsResult, seResult].find(result => result.error)?.error;
-            if (firstError) throw firstError;
-
-            const companies = companiesResult.data || [];
-            const firms = firmsResult.data || [];
-            const vendorRows = vendorsResult.data || [];
-            const itemRows = itemsResult.data || [];
-            const termRows = termsResult.data || [];
+            const companies = companiesRes?.data || [];
+            const firms = firmsRes?.data || [];
+            const vendorRows = vendorsRes?.data || [];
+            const itemRows = itemsRes?.data || [];
+            const termRows = termsRes?.data || [];
             const firstCompany: any = companies[0] || {};
-            const siteEngineers = seResult.data || [];
+            const siteEngineers = seRes?.data || [];
 
             const vendors = vendorRows.map((r: any) => ({
                 vendorName: r.vendor_name,
@@ -381,13 +501,9 @@ export async function fetchMasterData(forceRefresh = false) {
                 phone: r.phone || '',
             }));
 
-            // Deduplicate vendors by name
             const uniqueVendors = Array.from(new Map(vendors.map((v: any) => [v.vendorName, v])).values());
-
-            // Extract payment terms
             const paymentTerms = Array.from(new Set(vendorRows.map((r: any) => r.payment_term).filter(Boolean)));
 
-            // Firm to Company Mapping
             const firmCompanyMap: Record<string, any> = {};
             firms.forEach((r: any) => {
                 const company = r.company || {};
@@ -441,18 +557,12 @@ export async function fetchMasterData(forceRefresh = false) {
     return masterDataPromise;
 }
 
-/**
- * Insert new PO records into Supabase
- * @param poRecords - Array of PO records to insert
- */
 export async function insertPoRecords(poRecords: any[]) {
     try {
         if (poRecords.some((record) => !record.firm_id)) {
             throw new Error('Project ID is required for PO records');
         }
 
-        // Map the records to Supabase schema (snake_case)
-        // Note: Most fields in po_master are text type, so we convert numbers to strings
         const mappedRecords = poRecords.map((record) => ({
             timestamp: record.timestamp,
             po_created_date: record.po_created_date || record.timestamp || new Date().toISOString(),
@@ -494,13 +604,7 @@ export async function insertPoRecords(poRecords: any[]) {
             site_engineer_phoneNo_2: record.siteEngineerPhoneNo2 || record.site_engineer_phoneNo_2 || '',
         }));
 
-        const { data, error } = await supabase
-            .from('po_master')
-            .insert(mappedRecords)
-            .select();
-
-        if (error) throw error;
-
+        const data = await storeApi.insert('po_master', mappedRecords);
         return data;
     } catch (error) {
         console.error('Error inserting PO records:', error);
@@ -508,12 +612,6 @@ export async function insertPoRecords(poRecords: any[]) {
     }
 }
 
-/**
- * Update indent records to mark them as having PO created
- * Sets actual4 timestamp and delivery_date for indents that are included in the PO
- * @param indentNumbers - Array of indent numbers to update
- * @param deliveryDate - The delivery date from the PO
- */
 export async function updateIndentsAfterPoCreation(ids: number[], deliveryDate?: string, poNumber?: string) {
     try {
         const now = new Date().toISOString();
@@ -528,12 +626,7 @@ export async function updateIndentsAfterPoCreation(ids: number[], deliveryDate?:
             updateData.po_number = poNumber;
         }
 
-        const { error } = await supabase
-            .from('indent')
-            .update(updateData)
-            .in('id', ids);
-
-        if (error) throw error;
+        await storeApi.updateWhere('indent', { in__id: ids.join(',') }, updateData);
     } catch (error) {
         console.error('Error updating indents after PO creation:', error);
         throw error;

@@ -4,7 +4,6 @@ import DataTable from '../element/DataTable';
 import { z } from 'zod';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { supabase } from '@/lib/supabase';
 import {
     Dialog,
     DialogContent,
@@ -34,6 +33,7 @@ import StageDeleteDialog from '../element/StageDeleteDialog';
 
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import {
     fetchStoreInRecords,
     fetchDirectRecords,
@@ -230,6 +230,7 @@ const formatPlannedDate = (dateString: string) => {
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateAll } = useSheets();
 
     const [tableData, setTableData] = useState<StoreInPendingData[]>([]);
@@ -257,7 +258,7 @@ export default () => {
         setReceivedLoading(true);
         try {
             // Pass permitted firms to the service for backend-level filtering
-            const permittedFirms = user?.firm_access || [];
+            const permittedFirms = effectivePermittedFirms;
             const [storeIns, directIns, masterData] = await Promise.all([
                 fetchStoreInRecords(permittedFirms),
                 fetchDirectRecords(permittedFirms),
@@ -292,11 +293,11 @@ export default () => {
         if (user?.username) {
             fetchAllData();
         }
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, effectivePermittedFirms]);
 
     // Process pending table data
     useEffect(() => {
-        const permittedFirms = user?.firm_access || [];
+        const permittedFirms = effectivePermittedFirms;
         const filteredByFirm = filterByFirmAccess(
             storeInRecords,
             permittedFirms,
@@ -321,11 +322,11 @@ export default () => {
             indentNumbers: [i.indentNo || ''],
             originalItems: [i]
         })));
-    }, [storeInRecords, user?.firmNameMatch, user?.firm_access]);
+    }, [storeInRecords, user?.firmNameMatch, effectivePermittedFirms]);
 
     // Process history data
     useEffect(() => {
-        const permittedFirms = user?.firm_access || [];
+        const permittedFirms = effectivePermittedFirms;
         const filteredByFirm = filterByFirmAccess(
             storeInRecords,
             permittedFirms,
@@ -386,7 +387,7 @@ export default () => {
         })));
 
         // Note: directData is now set directly in fetchAllData from the new table
-    }, [storeInRecords, user?.firmNameMatch, user?.firm_access]);
+    }, [storeInRecords, user?.firmNameMatch, effectivePermittedFirms]);
 
     const textWrapCell = ({ getValue }: { getValue: () => any }) => {
         const value = getValue();

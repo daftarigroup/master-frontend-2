@@ -1,4 +1,5 @@
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { useEffect, useState } from 'react';
 import DataTable from '../element/DataTable';
@@ -28,7 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import { supabase } from '@/lib/supabase'; // Only used for comparison_sheet file upload (Storage)
+import { uploadFile } from '@/lib/fetchers';
 import {
     fetchPendingVendorUpdates,
     fetchCompletedVendorUpdates,
@@ -51,6 +52,7 @@ type HistoryData = VendorHistoryRecord;
 export default () => {
     const { masterSheet: options } = useSheets();
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
 
     const [selectedIndent, setSelectedIndent] = useState<VendorUpdateData | null>(null);
     const [historyData, setHistoryData] = useState<HistoryData[]>([]);
@@ -108,7 +110,7 @@ export default () => {
     const loadPendingVendorUpdates = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchPendingVendorUpdates(user?.firm_access);
+            const data = await fetchPendingVendorUpdates(effectivePermittedFirms);
             setTableData(data);
             setFilteredTableData(data);
         } catch (err) {
@@ -123,7 +125,7 @@ export default () => {
     const loadCompletedVendorUpdates = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchCompletedVendorUpdates(user?.firm_access);
+            const data = await fetchCompletedVendorUpdates(effectivePermittedFirms);
             setHistoryData(data);
             setFilteredHistoryData(data);
         } catch (err) {
@@ -152,11 +154,11 @@ export default () => {
         }
     }, [selectedIndent, openDialog]);
 
-    // Fetch data on mount and when firm access changes
+    // Fetch data on mount and when active project changes
     useEffect(() => {
         loadPendingVendorUpdates();
         loadCompletedVendorUpdates();
-    }, [user.firm_access]);
+    }, [effectivePermittedFirms]);
 
     // Filter pending data by date, UOM, and search query
     useEffect(() => {
@@ -273,24 +275,14 @@ export default () => {
         setHistorySearchQuery('');
     };
 
-    // Upload file to Supabase Storage
-    const uploadFileToSupabase = async (file: File, indentNumber: string): Promise<string> => {
+    // Upload file to Storage
+    const uploadFileToSupabase = async (file: File, _indentNumber: string): Promise<string> => {
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${indentNumber}_comparison_${Date.now()}.${fileExt}`;
-            const filePath = `comparison-sheets/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('comparison_sheet')
-                .upload(filePath, file);
-
-            if (uploadError) throw uploadError;
-
-            const {
-                data: { publicUrl },
-            } = supabase.storage.from('comparison_sheet').getPublicUrl(filePath);
-
-            return publicUrl;
+            return await uploadFile({
+                file,
+                folderId: 'comparison_sheet',
+                subFolder: 'comparison-sheets',
+            });
         } catch (error) {
             console.error('File upload error:', error);
             throw error;

@@ -27,12 +27,14 @@ import { fetchIssueRecords, updateIssueRecordById, type IssueRecord } from '@/se
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 import { isAllowedFirm } from '@/lib/firmAccess';
 
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const {
         inventorySheet,
         indentSheet,
@@ -63,7 +65,7 @@ export default () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [effectivePermittedFirms]);
 
     const schema = z.object({
         constructorName: z.string().nonempty('Contractor Name is required'),

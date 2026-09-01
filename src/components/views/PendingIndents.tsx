@@ -20,8 +20,8 @@ import {
 } from '../ui/dialog';
 import { toast } from 'sonner';
 import { PuffLoader as Loader } from 'react-spinners';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { normalizeFirmAccess } from '@/lib/firmAccess';
+import { apiClient, storeApi } from '@/lib/apiClient';
+import { normalizeFirmAccess, hasNoFirmAccess } from '@/lib/firmAccess';
 
 interface PendingIndentsData {
     date: string;
@@ -65,43 +65,41 @@ export default () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [dataLoading, setDataLoading] = useState(false);
 
-    // Fetch pending PO decisions from Supabase
+    // Fetch pending PO decisions from REST API
     const fetchPendingPoDecisions = async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
-            let query = supabase
-                .from('indent')
-                .select('id, timestamp, indent_number, firm_name, firm_id, product_name, pending_po_qty, approved_rate, with_tax_or_not1, uom, approved_vendor_name, approved_payment_term, specifications, planned4')
-                .eq('status', 'Pending')
-                .not('approved_vendor_name', 'is', null)
-                .neq('approved_vendor_name', '')
-                .or('po_requred.is.null,po_requred.eq.');
 
-            const userFirms = user.firm_access || [];
-            if (userFirms.length === 0) {
+            if (hasNoFirmAccess(user.firm_access)) {
                 setPendingTableData([]);
                 return;
             }
 
-            const ids   = userFirms.filter(f => /^\d+$/.test(f)).map(Number);
-            const names = userFirms.filter(f => !/^\d+$/.test(f));
-            // ID-first: use firm_id only when IDs are present (secure)
-            if (ids.length > 0) {
-                query = query.in('firm_id', ids);
-            } else {
-                query = query.in('firm_name', names); // legacy fallback
+            const firms = normalizeFirmAccess(user.firm_access);
+            const params: Record<string, any> = {
+                status: 'Pending',
+                neq__approved_vendor_name: '',
+                order: 'indent_number.desc',
+            };
+
+            if (firms) {
+                const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+                const names = firms.filter(f => !/^\d+$/.test(f));
+                if (ids.length > 0) {
+                    params['in__firm_id'] = ids.join(',');
+                } else if (names.length > 0) {
+                    params['in__firm_name'] = names.join(',');
+                }
             }
 
+            const res: any = await apiClient.get('/store/entity/indent', { params });
+            const rows = (res?.data ?? []) as any[];
 
-            const { data, error } = await query.order('indent_number', { ascending: false });
+            // Filter for indents where po_requred is not yet decided
+            const pendingRows = rows.filter(r => !r.po_requred || String(r.po_requred).trim() === '');
 
-            if (error) throw error;
-
-            const rows = (data ?? []) as any[];
             setPendingTableData(
-                rows.map((r) => ({
+                pendingRows.map((r) => ({
                     date: formatDate(new Date(r.timestamp)),
                     indentNo: r.indent_number || '',
                     firmNameMatch: r.firm_name || '',
@@ -128,40 +126,35 @@ export default () => {
         fetchPendingPoDecisions();
     }, [user.firm_access]);
 
-    // Fetch PO decision history from Supabase
+    // Fetch PO decision history from REST API
     const fetchPoDecisionHistory = async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
-            let query = supabase
-                .from('indent')
-                .select('timestamp, indent_number, firm_name, firm_id, product_name, pending_po_qty, quantity, approved_rate, rate1, with_tax_or_not1, uom, approved_vendor_name, vendor_name1, approved_payment_term, payment_term1, specifications')
-                .not('po_requred', 'is', null)
-                .neq('po_requred', '')
-                .in('po_requred', ['Yes', 'No']);
 
-            const userFirms = user.firm_access || [];
-            if (userFirms.length === 0) {
+            if (hasNoFirmAccess(user.firm_access)) {
                 setHistoryTableData([]);
                 return;
             }
 
-            const ids   = userFirms.filter(f => /^\d+$/.test(f)).map(Number);
-            const names = userFirms.filter(f => !/^\d+$/.test(f));
-            // ID-first: use firm_id only when IDs are present (secure)
-            if (ids.length > 0) {
-                query = query.in('firm_id', ids);
-            } else {
-                query = query.in('firm_name', names); // legacy fallback
+            const firms = normalizeFirmAccess(user.firm_access);
+            const params: Record<string, any> = {
+                in__po_requred: 'Yes,No',
+                order: 'indent_number.desc',
+            };
+
+            if (firms) {
+                const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+                const names = firms.filter(f => !/^\d+$/.test(f));
+                if (ids.length > 0) {
+                    params['in__firm_id'] = ids.join(',');
+                } else if (names.length > 0) {
+                    params['in__firm_name'] = names.join(',');
+                }
             }
 
+            const res: any = await apiClient.get('/store/entity/indent', { params });
+            const rows = (res?.data ?? []) as any[];
 
-            const { data, error } = await query.order('indent_number', { ascending: false });
-
-            if (error) throw error;
-
-            const rows = (data ?? []) as any[];
             setHistoryTableData(
                 rows.map((r) => ({
                     date: formatDate(new Date(r.timestamp)),
@@ -208,12 +201,7 @@ export default () => {
                 updates.planned4 = new Date().toISOString();
             }
 
-            const { error } = await supabase
-                .from('indent')
-                .update(updates)
-                .eq('indent_number', selectedIndent.indentNo);
-
-            if (error) throw error;
+            await storeApi.updateWhere('indent', { indent_number: selectedIndent.indentNo }, updates);
 
             toast.success(`PO Required status updated to ${response}`);
             setOpenDialog(false);

@@ -1,5 +1,5 @@
 import { apiClient, storeApi } from '@/lib/apiClient';
-import { hasNoFirmAccess, filterByFirmAccess } from '@/lib/firmAccess';
+import { hasNoFirmAccess, filterByFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 import { uploadFile } from '@/lib/fetchers';
 
 /**
@@ -104,13 +104,29 @@ export interface LocationOption {
  * Fetch all store-in records from REST API
  * @param permittedFirms Optional array of firm IDs/names to filter by
  */
-export async function fetchStoreInRecords(permittedFirms?: string[]): Promise<StoreInRecord[]> {
+export async function fetchStoreInRecords(
+    permittedFirms?: string[],
+    options?: { cursor?: string; limit?: number }
+): Promise<StoreInRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
 
+        const firms = normalizeFirmAccess(permittedFirms);
         const params: Record<string, any> = {
             order: 'indent_no.desc',
         };
+
+        if (options?.cursor) params['cursor'] = options.cursor;
+        if (options?.limit) params['limit'] = options.limit;
+
+        // Push firm filter to the server so the DB returns only the rows we need,
+        // not the entire table. Client-side filterByFirmAccess below is a safety net.
+        if (firms) {
+            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+            if (ids.length > 0) {
+                params['in__firm_id'] = ids.join(',');
+            }
+        }
 
         const res: any = await apiClient.get('/store/entity/store_in', { params });
         const data = res.data || [];
@@ -213,7 +229,14 @@ export async function fetchDirectRecords(permittedFirms?: string[]) {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
 
-        const res: any = await apiClient.get('/store/entity/store_in_direct');
+        const firms = normalizeFirmAccess(permittedFirms);
+        const directParams: Record<string, any> = {};
+        if (firms) {
+            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+            if (ids.length > 0) directParams['in__firm_id'] = ids.join(',');
+        }
+
+        const res: any = await apiClient.get('/store/entity/store_in_direct', { params: directParams });
         const data = res.data || [];
 
         const mapped = data.map((r: any) => ({

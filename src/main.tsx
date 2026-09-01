@@ -8,12 +8,15 @@ if (typeof window !== 'undefined') {
 import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AuthProvider, useAuth } from '@/context/AuthContext.tsx';
+import { ProjectProvider } from './context/ProjectContext';
+import ProjectGuard from './app/guards/ProjectGuard';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import App from './App';
 import { SheetsProvider } from './context/SheetsContext';
 import { ChecklistProvider } from './context/ChecklistContext';
 const Login = React.lazy(() => import('./components/views/Login'));
+const SelectProject = React.lazy(() => import('./components/views/SelectProject'));
 const CreateAccount = React.lazy(() => import('./components/views/CreateAccount'));
 const CreateIndent = React.lazy(() => import('./components/views/CreateIndent'));
 const Dashboard = React.lazy(() => import('./components/views/Dashboard'));
@@ -959,25 +962,38 @@ if (rootElement) {
     root.render(
         <StrictMode>
             <AuthProvider>
-                <BrowserRouter>
-                    <React.Suspense fallback={<Loading />}>
-                        <Routes>
-                            {/* Public Routes */}
-                            <Route path="/login" element={<Login />} />
-                            <Route path="/create-account" element={<CreateAccount />} />
-                            <Route path="/bid/:token" element={<VendorBidding />} />
+                <ProjectProvider>
+                    <BrowserRouter>
+                        <React.Suspense fallback={<Loading />}>
+                            <Routes>
+                                {/* Public Routes */}
+                                <Route path="/login" element={<Login />} />
+                                <Route path="/create-account" element={<CreateAccount />} />
+                                <Route path="/bid/:token" element={<VendorBidding />} />
 
-                            {/* Layer 1 Protected Master Platform Shell */}
-                            <Route
-                                path="/"
-                                element={
-                                    <ProtectedRoute>
-                                        <SheetsProvider>
-                                            <App />
-                                        </SheetsProvider>
-                                    </ProtectedRoute>
-                                }
-                            >
+                                {/* Project Selection Guarded Route */}
+                                <Route
+                                    path="/select-project"
+                                    element={
+                                        <ProtectedRoute>
+                                            <SelectProject />
+                                        </ProtectedRoute>
+                                    }
+                                />
+
+                                {/* Layer 1 Protected Master Platform Shell */}
+                                <Route
+                                    path="/"
+                                    element={
+                                        <ProtectedRoute>
+                                            <ProjectGuard>
+                                                <SheetsProvider>
+                                                    <App />
+                                                </SheetsProvider>
+                                            </ProjectGuard>
+                                        </ProtectedRoute>
+                                    }
+                                >
                                 {/* Platform Dashboards */}
                                 <Route index element={<GlobalDashboard />} />
                                 <Route path="dashboard" element={<GlobalDashboard />} />
@@ -1028,7 +1044,7 @@ if (rootElement) {
                                     <Route path="admin/manage-users" element={<GatedRoute identifier="manageUsers"><ManageUsers /></GatedRoute>} />
                                     <Route path="admin/working-calendar" element={<GatedRoute identifier="workingCalendar"><WorkingCalendar /></GatedRoute>} />
                                     <Route path="admin/holidays" element={<GatedRoute identifier="holidays"><Holidays /></GatedRoute>} />
-                                    <Route path="admin/license" element={<Liecense />} />
+                                    <Route path="admin/license" element={<Navigate to="/license" replace />} />
                                 </Route>
 
                                 {/* Layer 2 MAINTENANCE SYSTEM MODULE (Proof of Concept) */}
@@ -1118,7 +1134,7 @@ if (rootElement) {
                                 <Route path="DBforPc" element={<Navigate to="/store/auditing/pc-report" replace />} />
                                 <Route path="master-registry" element={<Navigate to="/store/admin/master-registry" replace />} />
                                 <Route path="manage-users" element={<Navigate to="/store/admin/manage-users" replace />} />
-                                <Route path="license" element={<Navigate to="/store/admin/license" replace />} />
+                                <Route path="license" element={<Liecense />} />
 
                                 {/* Fallback route */}
                                 <Route path="*" element={<Navigate to="/" replace />} />
@@ -1126,7 +1142,8 @@ if (rootElement) {
                         </Routes>
                     </React.Suspense>
                 </BrowserRouter>
-            </AuthProvider>
-        </StrictMode>
+            </ProjectProvider>
+        </AuthProvider>
+    </StrictMode>
     );
 }

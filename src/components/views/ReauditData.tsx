@@ -23,6 +23,7 @@ import { Textarea } from '../ui/textarea';
 import { Calculator } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
 import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
@@ -36,6 +37,7 @@ import { formatDate, formatDateTime, getPublicFileUrl } from '@/lib/utils';
 
 export default function ReauditData() {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const [allData, setAllData] = useState<TallyEntryRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState<TallyEntryRecord | null>(null);
@@ -44,7 +46,7 @@ export default function ReauditData() {
     const fetchData = async () => {
         setDataLoading(true);
         try {
-            const records = await fetchTallyEntryRecords(user?.firm_access || []);
+            const records = await fetchTallyEntryRecords(effectivePermittedFirms || []);
             setAllData(records);
         } catch (error) {
             console.error('Failed to fetch tally entry records:', error);
@@ -56,7 +58,7 @@ export default function ReauditData() {
 
     useEffect(() => {
         fetchData();
-    }, [user.firm_access]);
+    }, [effectivePermittedFirms]);
 
     const pendingData = useMemo(() => {
         return allData.filter(i => i.planned3 && !i.actual3);

@@ -38,9 +38,7 @@ import {
 import { resetIndentStage } from '@/services/indentService';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
-
-
-
+import { useProject } from '@/context/ProjectContext';
 
 interface RateApprovalData {
     id: number;
@@ -69,6 +67,7 @@ interface HistoryData {
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateAll } = useSheets();
 
 
@@ -84,7 +83,7 @@ export default () => {
     const fetchPendingApprovals = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchPendingManagementApprovals(user?.firm_access);
+            const data = await fetchPendingManagementApprovals(effectivePermittedFirms);
             setTableData(data as any);
         } catch (err) {
             console.error('Error fetching pending approvals:', err);
@@ -97,7 +96,7 @@ export default () => {
     const fetchCompletedApprovals = async () => {
         try {
             setDataLoading(true);
-            const data = await fetchCompletedManagementApprovals(user?.firm_access);
+            const data = await fetchCompletedManagementApprovals(effectivePermittedFirms);
             setHistoryData(data as any);
         } catch (err) {
             console.error('Error fetching completed approvals:', err);
@@ -112,7 +111,7 @@ export default () => {
             fetchPendingApprovals();
             fetchCompletedApprovals();
         }
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, effectivePermittedFirms]);
 
     const columns: ColumnDef<RateApprovalData>[] = [
         {

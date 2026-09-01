@@ -89,7 +89,10 @@ export interface IndentRecord {
  * Fetch all indent records from REST API
  * @param permittedFirms Optional array of firm names/IDs to filter by
  */
-export async function fetchIndentRecords(permittedFirms?: string[]): Promise<IndentRecord[]> {
+export async function fetchIndentRecords(
+    permittedFirms?: string[],
+    options?: { cursor?: string; limit?: number }
+): Promise<IndentRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
         const firms = normalizeFirmAccess(permittedFirms);
@@ -97,6 +100,9 @@ export async function fetchIndentRecords(permittedFirms?: string[]): Promise<Ind
         const params: Record<string, any> = {
             order: 'indent_number.desc',
         };
+
+        if (options?.cursor) params['cursor'] = options.cursor;
+        if (options?.limit) params['limit'] = options.limit;
 
         if (firms) {
             const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);

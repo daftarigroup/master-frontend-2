@@ -1,6 +1,6 @@
-import { supabase } from '@/lib/supabase';
-import { storeApi } from '@/lib/apiClient';
-import { hasNoFirmAccess, normalizeFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
+import { storeApi, apiClient } from '@/lib/apiClient';
+import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
+import { uploadFile } from '@/lib/fetchers';
 
 /**
  * GetLift Service
@@ -117,25 +117,34 @@ export function parseNumericQty(val: any): number {
 // ==================== FETCH FUNCTIONS ====================
 
 /**
- * Fetch all indent records from Supabase
+ * Fetch all indent records from REST API
  * Used for displaying pending and completed lift records
  */
 export async function fetchIndentRecords(permittedFirms?: string[]) {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
+        const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('indent')
-            .select('indent_number, firm_name, firm_id, approved_vendor_name, po_number, actual4, delivery_date, planned5, actual5, product_name, total_qty, quantity, pending_qty, lifting_status, cancel_qty, approved_rate, tax_value4, with_tax_or_not4, area_of_use, timestamp, expected_req_date, approved_quantity, uom')
-            .order('indent_number', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'indent_number.desc',
+        };
 
-        const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
-        if (!filteredQuery) return [];
+        if (firms) {
+            const ids = firms.filter((firm) => /^\d+$/.test(firm)).map(Number);
+            const names = firms.filter((firm) => !/^\d+$/.test(firm));
+            if (ids.length > 0) {
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm_name'] = names.join(',');
+            } else {
+                return [];
+            }
+        }
 
-        const { data, error } = await filteredQuery;
+        const res: any = await apiClient.get('/store/entity/indent', { params });
+        const data = res?.data || [];
 
-        if (error) throw error;
-        return (data || []).map((r: any) => {
+        return data.map((r: any) => {
             const rawQuantity = parseNumericQty(r.quantity);
             const rawApproved = parseNumericQty(r.approved_quantity);
             const rawPending = parseNumericQty(r.pending_qty || r.pending_po_qty);
@@ -177,26 +186,34 @@ export async function fetchIndentRecords(permittedFirms?: string[]) {
 }
 
 /**
- * Fetch all store-in records from Supabase
+ * Fetch all store-in records from REST API
  * Used for calculating received quantities and history
  */
 export async function fetchStoreInRecords(permittedFirms?: string[]) {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
+        const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('store_in')
-            .select('id, lift_number, indent_no, firm_name, firm_id, vendor_name, product_name, po_number, qty, received_quantity, photo_of_bill, timestamp, material_date')
-            .order('timestamp', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'timestamp.desc',
+        };
 
-        const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
-        if (!filteredQuery) return [];
+        if (firms) {
+            const ids = firms.filter((firm) => /^\d+$/.test(firm)).map(Number);
+            const names = firms.filter((firm) => !/^\d+$/.test(firm));
+            if (ids.length > 0) {
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm_name'] = names.join(',');
+            } else {
+                return [];
+            }
+        }
 
-        const { data, error } = await filteredQuery;
+        const res: any = await apiClient.get('/store/entity/store_in', { params });
+        const data = res?.data || [];
 
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        return data.map((r: any) => ({
             id: r.id,
             liftNumber: r.lift_number || '',
             indentNo: r.indent_no || '',
@@ -218,19 +235,18 @@ export async function fetchStoreInRecords(permittedFirms?: string[]) {
 }
 
 /**
- * Fetch vendor options from master table
+ * Fetch vendor options from master table via REST API
  * Used for populating vendor dropdown
  */
-// Update the service function (in getLiftService or create a new one)
 export const fetchVendorOptions = async (): Promise<string[]> => {
     try {
-        const { data, error } = await supabase
-            .from('vendors')
-            .select('vendor_name')
-            .not('vendor_name', 'is', null)
-            .order('vendor_name');
-
-        if (error) throw error;
+        const res: any = await apiClient.get('/store/entity/vendors', {
+            params: {
+                not_null__vendor_name: true,
+                order: 'vendor_name.asc',
+            },
+        });
+        const data = res?.data || [];
 
         // Filter out null/undefined/empty values and remove duplicates
         const vendorNames = data
@@ -360,26 +376,16 @@ export async function insertStoreInRecord(storeInData: StoreInInsertData) {
 }
 
 /**
- * Update actual5 timestamp for an indent (Material Receipt Date)
- * Called when purchase details form is updated
+ * Update actual5 timestamp for an indent
  * @param indentNumber - Indent number to update
  */
 export async function updateActual5Timestamp(indentNumber: string, productName: string, firmId?: number | null) {
     try {
         const currentDateTime = new Date().toISOString();
+        const where: Record<string, any> = { indent_number: indentNumber, product_name: productName };
+        if (firmId != null) where.firm_id = firmId;
 
-        let query = supabase
-            .from('indent')
-            .update({ actual5: currentDateTime })
-            .eq('indent_number', indentNumber)
-            .eq('product_name', productName);
-        // Scope by firm so same-numbered indents in other firms are untouched
-        if (firmId != null) query = query.eq('firm_id', firmId);
-
-        const { error } = await query;
-
-        if (error) throw error;
-
+        await storeApi.updateWhere('indent', where, { actual5: currentDateTime });
         return true;
     } catch (error) {
         console.error('Error updating actual5 timestamp:', error);
@@ -394,18 +400,10 @@ export async function updateActual5Timestamp(indentNumber: string, productName: 
  */
 export async function updateCancelQuantity(indentNumber: string, productName: string, cancelQty: number, firmId?: number | null) {
     try {
-        let query = supabase
-            .from('indent')
-            .update({ cancel_qty: cancelQty })
-            .eq('indent_number', indentNumber)
-            .eq('product_name', productName);
-        // Scope by firm so same-numbered indents in other firms are untouched
-        if (firmId != null) query = query.eq('firm_id', firmId);
+        const where: Record<string, any> = { indent_number: indentNumber, product_name: productName };
+        if (firmId != null) where.firm_id = firmId;
 
-        const { error } = await query;
-
-        if (error) throw error;
-
+        await storeApi.updateWhere('indent', where, { cancel_qty: cancelQty });
         return true;
     } catch (error) {
         console.error('Error updating cancel quantity:', error);
@@ -415,18 +413,10 @@ export async function updateCancelQuantity(indentNumber: string, productName: st
 
 export async function updateLiftingStatus(indentNumber: string, productName: string, status: string, firmId?: number | null) {
     try {
-        let query = supabase
-            .from('indent')
-            .update({ lifting_status: status })
-            .eq('indent_number', indentNumber)
-            .eq('product_name', productName);
-        // Scope by firm so same-numbered indents in other firms are untouched
-        if (firmId != null) query = query.eq('firm_id', firmId);
+        const where: Record<string, any> = { indent_number: indentNumber, product_name: productName };
+        if (firmId != null) where.firm_id = firmId;
 
-        const { error } = await query;
-
-        if (error) throw error;
-
+        await storeApi.updateWhere('indent', where, { lifting_status: status });
         return true;
     } catch (error) {
         console.error('Error updating lifting status:', error);
@@ -441,18 +431,10 @@ export async function updateLiftingStatus(indentNumber: string, productName: str
  */
 export async function updatePendingLiftQty(indentNumber: string, productName: string, liftQty: number, firmId?: number | null) {
     try {
-        let query = supabase
-            .from('indent')
-            .update({ pending_lift_qty: liftQty.toString() })
-            .eq('indent_number', indentNumber)
-            .eq('product_name', productName);
-        // Scope by firm so same-numbered indents in other firms are untouched
-        if (firmId != null) query = query.eq('firm_id', firmId);
+        const where: Record<string, any> = { indent_number: indentNumber, product_name: productName };
+        if (firmId != null) where.firm_id = firmId;
 
-        const { error } = await query;
-
-        if (error) throw error;
-
+        await storeApi.updateWhere('indent', where, { pending_lift_qty: liftQty.toString() });
         return true;
     } catch (error) {
         console.error('Error updating pending lift qty:', error);
@@ -463,27 +445,17 @@ export async function updatePendingLiftQty(indentNumber: string, productName: st
 // ==================== FILE UPLOAD ====================
 
 /**
- * Upload bill photo/document to Supabase Storage
+ * Upload bill photo/document to Storage
  * @param file - File to upload
  * @param indentNumber - Indent number for file naming
  */
-export async function uploadBillPhoto(file: File, indentNumber: string): Promise<string> {
+export async function uploadBillPhoto(file: File, _indentNumber: string): Promise<string> {
     try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${indentNumber}_bill_${Date.now()}.${fileExt}`;
-        const filePath = `Payment Images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('bill_image_status')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('bill_image_status')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
+        return await uploadFile({
+            file,
+            folderId: 'bill_image_status',
+            subFolder: 'Payment Images',
+        });
     } catch (error) {
         console.error('Bill photo upload error:', error);
         throw error;

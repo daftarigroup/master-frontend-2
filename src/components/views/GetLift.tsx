@@ -19,11 +19,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { PuffLoader as Loader } from 'react-spinners';
+import { storeApi } from '@/lib/apiClient';
+import { isAllowedFirm } from '@/lib/firmAccess';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ShoppingCart, X, Truck, FileText, IndianRupee, CreditCard, User, Phone, CheckCircle2, Package, Info, Upload, Pencil, Check, Trash } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDate, formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
@@ -46,7 +49,6 @@ import {
     type GetLiftStoreInRecord,
 } from '@/services/getLiftService';
 import { createFullkittingEntry } from '@/services/fullkittingService';
-import { supabase } from '@/lib/supabase';
 
 interface GetPurchaseData {
     indentNo: string;
@@ -179,6 +181,7 @@ function InlineDeliveryDate({
 
 export default function GetPurchase() {
     const { user } = useAuth() as { user: AuthUser };
+    const { effectivePermittedFirms } = useProject();
     const { updateAll } = useSheets();
     const [selectedIndent, setSelectedIndent] = useState<GetPurchaseData | null>(null);
     const [historyData, setHistoryData] = useState<HistoryData[]>([]);
@@ -196,7 +199,7 @@ export default function GetPurchase() {
         if (!user?.username) return;
         setLoading(true);
         try {
-            const firms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0) ? undefined : user.firm_access;
+            const firms = effectivePermittedFirms;
             const [vendors, indents, storeIns] = await Promise.all([
                 fetchVendorOptions(),
                 fetchIndentRecords(firms),
@@ -217,11 +220,11 @@ export default function GetPurchase() {
 
     useEffect(() => {
         fetchAllData();
-    }, [user?.username]);
+    }, [user?.username, effectivePermittedFirms]);
 
     // Process pending table data
     useEffect(() => {
-        const filteredByFirm = filterByFirmAccess(indentRecords, user?.firm_access, {
+        const filteredByFirm = filterByFirmAccess(indentRecords, effectivePermittedFirms, {
             name: (r) => r.firmNameMatch,
             id: (r) => r.firm_id
         });
@@ -316,11 +319,11 @@ export default function GetPurchase() {
         });
 
         setTableData(sortedData);
-    }, [indentRecords, storeInRecords, user?.firm_access, user?.firmNameMatch]);
+    }, [indentRecords, storeInRecords, effectivePermittedFirms, user?.firmNameMatch]);
 
     // Process history data independently
     useEffect(() => {
-        const firmIndents = filterByFirmAccess(indentRecords, user?.firm_access, {
+        const firmIndents = filterByFirmAccess(indentRecords, effectivePermittedFirms, {
             name: (r) => r.firmNameMatch,
             id: (r) => r.firm_id
         });
@@ -332,7 +335,7 @@ export default function GetPurchase() {
             ])
         );
 
-        const firmStoreIn = filterByFirmAccess(storeInRecords, user?.firm_access, {
+        const firmStoreIn = filterByFirmAccess(storeInRecords, effectivePermittedFirms, {
             name: (r) => r.firmNameMatch,
             id: (r) => r.firm_id
         })
@@ -492,20 +495,20 @@ export default function GetPurchase() {
     ];
 
     const handleSaveDeliveryDate = async (liftNumber: string, date: string) => {
-        const { error } = await supabase
-            .from('store_in')
-            .update({ material_date: date || null })
-            .eq('lift_number', liftNumber);
-        if (error) throw error;
-        setHistoryData(prev => prev.map(r =>
-            r.liftNumber === liftNumber
-                ? { ...r, materialDateRaw: date, deliveryDate: date ? formatDate(parseCustomDate(date)) : r.deliveryDate }
-                : r
-        ));
-        setStoreInRecords(prev => prev.map(r =>
-            r.liftNumber === liftNumber ? { ...r, materialDate: date || null } : r
-        ));
-        toast.success('Delivery date updated');
+        try {
+            await storeApi.updateWhere('store_in', { lift_number: liftNumber }, { material_date: date || null });
+            setHistoryData(prev => prev.map(r =>
+                r.liftNumber === liftNumber
+                    ? { ...r, materialDateRaw: date, deliveryDate: date ? formatDate(parseCustomDate(date)) : r.deliveryDate }
+                    : r
+            ));
+            setStoreInRecords(prev => prev.map(r =>
+                r.liftNumber === liftNumber ? { ...r, materialDate: date || null } : r
+            ));
+            toast.success('Delivery date updated');
+        } catch {
+            toast.error('Failed to update delivery date');
+        }
     };
 
     const historyColumns: ColumnDef<HistoryData>[] = [
@@ -544,7 +547,7 @@ export default function GetPurchase() {
                     setUploadingLiftNo(liftNo);
                     try {
                         const newUrl = await uploadBillPhoto(file, liftNo);
-                        await supabase.from('store_in').update({ photo_of_bill: newUrl }).eq('lift_number', liftNo);
+                        await storeApi.updateWhere('store_in', { lift_number: liftNo }, { photo_of_bill: newUrl });
                         setHistoryData(prev => prev.map(r => r.liftNumber === liftNo ? { ...r, photoOfBill: newUrl } : r));
                         toast.success('Photo of bill updated');
                     } catch {

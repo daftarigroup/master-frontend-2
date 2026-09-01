@@ -28,6 +28,7 @@ import { Input } from '../ui/input';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { openIssuePdfPreview } from '@/lib/issuePdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
@@ -124,6 +125,7 @@ function EditablePlannedDate({
 
 export default function IssueData() {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateAll } = useSheets();
     const [allData, setAllData] = useState<IssueRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
@@ -137,7 +139,7 @@ export default function IssueData() {
         setDataLoading(true);
         try {
             // Pass permitted firms to the service for backend-level filtering
-            const permittedFirms = user?.firm_access || [];
+            const permittedFirms = effectivePermittedFirms;
             const records = await fetchIssueRecords(permittedFirms);
             setAllData(records);
         } catch (error) {
@@ -150,48 +152,46 @@ export default function IssueData() {
 
     useEffect(() => {
         fetchData();
-    }, [user?.firm_access]);
+    }, [effectivePermittedFirms]);
 
     const returnData = useMemo(() => {
         const filtered = allData.filter(i => i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
         return filterByFirmAccess(
             filtered,
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );
-    }, [allData, user?.firm_access]);
+    }, [allData, effectivePermittedFirms]);
 
     const pendingData = useMemo(() => {
         const filteredData = filterByFirmAccess(
             allData.filter((item) => !item.status || item.status === 'Pending' || item.status.toLowerCase() === 'pending'),
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );
 
        return filteredData;
-    }, [allData, user?.firm_access]);
+    }, [allData, effectivePermittedFirms]);
 
     const historyData = useMemo(() => {
         const filteredData = filterByFirmAccess(
             allData.filter((item) => ['Approved', 'Rejected', 'Yes', 'No'].includes(item.status)),
-
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );
 
         return filteredData;
-    }, [allData, user?.firm_access]);
+    }, [allData, effectivePermittedFirms]);
 
 
     const damageData = useMemo(() => {
         const filteredData = filterByFirmAccess(
             allData.filter((item) => item.status === 'Damage'),
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
-
         );
         return filteredData;
-    }, [allData, user?.firm_access]);
+    }, [allData, effectivePermittedFirms]);
 
     const handleDownload = (data: any[]) => {
         if (!data || data.length === 0) {

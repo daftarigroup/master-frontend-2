@@ -64,16 +64,16 @@ const parseGSTPercent = (value: any): number => {
 };
 
 import { fetchPoMaster } from '@/services/poService';
+import { useProject } from '@/context/ProjectContext';
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const [tableData, setTableData] = useState<any[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [generatingPoNumber, setGeneratingPoNumber] = useState<string | null>(null);
 
-    const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
-        ? undefined
-        : user.firm_access;
+    const permittedFirms = effectivePermittedFirms;
 
     const fetchData = async () => {
         try {
@@ -121,7 +121,7 @@ export default () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [effectivePermittedFirms]);
 
     // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
     // Previously this pulled the stored po_master.pdf URL and opened it directly.

@@ -5,9 +5,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
 import { Pill } from '../ui/pill';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
-import { normalizeFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
+import { apiClient } from '@/lib/apiClient';
+import { normalizeFirmAccess, hasNoFirmAccess } from '@/lib/firmAccess';
 import { toast } from 'sonner';
 
 interface ApprovedPOData {
@@ -22,45 +23,50 @@ interface ApprovedPOData {
     paymentTerm: string;
     specifications: string;
     firmNameMatch: string;
-    poRequired: string;
-    poRequiredStatus: 'Yes';
-    expectedReqDate: string;
-    expectedReqDateRaw: string | null;
+    firm_id?: number;
+    poRequired?: string;
+    poRequiredStatus?: 'Yes';
+    expectedReqDateRaw?: string | null;
+    expectedReqDate?: string;
+    expectedDeliveryDate?: string;
     rawTimestamp: number;
 }
 
 export default function ApprovedPOs() {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
 
     const [approvedTableData, setApprovedTableData] = useState<ApprovedPOData[]>([]);
     const [dataLoading, setDataLoading] = useState(false);
 
-    // Fetch pending PO data from Supabase
+    // Fetch pending PO data from REST API
     const fetchPendingPOs = async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
 
-            // Fetch indents
-            let query = supabase
-                .from('indent')
-                .select('indent_number, firm_name, firm_id, product_name, pending_po_qty, quantity, approved_rate, rate1, uom, approved_vendor_name, vendor_name1, approved_payment_term, payment_term1, specifications, po_requred, timestamp, planned5, actual4, expected_req_date, delivery_date, po_number')
-                .order('indent_number', { ascending: false });
-
-            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
-                ? undefined
-                : user.firm_access;
-
-            const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
-            if (!filteredQuery) {
+            if (hasNoFirmAccess(effectivePermittedFirms)) {
                 setApprovedTableData([]);
+                setDataLoading(false);
                 return;
             }
 
-            const { data: indentData, error: indentError } = await filteredQuery;
+            const firms = normalizeFirmAccess(effectivePermittedFirms);
+            const params: Record<string, any> = {
+                order: 'indent_number.desc',
+            };
 
-            if (indentError) throw indentError;
+            if (firms) {
+                const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+                const names = firms.filter(f => !/^\d+$/.test(f));
+                if (ids.length > 0) {
+                    params['in__firm_id'] = ids.join(',');
+                } else if (names.length > 0) {
+                    params['in__firm_name'] = names.join(',');
+                }
+            }
+
+            const res: any = await apiClient.get('/store/entity/indent', { params });
+            const indentData = res?.data || [];
 
             // Filter for Management Approved indents that do NOT have a PO created yet
             const filteredData = (indentData || []).filter((sheet: any) => {
@@ -137,7 +143,7 @@ export default function ApprovedPOs() {
 
     useEffect(() => {
         fetchPendingPOs();
-    }, [user?.firm_access, user?.administrate]);
+    }, [effectivePermittedFirms, user?.administrate]);
 
     // Creating approved PO table columns (same as history but only for "Yes" entries)
     const approvedColumns: ColumnDef<ApprovedPOData>[] = [

@@ -12,12 +12,13 @@ import {
     resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
-import { supabase } from '@/lib/supabase';
+import { storeApi } from '@/lib/apiClient';
 import { createTallyEntryRecord } from '@/services/tallyEntryService';
 import { useSheets } from '@/context/SheetsContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { useProject } from '@/context/ProjectContext';
 
 
 import {
@@ -101,6 +102,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateTallyEntrySheet, updatePaymentsSheet, updateAll } = useSheets();
     const [storeInRecords, setStoreInRecords] = useState<StoreInRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(false);
@@ -122,7 +124,7 @@ export default () => {
     const fetchAllData = async () => {
         setDataLoading(true);
         try {
-            const records = await fetchStoreInRecords();
+            const records = await fetchStoreInRecords(effectivePermittedFirms);
             setStoreInRecords(records);
         } catch (error) {
             console.error('Failed to fetch store-in records:', error);
@@ -136,12 +138,12 @@ export default () => {
         if (user?.username) {
             fetchAllData();
         }
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, effectivePermittedFirms]);
 
     useEffect(() => {
         const filteredByFirm = filterByFirmAccess(
             storeInRecords,
-            user?.firm_access || [],
+            effectivePermittedFirms,
             { id: (i: any) => i.firm_id, name: (i: any) => i.firmNameMatch }
         );
 
@@ -232,22 +234,14 @@ export default () => {
             if (values.status === 'Approved' && !triggerStage7) {
                 // Product payment entry should be created for approved store-in records.
                 // Freight payment remains handled in Full Kitting flow.
-                let duplicateQuery = supabase
-                    .from('payments')
-                    .select('id')
-                    .eq('internal_code', selectedItem.indentNo)
-                    .eq('product', selectedItem.productName)
-                    .eq('payment_form', 'store_in');
+                const existingPayments: any[] = await storeApi.fetch('payments', {
+                    internal_code: selectedItem.indentNo,
+                    product: selectedItem.productName,
+                    payment_form: 'store_in',
+                    ...(selectedItem.firm_id ? { firm_id: selectedItem.firm_id } : {}),
+                });
 
-                duplicateQuery = selectedItem.firm_id
-                    ? duplicateQuery.eq('firm_id', selectedItem.firm_id)
-                    : duplicateQuery.is('firm_id', null);
-
-                const { data: existingPayment, error: existingPaymentError } = await duplicateQuery.maybeSingle();
-
-                if (existingPaymentError && existingPaymentError.code !== 'PGRST116') {
-                    throw existingPaymentError;
-                }
+                const existingPayment = existingPayments?.[0];
 
                 if (!existingPayment) {
                     await createPaymentEntry({

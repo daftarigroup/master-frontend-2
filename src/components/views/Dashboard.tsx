@@ -27,6 +27,7 @@ import { fetchPoMaster, type PoMasterRecord } from '@/services/poService';
 import { fetchInventoryRecords, type InventoryRecord } from '@/services/inventoryService';
 import { Line, LineChart, Pie, PieChart, Cell, ResponsiveContainer, Tooltip, Area, AreaChart } from 'recharts';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { Database, Plus, Save, Building2, Search, X, ChevronRight, Eye, Package, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,6 +49,7 @@ export default function Dashboard() {
         allLoading: contextAllLoading
     } = useSheets();
     const { user } = useAuth();
+    const { effectivePermittedFirms, selectedProject, isAllProjects } = useProject();
 
     const [indents, setIndents] = useState<IndentRecord[]>([]);
     const [storeIns, setStoreIns] = useState<StoreInRecord[]>([]);
@@ -94,8 +96,17 @@ export default function Dashboard() {
                 id: row?.firm_id ?? row?.firmId,
                 name: row?.firmNameMatch ?? row?.firm_name ?? row?.firmName ?? row?.projectName,
             },
-            user?.firm_access
+            effectivePermittedFirms
         );
+
+    // Synchronize local project filter with global selected project
+    useEffect(() => {
+        if (!isAllProjects && selectedProject?.name && selectedProject.id !== 'all') {
+            setFilteredProjects([selectedProject.name]);
+        } else if (isAllProjects) {
+            setFilteredProjects([]);
+        }
+    }, [selectedProject, isAllProjects]);
 
     // Number formatting helpers
     const formatCurrency = (val: number) => {
@@ -208,14 +219,13 @@ export default function Dashboard() {
         const loadData = async () => {
             try {
                 setIsLoading(true);
-                const permittedFirms = user?.firm_access || [];
                 const [iData, sData, issueData, mData, poData, invData] = await Promise.all([
-                    fetchIndentRecords(permittedFirms),
-                    fetchStoreInRecords(permittedFirms),
-                    fetchIssueRecords(permittedFirms),
-                    fetchMasterOptions(permittedFirms),
-                    fetchPoMaster(permittedFirms),
-                    fetchInventoryRecords(permittedFirms)
+                    fetchIndentRecords(effectivePermittedFirms),
+                    fetchStoreInRecords(effectivePermittedFirms),
+                    fetchIssueRecords(effectivePermittedFirms),
+                    fetchMasterOptions(effectivePermittedFirms),
+                    fetchPoMaster(effectivePermittedFirms),
+                    fetchInventoryRecords(effectivePermittedFirms)
                 ]);
                 // Service calls already apply firm_id access filtering.
                 // Keep a defensive local gate so dashboard remains correct
@@ -247,10 +257,10 @@ export default function Dashboard() {
                 const totalVal = Array.from(poMapInit.values()).reduce((sum, val) => sum + val, 0);
                 setPoTotal(totalVal);
 
-                // Calculate stock alerts from inventory (Note: Inventory is usually global, but we filter alerts by project if needed)
-                // For now keeping inventory alerts as is or we can filter by fromProject if needed
-                const low = invData.filter((i: InventoryRecord) => (i.current || 0) < 5 && (i.current || 0) > 0).length;
-                const outOf = invData.filter((i: InventoryRecord) => (i.current || 0) <= 0).length;
+                // Calculate stock alerts from inventory for permitted project(s)
+                const filteredInv = invData.filter((i: InventoryRecord) => hasFirmAccess(i));
+                const low = filteredInv.filter((i: InventoryRecord) => (i.current || 0) < 5 && (i.current || 0) > 0).length;
+                const outOf = filteredInv.filter((i: InventoryRecord) => (i.current || 0) <= 0).length;
                 setAlerts({ lowStock: low, outOfStock: outOf });
 
             } catch (error) {
@@ -260,7 +270,7 @@ export default function Dashboard() {
             }
         };
         loadData();
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, effectivePermittedFirms]);
 
     useEffect(() => {
         if (isLoading) return;
@@ -472,14 +482,14 @@ export default function Dashboard() {
         setTopVendors(allVendorsSorted.slice(0, 5));
 
         storeIns.forEach(s => {
-            if (s.timestamp) {
+            if (s.timestamp && filterStoreIn(s)) {
                 const d = format(new Date(s.timestamp), 'yyyy-MM-dd');
                 if (trendMap[d]) trendMap[d].purchases += 1;
             }
         });
 
         issues.forEach(iss => {
-            if (iss.actual1) {
+            if (iss.actual1 && filterIssue(iss)) {
                 const d = format(new Date(iss.actual1), 'yyyy-MM-dd');
                 if (trendMap[d]) trendMap[d].issues += 1;
             }
@@ -487,21 +497,13 @@ export default function Dashboard() {
 
         setTrendData(Object.values(trendMap));
 
-        /* // Department Breakdown
-        const deptMap: Record<string, number> = {};
-        indents.forEach(i => {
-            const dept = i.department || 'Unknown';
-            deptMap[dept] = (deptMap[dept] || 0) + 1;
-        });
-        setDeptData(Object.entries(deptMap).map(([name, value]) => ({ name, value }))); */
-
         // Status Breakdown
         const statusMap: Record<string, number> = {
-            'Pending Approval': indents.filter(i => !i.actual1).length,
-            'Vendor Assigned': indents.filter(i => i.actual1 && !i.actual2).length,
-            'PO Created': indents.filter(i => i.actual4).length,
-            'Material Received': storeIns.filter(s => s.actual6).length,
-            'HOD Check': storeIns.filter(s => s.plannedHod && !s.actualHod).length,
+            'Pending Approval': indents.filter(i => !i.actual1 && filterByDateAndSelection(i)).length,
+            'Vendor Assigned': indents.filter(i => i.actual1 && !i.actual2 && filterByDateAndSelection(i)).length,
+            'PO Created': indents.filter(i => i.actual4 && filterByDateAndSelection(i)).length,
+            'Material Received': storeIns.filter(s => s.actual6 && filterStoreIn(s)).length,
+            'HOD Check': storeIns.filter(s => s.plannedHod && !s.actualHod && filterStoreIn(s)).length,
         };
         setStatusData(Object.entries(statusMap).map(([name, value]) => ({ name, value })));
 

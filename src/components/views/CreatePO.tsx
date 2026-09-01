@@ -39,7 +39,6 @@ import {
     DialogFooter,
 } from '../ui/dialog';
 import { PDFViewer } from '@react-pdf/renderer';
-import { supabase, supabaseEnabled } from '@/lib/supabase';
 import {
     fetchIndents,
     fetchPoMaster,
@@ -293,8 +292,11 @@ const normalize = (str: any) => {
     return str.trim().toLowerCase();
 };
 
+import { useProject } from '@/context/ProjectContext';
+
 const CreatePO = () => {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const { updateMasterSheet, updateAll } = useSheets();
 
     // Supabase state
@@ -328,16 +330,11 @@ const CreatePO = () => {
     const [showAddTerm, setShowAddTerm] = useState(false);
     const [newTerm, setNewTerm] = useState({ title: '', name: '' });
 
-    // Fetch all data from Supabase on mount
+    // Fetch all data from REST API on mount
     const loadData = useCallback(async () => {
-        if (!supabaseEnabled) return;
-
         try {
             setDataLoading(true);
-            const permittedFirms =
-                user?.administrate || !user?.firm_access || user?.firm_access.length === 0
-                    ? undefined
-                    : user.firm_access;
+            const permittedFirms = effectivePermittedFirms;
             const [indents, poMaster, masterData] = await Promise.all([
                 fetchIndents(permittedFirms),
                 fetchPoMaster(permittedFirms),
@@ -374,7 +371,7 @@ const CreatePO = () => {
         } finally {
             setDataLoading(false);
         }
-    }, [user?.username, user?.firm_access, user?.administrate]);
+    }, [user?.username, effectivePermittedFirms]);
 
     useEffect(() => {
         loadData();

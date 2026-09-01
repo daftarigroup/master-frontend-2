@@ -23,6 +23,7 @@ import { Textarea } from '../ui/textarea';
 import { Calculator, Search, Trash } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
 import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
@@ -40,6 +41,7 @@ import StageDeleteDialog from '../element/StageDeleteDialog';
 
 export default function TallyEntry() {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     const [allData, setAllData] = useState<TallyEntryRecord[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState<TallyEntryRecord | null>(null);
@@ -51,7 +53,7 @@ export default function TallyEntry() {
     const fetchData = async () => {
         setDataLoading(true);
         try {
-            const records = await fetchTallyEntryRecords(user?.firm_access || []);
+            const records = await fetchTallyEntryRecords(effectivePermittedFirms || []);
             setAllData(records);
         } catch (error) {
             console.error('Failed to fetch tally entry records:', error);
@@ -63,7 +65,7 @@ export default function TallyEntry() {
 
     useEffect(() => {
         fetchData();
-    }, [user.firmNameMatch]);
+    }, [user.firmNameMatch, effectivePermittedFirms]);
 
     const pendingData = useMemo(() => {
         return allData.filter(i => i.planned4 && !i.actual4);

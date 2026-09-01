@@ -29,7 +29,6 @@ import {
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";
-import { supabase } from '@/lib/supabase';
 import type { IndentSheet } from '@/types';
 
 import type { IssueSheet } from '@/types';
@@ -40,6 +39,7 @@ import { fetchIssueRecords, createIssueRecords, updateIssueRecordById, type Issu
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
+import { useProject } from '@/context/ProjectContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 
 export default () => {
@@ -73,11 +73,13 @@ export default () => {
         }
     };
 
+    const { effectivePermittedFirms } = useProject();
+
     useEffect(() => {
         if (user?.username) {
             fetchData();
         }
-    }, [user?.username, user?.firm_access]);
+    }, [user?.username, effectivePermittedFirms]);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [searchTermGroupHead, setSearchTermGroupHead] = useState('');

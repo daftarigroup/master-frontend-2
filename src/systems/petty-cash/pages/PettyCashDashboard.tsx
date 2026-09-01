@@ -13,6 +13,7 @@ import {
 import { creditsApi, expensesApi } from '../services/pettyCash.api';
 import { previewFileInNewTab } from '@/utils/filePreview';
 import { MacModal } from '@/components/ui/mac-modal';
+import { useProject } from '@/context/ProjectContext';
 
 export const PettyCashDashboard: React.FC = () => {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -60,21 +61,33 @@ export const PettyCashDashboard: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  const { selectedProject, matchesProject } = useProject();
+
+  const scopedCredits = useMemo(() => {
+    if (!selectedProject || selectedProject.id === 'all') return credits;
+    return credits.filter(c => matchesProject(c.projectName || c.firm_name, c.firm_id));
+  }, [credits, selectedProject, matchesProject]);
+
+  const scopedExpenses = useMemo(() => {
+    if (!selectedProject || selectedProject.id === 'all') return expenses;
+    return expenses.filter(e => matchesProject(e.projectName || e.firm_name, e.firm_id));
+  }, [expenses, selectedProject, matchesProject]);
+
   // Calculate statistics
-  const totalCredit = credits.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
-  const totalExpense = expenses
+  const totalCredit = scopedCredits.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
+  const totalExpense = scopedExpenses
     .filter((e) => e.status === 'APPROVED')
     .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
   const availableBalance = totalCredit - totalExpense;
-  const pendingApprovals = getPendingCount(expenses);
-  const todaysExpense = getTodaysExpenses(expenses);
-  const todaysCredit = getTodaysCredits(credits);
+  const pendingApprovals = getPendingCount(scopedExpenses);
+  const todaysExpense = getTodaysExpenses(scopedExpenses);
+  const todaysCredit = getTodaysCredits(scopedCredits);
 
   const filteredTransactions = useMemo(() => {
     const transactions: any[] = [];
 
     // Add credits
-    credits.forEach((c) => {
+    scopedCredits.forEach((c) => {
       if (!filters.dateFrom || !filters.dateTo || isDateInRange(c.date, filters.dateFrom, filters.dateTo)) {
         if (!filters.personName || c.personName?.toLowerCase().includes(filters.personName.toLowerCase())) {
           if (!filters.paymentMode || c.paymentMode === filters.paymentMode) {
@@ -97,7 +110,7 @@ export const PettyCashDashboard: React.FC = () => {
     });
 
     // Add expenses
-    expenses.forEach((e) => {
+    scopedExpenses.forEach((e) => {
       if (!filters.dateFrom || !filters.dateTo || isDateInRange(e.date, filters.dateFrom, filters.dateTo)) {
         if (!filters.personName || e.personName?.toLowerCase().includes(filters.personName.toLowerCase())) {
           if (!filters.groupHead || e.groupHead === filters.groupHead) {

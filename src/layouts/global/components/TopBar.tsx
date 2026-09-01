@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import Logo from '@/components/element/Logo';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
@@ -6,6 +6,12 @@ import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useProject } from '@/context/ProjectContext';
+import { getSystemIdFromPath } from '../config/navConfig';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(useGSAP);
 import {
     LogOut,
     RotateCw,
@@ -21,6 +27,8 @@ import {
     ChevronDown,
     LayoutDashboard,
     Settings,
+    Building2,
+    Layers,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -38,6 +46,12 @@ import { AppLauncherOverlay } from './AppLauncherOverlay';
 
 export const TopBar: React.FC = () => {
     const { user, logout } = useAuth();
+    const {
+        selectedProject,
+        selectProject,
+        availableProjects,
+        isAllProjects,
+    } = useProject();
     const { updateAll, allLoading, indentSheet, storeInSheet, issueSheet, paymentsSheet } =
         useSheets();
     const { activeSystemId, setActiveSystemId, isSearchOpen, setIsSearchOpen, setIsLauncherOpen } =
@@ -45,30 +59,35 @@ export const TopBar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Sync activeSystemId with current URL path
+    const canSelectAll = useMemo(() => {
+        if (!user) return false;
+        if (user.administrate || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
+        if (!user.firm_access || user.firm_access.length === 0 || user.firm_access.length > 1) return true;
+        return false;
+    }, [user]);
+
+    const systemTitleRef = useRef<HTMLSpanElement>(null);
+
+    // Sync activeSystemId immediately with current URL path
     useEffect(() => {
-        if (location.pathname === '/dashboard' || location.pathname === '/') {
-            if (activeSystemId !== 'global') {
-                setActiveSystemId('global');
-            }
-        } else if (location.pathname.startsWith('/checklist')) {
-            if (activeSystemId !== 'checklist') {
-                setActiveSystemId('checklist');
-            }
-        } else if (
-            location.pathname.startsWith('/store/admin/manage-users') ||
-            location.pathname.startsWith('/store/admin/working-calendar') ||
-            location.pathname.startsWith('/store/admin/holidays')
-        ) {
-            if (activeSystemId !== 'master_settings') {
-                setActiveSystemId('master_settings');
-            }
-        } else if (location.pathname.startsWith('/store')) {
-            if (activeSystemId !== 'store') {
-                setActiveSystemId('store');
-            }
+        const targetSystemId = getSystemIdFromPath(location.pathname);
+        if (targetSystemId && activeSystemId !== targetSystemId) {
+            setActiveSystemId(targetSystemId);
         }
     }, [location.pathname, activeSystemId, setActiveSystemId]);
+
+    // GSAP smooth transition for system name pill
+    useGSAP(
+        () => {
+            if (!systemTitleRef.current) return;
+            gsap.fromTo(
+                systemTitleRef.current,
+                { opacity: 0, y: -4 },
+                { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out' }
+            );
+        },
+        { dependencies: [activeSystemId] }
+    );
 
     // Cmd+K / Ctrl+K keyboard shortcut listener
     useEffect(() => {
@@ -331,10 +350,10 @@ export const TopBar: React.FC = () => {
     return (
         <header className="h-14 border-b bg-card px-4 flex items-center justify-between gap-4 sticky top-0 z-30 shadow-xs">
             {/* Left: Sidebar Toggle Button + Brand Logo & System Switcher */}
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
                 <SidebarTrigger className="size-8 rounded-md border border-input text-primary hover:bg-accent shrink-0" />
                 <div
-                    className="flex items-center gap-2 cursor-pointer"
+                    className="flex items-center gap-2 cursor-pointer shrink-0"
                     onClick={() => navigate('/dashboard')}
                 >
                     <Logo />
@@ -348,22 +367,73 @@ export const TopBar: React.FC = () => {
 
                 <div className="h-6 w-px bg-border hidden sm:block" />
 
-                {/* System Switcher — opens the Launchpad-style AppLauncherOverlay
-            instead of a plain dropdown (see APP_DESIGN OS-shell redesign,
-            Direction 1). Old dropdown kept below, commented, for diffing. */}
+                {/* System Switcher — opens the Launchpad-style AppLauncherOverlay */}
                 <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 h-8 font-medium px-2 sm:px-3"
+                    className="gap-2 h-8 font-medium px-2 sm:px-3 shrink-0"
                     onClick={() => setIsLauncherOpen(true)}
                     title="Switch system"
                 >
-                    <Grid className="size-4 text-primary" />
-                    <span className="capitalize hidden sm:inline">
+                    <Grid className="size-4 text-primary shrink-0" />
+                    <span ref={systemTitleRef} className="capitalize hidden sm:inline">
                         {systems.find((s) => s.id === activeSystemId)?.name || 'Select System'}
                     </span>
-                    <ChevronDown className="size-3 text-muted-foreground hidden sm:inline" />
+                    <ChevronDown className="size-3 text-muted-foreground hidden sm:inline shrink-0" />
                 </Button>
+
+                {/* Project Switcher — icon-only on mobile to prevent crowding search/action buttons */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 h-8 font-medium px-2 sm:px-2.5 bg-blue-50/60 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 transition-colors shrink-0"
+                            title={`Active Project: ${selectedProject?.name || 'All Projects'}`}
+                        >
+                            <Building2 className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span className="max-w-[140px] truncate text-xs font-semibold hidden sm:inline">
+                                {selectedProject?.name || 'All Projects'}
+                            </span>
+                            <ChevronDown className="size-3 opacity-60 hidden sm:inline shrink-0" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                        <div className="px-2 py-1.5 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                Project Filter
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate('/select-project')}
+                                className="h-5 px-1.5 text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                            >
+                                Project Grid ➔
+                            </Button>
+                        </div>
+                        <DropdownMenuSeparator />
+                        {canSelectAll && (
+                            <DropdownMenuItem
+                                onClick={() => selectProject({ id: 'all', name: 'All Projects' })}
+                                className={`gap-2 cursor-pointer text-xs ${isAllProjects ? 'bg-accent font-bold text-primary' : ''}`}
+                            >
+                                <Layers className="size-3.5 text-blue-500" />
+                                <span className="font-medium">All Projects (Consolidated)</span>
+                            </DropdownMenuItem>
+                        )}
+                        {availableProjects.map((p) => (
+                            <DropdownMenuItem
+                                key={p.id}
+                                onClick={() => selectProject(p)}
+                                className={`gap-2 cursor-pointer text-xs ${selectedProject?.id === p.id ? 'bg-accent font-bold text-primary' : ''}`}
+                            >
+                                <Building2 className="size-3.5 text-slate-500" />
+                                <span className="truncate">{p.name}</span>
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
                 {/*
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -412,14 +482,14 @@ export const TopBar: React.FC = () => {
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsSearchOpen(true)}
-                className="md:hidden size-8 text-muted-foreground hover:text-foreground ml-auto"
+                className="md:hidden size-8 text-muted-foreground hover:text-foreground shrink-0 ml-auto"
                 title="Search across all systems"
             >
                 <Search className="size-4" />
             </Button>
 
             {/* Right: Actions & User Menu */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 {/* 1st Button: Refresh Page & Data */}
                 <Button
                     variant="ghost"
@@ -537,7 +607,7 @@ export const TopBar: React.FC = () => {
                             User Access & Roles
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                            onClick={() => navigate('/store/admin/license')}
+                            onClick={() => navigate('/license')}
                             className="cursor-pointer"
                         >
                             System License

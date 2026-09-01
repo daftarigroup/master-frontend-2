@@ -26,7 +26,7 @@ export default () => {
 
     useEffect(() => {
         if (loggedIn) {
-            navigate('/');
+            navigate('/select-project');
         }
     }, [loggedIn]);
 

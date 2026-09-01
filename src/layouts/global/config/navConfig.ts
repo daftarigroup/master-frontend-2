@@ -151,13 +151,6 @@ export const NAV_CONFIG: SystemNavConfig[] = [
           { name: 'DB For PC', path: '/store/auditing/pc-report', icon: PackageCheck, gateKey: 'dbForPc' },
         ],
       },
-      {
-        key: 'store_admin',
-        title: 'Store Administration',
-        items: [
-          { name: 'License', path: '/store/admin/license', icon: KeyRound },
-        ],
-      },
     ],
   },
   {
@@ -314,3 +307,38 @@ export const getOrderedNavConfig = (config: SystemNavConfig[] = NAV_CONFIG): Sys
 
 export const getSystemConfig = (systemId: string): SystemNavConfig | undefined =>
   NAV_CONFIG.find((sys) => sys.id === systemId);
+
+/**
+ * Resolves the system ID from a URL pathname
+ */
+export const getSystemIdFromPath = (pathname: string): string => {
+  if (pathname === '/dashboard' || pathname === '/' || pathname === '/license') return 'global';
+
+  if (
+    pathname.startsWith('/store/admin/manage-users') ||
+    pathname.startsWith('/store/admin/working-calendar') ||
+    pathname.startsWith('/store/admin/holidays') ||
+    pathname.startsWith('/store/admin/master-registry') ||
+    pathname.startsWith('/master')
+  ) {
+    return 'master_settings';
+  }
+
+  if (pathname.startsWith('/store')) return 'store';
+  if (pathname.startsWith('/checklist')) return 'checklist';
+  if (pathname.startsWith('/document') || pathname.startsWith('/loan')) return 'document';
+  if (pathname.startsWith('/petty-cash')) return 'petty_cash';
+
+  for (const system of NAV_CONFIG) {
+    if (system.id === 'global') continue;
+    for (const group of system.groups) {
+      for (const item of group.items) {
+        if (item.path === pathname || pathname.startsWith(item.path)) {
+          return system.id;
+        }
+      }
+    }
+  }
+
+  return 'global';
+};

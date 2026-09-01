@@ -1,14 +1,14 @@
-import { supabase } from '@/lib/supabase';
-import { apiClient } from '@/lib/apiClient';
-import { hasNoFirmAccess, applyFirmAccessFilter } from '@/lib/firmAccess';
+import { apiClient, storeApi } from '@/lib/apiClient';
+import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
+import { uploadFile } from '@/lib/fetchers';
 
 /**
- * Fullkitting Service
- * Handles all Supabase operations for the Fullkitting (Freight Payment) component
+ * Full Kitting Service
+ * Handles full kitting operations via REST API
  */
 
 export interface FullkittingRecord {
-    id?: number;
+    id: number;
     timestamp: string;
     indentNumber: string;
     vendorName: string;
@@ -23,8 +23,8 @@ export interface FullkittingRecord {
     driverMobileNo: string;
     planned: string;
     actual: string;
-    timeDelay: string;
-    fmsName: string;
+    timeDelay?: string;
+    fmsName?: string;
     status: string;
     vehicleNumber: string;
     from: string;
@@ -35,69 +35,107 @@ export interface FullkittingRecord {
     amount1: number;
     biltyImage: string;
     firmNameMatch: string;
-    firm_id?: number | null;
+    firm_id: number | null;
+    indent_number?: string;
+    vendor_name?: string;
+    product_name?: string;
+    bill_no?: string;
+    transporting_include?: string;
+    transporter_name?: string;
+    vehical_no?: string;
+    driver_name?: string;
+    driver_mobile_no?: string;
+    vehicle_number?: string;
+    material_load_details?: string;
+    bilty_number?: string;
+    rate_type?: string;
+    bilty_image?: string;
+    firm_name?: string;
 }
 
+export type FullKittingRecord = FullkittingRecord;
+
 /**
- * Fetch all fullkitting records from Supabase
- * @param permittedFirms Optional array of firm IDs/names to filter by
+ * Fetch all full kitting records from REST API
+ * @param permittedFirms Optional array of firm IDs to filter by
  */
 export async function fetchFullkittingRecords(permittedFirms?: string[]): Promise<FullkittingRecord[]> {
     try {
         if (hasNoFirmAccess(permittedFirms)) return [];
+        const firms = normalizeFirmAccess(permittedFirms);
 
-        let query = supabase
-            .from('fullkitting')
-            .select('*')
-            .order('indent_number', { ascending: false })
-            .order('timestamp', { ascending: false });
+        const params: Record<string, any> = {
+            order: 'timestamp.desc',
+        };
 
-        const filteredQuery = applyFirmAccessFilter(query, permittedFirms);
-        if (!filteredQuery) return [];
+        if (firms) {
+            const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+            const names = firms.filter(f => !/^\d+$/.test(f));
+            if (ids.length > 0) {
+                params['in__firm_id'] = ids.join(',');
+            } else if (names.length > 0) {
+                params['in__firm_name'] = names.join(',');
+            }
+        }
 
-        const { data, error } = await filteredQuery;
+        const res: any = await apiClient.get('/store/entity/fullkitting', { params });
+        const data = res?.data || [];
 
-        if (error) throw error;
-
-        return (data || []).map((r: any) => ({
+        return data.map((r: any) => ({
             id: r.id,
             timestamp: r.timestamp || '',
             indentNumber: r.indent_number || '',
+            indent_number: r.indent_number || '',
             vendorName: r.vendor_name || '',
+            vendor_name: r.vendor_name || '',
             productName: r.product_name || '',
+            product_name: r.product_name || '',
             qty: Number(r.qty) || 0,
             billNo: r.bill_no || '',
+            bill_no: r.bill_no || '',
             transportingInclude: r.transporting_include || '',
+            transporting_include: r.transporting_include || '',
             transporterName: r.transporter_name || '',
+            transporter_name: r.transporter_name || '',
             amount: Number(r.amount) || 0,
             vehicalNo: r.vehical_no || '',
+            vehical_no: r.vehical_no || '',
             driverName: r.driver_name || '',
+            driver_name: r.driver_name || '',
             driverMobileNo: r.driver_mobile_no || '',
+            driver_mobile_no: r.driver_mobile_no || '',
             planned: r.planned || '',
             actual: r.actual || '',
             timeDelay: r.time_delay || '',
-            fmsName: r.fms_name || '',
+            fmsName: r.firm?.firm_name || r.firm_name || '',
             status: r.status || '',
             vehicleNumber: r.vehicle_number || '',
+            vehicle_number: r.vehicle_number || '',
             from: r.from || '',
             to: r.to || '',
             materialLoadDetails: r.material_load_details || '',
+            material_load_details: r.material_load_details || '',
             biltyNumber: r.bilty_number || '',
+            bilty_number: r.bilty_number || '',
             rateType: r.rate_type || '',
+            rate_type: r.rate_type || '',
             amount1: Number(r.amount1) || 0,
             biltyImage: r.bilty_image || '',
-            firmNameMatch: r.firm_name || '',
+            bilty_image: r.bilty_image || '',
+            firmNameMatch: r.firm?.firm_name || r.firm_name || '',
+            firm_name: r.firm?.firm_name || r.firm_name || '',
             firm_id: r.firm_id ?? null,
         }));
     } catch (error) {
-        console.error('Error fetching fullkitting records:', error);
+        console.error('Error fetching full kitting records:', error);
         throw error;
     }
 }
 
+export const fetchFullKittingRecords = fetchFullkittingRecords;
+
 /**
- * Create a fullkitting entry at Store Check time when transportation_include = Yes.
- * Skips silently if an entry already exists for the same indent + product.
+ * Create a new fullkitting entry
  */
 export async function createFullkittingEntry(data: {
     timestamp: string;
@@ -116,38 +154,33 @@ export async function createFullkittingEntry(data: {
 }): Promise<boolean> {
     try {
         // Prevent duplicate entries for the same indent + product + bill_no
-        const { data: existing } = await supabase
-            .from('fullkitting')
-            .select('id')
-            .eq('indent_number', data.indent_number)
-            .eq('product_name', data.product_name)
-            .eq('bill_no', data.bill_no)
-            .maybeSingle();
+        const existing: any[] = await storeApi.fetch('fullkitting', {
+            indent_number: data.indent_number,
+            product_name: data.product_name,
+            bill_no: data.bill_no,
+        });
 
-        if (existing) {
+        if (existing && existing.length > 0) {
             return false;
         }
 
-        const { error } = await supabase
-            .from('fullkitting')
-            .insert([{
-                timestamp: data.timestamp,
-                indent_number: data.indent_number,
-                vendor_name: data.vendor_name,
-                product_name: data.product_name,
-                qty: data.qty,
-                bill_no: data.bill_no,
-                transporting_include: 'Yes',
-                transporter_name: data.transporter_name,
-                amount: data.amount,
-                vehical_no: data.vehicle_no,
-                driver_name: data.driver_name,
-                driver_mobile_no: data.driver_mobile_no,
-                firm_name: data.firm_name,
-                firm_id: data.firm_id,
-            }]);
+        await storeApi.insert('fullkitting', [{
+            timestamp: data.timestamp,
+            indent_number: data.indent_number,
+            vendor_name: data.vendor_name,
+            product_name: data.product_name,
+            qty: data.qty,
+            bill_no: data.bill_no,
+            transporting_include: 'Yes',
+            transporter_name: data.transporter_name,
+            amount: data.amount,
+            vehical_no: data.vehicle_no,
+            driver_name: data.driver_name,
+            driver_mobile_no: data.driver_mobile_no,
+            firm_name: data.firm_name,
+            firm_id: data.firm_id,
+        }]);
 
-        if (error) throw error;
         return true;
     } catch (error) {
         console.error('Error creating fullkitting entry:', error);
@@ -188,17 +221,12 @@ export async function updateFullkittingRecord(
         if (updateData.amount1 !== undefined) mappedData.amount1 = updateData.amount1.toString();
         if (updateData.biltyImage) mappedData.bilty_image = updateData.biltyImage;
 
-        let query = supabase
-            .from('fullkitting')
-            .update(mappedData);
+        if (updateData.id) {
+            await storeApi.update('fullkitting', updateData.id, mappedData);
+        } else {
+            await storeApi.updateWhere('fullkitting', { indent_number: indentNumber }, mappedData);
+        }
 
-        query = updateData.id
-            ? query.eq('id', updateData.id)
-            : query.eq('indent_number', indentNumber);
-
-        const { error } = await query;
-
-        if (error) throw error;
         return true;
     } catch (error) {
         console.error('Error updating fullkitting record:', error);
@@ -207,25 +235,15 @@ export async function updateFullkittingRecord(
 }
 
 /**
- * Upload bilty image to Supabase Storage
+ * Upload bilty image to Storage
  */
-export async function uploadBiltyImage(file: File, indentNumber: string): Promise<string> {
+export async function uploadBiltyImage(file: File, _indentNumber: string): Promise<string> {
     try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${indentNumber}_bilty_${Date.now()}.${fileExt}`;
-        const filePath = `bilty-images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('fullkitting-photos')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('fullkitting-photos')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
+        return await uploadFile({
+            file,
+            folderId: 'fullkitting-photos',
+            subFolder: 'bilty-images',
+        });
     } catch (error) {
         console.error('Bilty image upload error:', error);
         throw error;

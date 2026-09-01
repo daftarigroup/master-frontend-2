@@ -1,5 +1,6 @@
 import { FileText, Building, DollarSign, CheckCircle, AlertCircle, ExternalLink, CheckSquare, XSquare, History, Trash, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { apiClient, storeApi } from '@/lib/apiClient';
+import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 import { useSheets } from '@/context/SheetsContext';
 import { useEffect, useState } from 'react';
 import type { ColumnDef, Row } from '@tanstack/react-table';
@@ -31,6 +32,7 @@ import { openPoPdfPreview } from '@/lib/poPdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
 import { resetPaymentStage } from '@/services/paymentService';
+import { useProject } from '@/context/ProjectContext';
 
 interface PaymentsRecord {
     rowIndex?: number;
@@ -142,6 +144,7 @@ interface UpdatePayload {
 
 export default function MakePayment() {
     const { user } = useAuth();
+    const { effectivePermittedFirms } = useProject();
     // Grab context updaters so global sheets and sidebar badges reflect payment status immediately
     const { updatePaymentsSheet, updateAll: updateGlobalSheets } = useSheets();
     const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -167,9 +170,7 @@ export default function MakePayment() {
         if (!poNumber) return;
         try {
             setViewingPoNumber(poNumber);
-            const permittedFirms = (user?.administrate || !user?.firm_access || user?.firm_access.length === 0)
-                ? undefined
-                : user.firm_access;
+            const permittedFirms = effectivePermittedFirms;
             const freshPoMaster = await fetchPoMaster(permittedFirms);
             await openPoPdfPreview(poNumber, freshPoMaster);
         } catch (error) {
@@ -226,34 +227,38 @@ export default function MakePayment() {
     };
 
     useEffect(() => {
-        // fetch payments and payment_history from Supabase
+        // fetch payments and payment_history from REST API
         const fetchData = async () => {
             try {
                 setPaymentsLoading(true);
                 setPaymentHistoryLoading(true);
 
-                let paymentsQuery = supabase
-                    .from('payments')
-                    .select('*')
-                    .order('id', { ascending: false });
-                const filteredPaymentsQuery = applyFirmAccessFilter(paymentsQuery, user?.firm_access);
-                const { data: paymentsData, error: paymentsError } = filteredPaymentsQuery
-                    ? await filteredPaymentsQuery
-                    : { data: [], error: null };
-
-                const { data: storeInData, error: storeInError } = await supabase
-                    .from('store_in')
-                    .select('*')
-                    .order('indent_no', { ascending: false }); // Get all columns for history insertion
-
-                const { data: historyDbData, error: historyDbError } = await supabase
-                    .from('payment_history')
-                    .select('*')
-                    .order('id', { ascending: false });
-
-                if (paymentsError) {
-                    console.error('Error fetching payments:', paymentsError);
+                if (hasNoFirmAccess(effectivePermittedFirms)) {
+                    setPaymentsLoading(false);
+                    setPaymentHistoryLoading(false);
+                    return;
                 }
+                const firms = normalizeFirmAccess(effectivePermittedFirms);
+                const queryParams: Record<string, any> = {};
+                if (firms) {
+                    const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
+                    const names = firms.filter(f => !/^\d+$/.test(f));
+                    if (ids.length > 0) {
+                        queryParams['in__firm_id'] = ids.join(',');
+                    } else if (names.length > 0) {
+                        queryParams['in__firm_name'] = names.join(',');
+                    }
+                }
+
+                const [paymentsRes, storeInRes, historyRes]: any[] = await Promise.all([
+                    apiClient.get('/store/entity/payments', { params: { ...queryParams, order: 'id.desc' } }),
+                    apiClient.get('/store/entity/store_in', { params: { ...queryParams, order: 'indent_no.desc' } }),
+                    apiClient.get('/store/entity/payment_history', { params: { ...queryParams, order: 'id.desc' } }),
+                ]);
+
+                const paymentsData = paymentsRes?.data || [];
+                const storeInData = storeInRes?.data || [];
+                const historyDbData = historyRes?.data || [];
 
                 const storeInMap = new Map();
                 if (storeInData) {
@@ -518,7 +523,7 @@ export default function MakePayment() {
         };
 
         fetchData();
-    }, [reloadKey, user?.username, user?.firm_access]);
+    }, [reloadKey, user?.username, effectivePermittedFirms]);
 
     const handleSelectAll = () => {
         if (selectedRows.size === pendingData.length) {
@@ -559,17 +564,12 @@ export default function MakePayment() {
                 return;
             }
 
-            const { error: updateError } = await supabase
-                .from('payments')
-                .update({
-                    actual: currentDateOnly,
-                    status: 'Completed',
-                    status1: 'ok',
-                    payment_done: true
-                })
-                .in('id', ids);
-
-            if (updateError) throw updateError;
+            await storeApi.updateWhere('payments', { in__id: ids.join(',') }, {
+                actual: currentDateOnly,
+                status: 'Completed',
+                status1: 'ok',
+                payment_done: true
+            });
 
             const historyRows = selectedItems.map((item: any) => {
                 const storeIn = storeInRecords.find((si: any) =>
@@ -599,11 +599,11 @@ export default function MakePayment() {
                 };
             });
 
-            const { error: historyError } = await supabase
-                .from('payment_history')
-                .insert(historyRows);
-
-            if (historyError) console.warn('⚠️ Error inserting into payment_history:', historyError);
+            try {
+                await storeApi.insert('payment_history', historyRows);
+            } catch (historyErr) {
+                console.warn('⚠️ Error inserting into payment_history:', historyErr);
+            }
 
             toast.success(`Successfully updated ${ids.length} payment(s)`);
             setTimeout(() => updateAll(), 800);
@@ -633,18 +633,13 @@ export default function MakePayment() {
 
             const ids = selectedPaymentItem.rowIds || [selectedPaymentItem.rowIndex];
             
-            const { error: updateError } = await supabase
-                .from('payments')
-                .update({
-                    actual: currentDateOnly,
-                    status: paymentModalStatus === 'Complete' ? 'Completed' : paymentModalStatus,
-                    status1: 'ok',
-                    payment_done: paymentModalStatus === 'Complete',
-                    pay_amount: paymentModalAmount
-                })
-                .in('id', ids);
-
-            if (updateError) throw updateError;
+            await storeApi.updateWhere('payments', { in__id: ids.join(',') }, {
+                actual: currentDateOnly,
+                status: paymentModalStatus === 'Complete' ? 'Completed' : paymentModalStatus,
+                status1: 'ok',
+                payment_done: paymentModalStatus === 'Complete',
+                pay_amount: paymentModalAmount
+            });
 
             const storeIn = storeInRecords.find((si: any) =>
                 si.po_number === selectedPaymentItem.poNumber &&
@@ -690,11 +685,11 @@ export default function MakePayment() {
                 bill_remark: storeIn?.bill_remark || paymentModalRemark || '',
             };
 
-            const { error: historyError } = await supabase
-                .from('payment_history')
-                .insert([historyRow]);
-
-            if (historyError) console.warn('⚠️ Error inserting into payment_history:', historyError);
+            try {
+                await storeApi.insert('payment_history', [historyRow]);
+            } catch (historyErr) {
+                console.warn('⚠️ Error inserting into payment_history:', historyErr);
+            }
 
             toast.success(`Successfully recorded payment`);
             setIsPaymentModalOpen(false);

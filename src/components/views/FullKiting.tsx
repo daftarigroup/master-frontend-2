@@ -56,7 +56,7 @@ export default function FullKiting() {
             const data = await fetchFullkittingRecords(user?.firm_access || []);
 
             // Simple filter: only records where transportation is included
-            const freightRecords = data.filter(item => item.transportingInclude?.toLowerCase() === 'yes');
+            const freightRecords = data.filter((item: FullkittingRecord) => item.transportingInclude?.toLowerCase() === 'yes');
 
             // Secondary client-side guard (defense in depth)
             const firmScopedData = filterByFirmAccess(
