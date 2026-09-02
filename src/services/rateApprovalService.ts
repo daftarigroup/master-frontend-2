@@ -34,15 +34,19 @@ export async function fetchPendingManagementApprovals(permittedFirms?: string[])
         const res: any = await apiClient.get('/store/entity/indent', {
             params: {
                 order: 'indent_number.desc',
-                not_null__: 'planned4',
-                is_null__: 'actual4',
+                not_null__planned4: 'true',
+                is_null__actual4: 'true',
+                limit: 'all',
             },
         });
 
         const rows = (res.data || []) as any[];
 
         const mapped = rows
-            .filter((r) => r.vendor_type !== 'Reject' && r.status !== 'Rejected' && !r.actual4 && (!r.approved_vendor_name || r.approved_vendor_name.trim() === '') && (r.vendor1_rank || r.vendor2_rank || r.vendor3_rank))
+            // r.planned4 must be set — it's only stamped once Technical Approval actually
+            // completes, so this keeps indents that haven't reached this stage yet from
+            // appearing as "pending" here.
+            .filter((r) => r.planned4 && r.vendor_type !== 'Reject' && r.status !== 'Rejected' && !r.actual4 && (!r.approved_vendor_name || r.approved_vendor_name.trim() === '') && (r.vendor1_rank || r.vendor2_rank || r.vendor3_rank))
             .map((r): ManagementApprovalIndent => ({
                 id: r.id,
                 indentNo: r.indent_number || '',
@@ -117,7 +121,8 @@ export async function fetchCompletedManagementApprovals(permittedFirms?: string[
         const res: any = await apiClient.get('/store/entity/indent', {
             params: {
                 order: 'indent_number.desc',
-                not_null__: 'planned4',
+                not_null__planned4: 'true',
+                limit: 'all',
             },
         });
 

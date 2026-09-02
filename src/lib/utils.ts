@@ -213,12 +213,19 @@ export function getPublicFileUrl(pathOrUrl?: string | null): string {
     }
 
     const apiBase = getApiBaseUrl();
+    // Resolved dynamically from window.location (see getApiBaseUrl above), so this
+    // points at the right backend automatically whether running locally or deployed.
+    const proxyEndpoint = `${apiBase.replace(/\/$/, '')}/store/file-proxy`;
 
-    // 2. Relative upload paths served directly by backend (/uploads/...)
+    // 2. Relative upload paths (/uploads/...) — route through the backend's
+    // file-proxy rather than hitting its static file server directly. The
+    // static route has no fallback: if the file actually landed in S3 (or on a
+    // different server instance's disk than the one currently serving this
+    // request), a direct /uploads/... request 404s. The file-proxy endpoint
+    // tries S3 first, then falls back to local disk, so it resolves the file
+    // correctly regardless of where the upload actually ended up.
     if (cleanUrl.startsWith('/uploads/') || cleanUrl.startsWith('uploads/')) {
-        const backendOrigin = apiBase.replace(/\/api\/?$/, '');
-        const normalizedPath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
-        return `${backendOrigin}${normalizedPath}`;
+        return `${proxyEndpoint}?url=${encodeURIComponent(cleanUrl)}`;
     }
 
     // 3. Regular non-S3 external http(s) URLs
@@ -226,9 +233,7 @@ export function getPublicFileUrl(pathOrUrl?: string | null): string {
         return cleanUrl;
     }
 
-    // 4. S3 bucket URLs or relative upload paths -> route through backend file-proxy
-    const proxyEndpoint = `${apiBase.replace(/\/$/, '')}/store/file-proxy`;
-
+    // 4. S3 bucket URLs or any other relative path -> route through backend file-proxy
     return `${proxyEndpoint}?url=${encodeURIComponent(cleanUrl)}`;
 }
 

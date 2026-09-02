@@ -35,15 +35,19 @@ export async function fetchPendingTechnicalApprovals(permittedFirms?: string[]):
         const res: any = await apiClient.get('/store/entity/indent', {
             params: {
                 order: 'indent_number.desc',
-                not_null__: 'planned3',
-                is_null__: 'actual3',
+                not_null__planned3: 'true',
+                is_null__actual3: 'true',
+                limit: 'all',
             },
         });
 
         const rows = (res.data || []) as any[];
 
         const mapped = rows
-            .filter((r) => r.vendor_type !== 'Reject' && r.status !== 'Rejected' && !r.vendor1_rank && !r.vendor2_rank && !r.vendor3_rank)
+            // r.planned3 must be set — it's only stamped once Vendor Rate Update actually
+            // completes, so this keeps indents that haven't reached this stage yet from
+            // appearing as "pending" here (see is_null__actual3 above for open-only).
+            .filter((r) => r.planned3 && r.vendor_type !== 'Reject' && r.status !== 'Rejected' && !r.vendor1_rank && !r.vendor2_rank && !r.vendor3_rank)
             .map((r): TechnicalApprovalIndent => ({
                 id: r.id,
                 indentNo: r.indent_number || '',
@@ -115,7 +119,8 @@ export async function fetchCompletedTechnicalApprovals(permittedFirms?: string[]
         const res: any = await apiClient.get('/store/entity/indent', {
             params: {
                 order: 'indent_number.desc',
-                not_null__: 'planned3',
+                not_null__planned3: 'true',
+                limit: 'all',
             },
         });
 

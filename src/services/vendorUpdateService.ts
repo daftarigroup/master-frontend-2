@@ -71,6 +71,7 @@ export async function fetchPendingVendorUpdates(permittedFirms?: string[]): Prom
             'not_null__planned2': 'true',
             'is_null__actual2': 'true',
             order: 'indent_number.desc',
+            limit: 'all',
         };
 
         if (firms) {
@@ -125,6 +126,7 @@ export async function fetchCompletedVendorUpdates(permittedFirms?: string[]): Pr
             'not_null__planned2': 'true',
             'not_null__actual2': 'true',
             order: 'indent_number.desc',
+            limit: 'all',
         };
 
         if (firms) {
@@ -192,6 +194,7 @@ export async function fetchIndentQuotes(indentNo: string, product: string): Prom
     try {
         const params: Record<string, any> = {
             indentNo,
+            limit: 'all',
         };
 
         const res: any = await apiClient.get('/store/entity/quotation_history', { params });

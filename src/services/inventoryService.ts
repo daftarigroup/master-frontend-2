@@ -72,6 +72,7 @@ export async function fetchInventoryRecords(permittedFirms?: string[]): Promise<
 
         const params: Record<string, any> = {
             order: 'item_name.asc',
+            limit: 'all',
         };
 
         if (firms) {
