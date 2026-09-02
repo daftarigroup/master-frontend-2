@@ -274,6 +274,7 @@ export async function fetchPoMaster(permittedFirms?: string[]) {
 
         const params: Record<string, any> = {
             order: 'timestamp.desc',
+            limit: 'all',
         };
 
         if (firms) {
@@ -377,6 +378,7 @@ export async function fetchPoMasterByPoNumber(poNumber: string): Promise<PoMaste
             params: {
                 or__po_number: poNumber,
                 or__internal_code: poNumber,
+                limit: 'all',
             },
         });
         const data = res?.data || [];

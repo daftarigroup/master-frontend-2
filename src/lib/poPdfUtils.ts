@@ -60,8 +60,9 @@ function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[]
  * records, not necessarily the exact document as originally issued.
  */
 export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[]): Promise<POPdfProps> {
-    const rows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
-    const targetRows = rows.length > 0 ? rows : allRows;
+    // Only ever build a PDF from rows that actually belong to this PO — never fall back to
+    // an unrelated batch of rows, or the PDF ends up showing another PO's items.
+    const targetRows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
     if (targetRows.length === 0) {
         throw new Error(`No PO Master records found for PO number or Indent ${poNumber}`);
     }
