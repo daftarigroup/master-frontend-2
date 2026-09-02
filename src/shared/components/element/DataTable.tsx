@@ -36,6 +36,11 @@ interface DataTableProps<TData, TValue> {
     onRowSelectionChange?: (updater: any) => void;
     getRowId?: (row: TData) => string;
     meta?: any;
+    onSearch?: (query: string) => void;
+    onLoadMore?: () => void;
+    hasMore?: boolean;
+    loadingMore?: boolean;
+    searchValue?: string;
 }
 
 function globalFilterFn<TData>(row: TData, columnIds: string[], filterValue: string) {
@@ -59,10 +64,35 @@ export default function DataTable<TData, TValue>({
     onRowSelectionChange,
     getRowId,
     meta,
+    onSearch,
+    onLoadMore,
+    hasMore = false,
+    loadingMore = false,
+    searchValue,
 }: DataTableProps<TData, TValue>) {
     const [globalFilter, setGlobalFilter] = useState('');
+    const [searchInput, setSearchInput] = useState(searchValue ?? '');
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isScrollableHorizontally, setIsScrollableHorizontally] = useState(false);
+    const isFirstSearchRender = useRef(true);
+
+    useEffect(() => {
+        if (searchValue !== undefined && searchValue !== searchInput) {
+            setSearchInput(searchValue);
+        }
+    }, [searchValue]);
+
+    useEffect(() => {
+        if (!onSearch) return;
+        if (isFirstSearchRender.current) {
+            isFirstSearchRender.current = false;
+            return;
+        }
+        const timer = setTimeout(() => {
+            onSearch(searchInput);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchInput, onSearch]);
 
     const table = useReactTable({
         data,
@@ -71,16 +101,25 @@ export default function DataTable<TData, TValue>({
         getFilteredRowModel: getFilteredRowModel(),
         enableRowSelection: !!onRowSelectionChange,
         globalFilterFn: (row, _, filterValue) =>
-            row?.original ? globalFilterFn(row.original, searchFields || [], filterValue) : false,
+            onSearch ? true : (row?.original ? globalFilterFn(row.original, searchFields || [], filterValue) : false),
         getRowId,
         meta,
         state: {
-            globalFilter,
+            globalFilter: onSearch ? '' : globalFilter,
             rowSelection: rowSelection || {},
         },
         onGlobalFilterChange: setGlobalFilter,
         onRowSelectionChange: onRowSelectionChange,
     });
+
+    const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        if (!onLoadMore || !hasMore || loadingMore || dataLoading) return;
+        const threshold = 150;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight <= threshold) {
+            onLoadMore();
+        }
+    };
 
     useEffect(() => {
         const el = scrollRef.current;
@@ -125,11 +164,17 @@ export default function DataTable<TData, TValue>({
         <div className="p-5 grid gap-4">
             <div className="flex justify-between items-center w-full gap-3">
                 <div className="flex items-center gap-2">
-                    {searchFields.length !== 0 && (
+                    {(searchFields.length !== 0 || !!onSearch) && (
                         <Input
-                            placeholder={`Search...`}
-                            value={globalFilter}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlobalFilter(e.target.value)}
+                            placeholder={`Search database...`}
+                            value={onSearch ? searchInput : globalFilter}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                if (onSearch) {
+                                    setSearchInput(e.target.value);
+                                } else {
+                                    setGlobalFilter(e.target.value);
+                                }
+                            }}
                             className="w-64 h-9"
                         />
                     )}
@@ -165,6 +210,7 @@ export default function DataTable<TData, TValue>({
             <div className="relative w-full min-w-0 overflow-hidden">
                 <div
                     ref={scrollRef}
+                    onScroll={handleContainerScroll}
                     className={cn('rounded-sm border h-[74dvh] w-full overflow-auto scroll-smooth pb-4', className)}
                 >
                     <Table className="min-w-max">
@@ -200,26 +246,41 @@ export default function DataTable<TData, TValue>({
                                     </TableCell>
                                 </TableRow>
                             ) : table.getRowModel().rows?.length ? (
-                                table.getRowModel().rows.map((row) => (
-                                    row && (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={row.getIsSelected?.() && 'selected'}
-                                            className="p-1"
-                                        >
-                                            {row.getVisibleCells?.().map((cell) => (
-                                                cell && (
-                                                    <TableCell key={cell.id}>
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </TableCell>
-                                                )
-                                            ))}
+                                <>
+                                    {table.getRowModel().rows.map((row) => (
+                                        row && (
+                                            <TableRow
+                                                key={row.id}
+                                                data-state={row.getIsSelected?.() && 'selected'}
+                                                className="p-1"
+                                            >
+                                                {row.getVisibleCells?.().map((cell) => (
+                                                    cell && (
+                                                        <TableCell key={cell.id}>
+                                                            {flexRender(
+                                                                cell.column.columnDef.cell,
+                                                                cell.getContext()
+                                                            )}
+                                                        </TableCell>
+                                                    )
+                                                ))}
+                                            </TableRow>
+                                        )
+                                    ))}
+                                    {loadingMore && (
+                                        <TableRow className="hover:bg-transparent">
+                                            <TableCell
+                                                colSpan={columns?.length || 0}
+                                                className="py-3 text-center border-t bg-muted/20"
+                                            >
+                                                <div className="flex justify-center items-center gap-2 text-xs font-medium text-primary">
+                                                    <ClipLoader color="#9333ea" size={16} />
+                                                    <span>Loading more records from database...</span>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
-                                    )
-                                ))
+                                    )}
+                                </>
                             ) : (
                                 <TableRow className="hover:bg-transparent">
                                     <TableCell
@@ -229,7 +290,7 @@ export default function DataTable<TData, TValue>({
                                         <div className="flex flex-col justify-center items-center w-full gap-1">
                                             <Package className="text-gray-400" size={50} />
                                             <p className="text-muted-foreground font-semibold">
-                                                No Indents Found.
+                                                No Records Found.
                                             </p>
                                         </div>
                                     </TableCell>

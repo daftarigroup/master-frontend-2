@@ -1,6 +1,6 @@
 import { Plus, Building2, Package, FileSpreadsheet, Boxes, LayoutGrid, Building, Trash, Pencil, X, Search, MapPin, UserCog, Mail, Phone, Users, Map, Loader2, FileText, FileCode2, FolderTree } from 'lucide-react';
 import Heading from '../element/Heading';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import DataTable from '../element/DataTable';
 import MasterListTab from '@/systems/petty-cash/pages/MasterListTab';
@@ -32,7 +32,29 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Input } from '../ui/input';
 import { toast } from 'sonner';
-import { fetchMasterRecords, insertMasterData, insertNormalizedMasterData, updateMasterData, deleteMasterData, fetchSiteEngineers, insertSiteEngineer, updateSiteEngineer, deleteSiteEngineer, fetchContractors, insertContractor, updateContractor, deleteContractor, fetchSiteLocations, insertSiteLocation, updateSiteLocation, deleteSiteLocation, fetchTermsAndConditions, insertTermsAndCondition, updateTermsAndCondition, deleteTermsAndCondition } from '@/services/masterService';
+import {
+    fetchMasterRecords,
+    insertMasterData,
+    insertNormalizedMasterData,
+    updateMasterData,
+    deleteMasterData,
+    fetchSiteEngineers,
+    insertSiteEngineer,
+    updateSiteEngineer,
+    deleteSiteEngineer,
+    fetchContractors,
+    insertContractor,
+    updateContractor,
+    deleteContractor,
+    fetchSiteLocations,
+    insertSiteLocation,
+    updateSiteLocation,
+    deleteSiteLocation,
+    fetchTermsAndConditions,
+    insertTermsAndCondition,
+    updateTermsAndCondition,
+    deleteTermsAndCondition,
+} from '@/services/masterService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -458,13 +480,31 @@ const MultiPaymentTermInput = ({
     );
 };
 
+interface TabDataState {
+    data: any[];
+    offset: number;
+    hasMore: boolean;
+    loading: boolean;
+    loadingMore: boolean;
+    search: string;
+}
+
+const initialTabState: TabDataState = {
+    data: [],
+    offset: 0,
+    hasMore: false,
+    loading: false,
+    loadingMore: false,
+    search: '',
+};
+
 export default function MasterManagement() {
     const { updateInventorySheet, masterSheet, updateAll } = useSheets();
     const [allRecords, setAllRecords] = useState<any[]>([]);
-    const [siteEngineers, setSiteEngineers] = useState<any[]>([]);
     const [contractors, setContractors] = useState<any[]>([]);
     const [siteLocations, setSiteLocations] = useState<any[]>([]);
-    const [termsAndConditions, setTermsAndConditions] = useState<any[]>([]);
+    const [siteEngineers, setSiteEngineers] = useState<any[]>([]);
+    const [termsConditions, setTermsConditions] = useState<any[]>([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [editingRecord, setEditingRecord] = useState<any>(null);
     const [openDialog, setOpenDialog] = useState<string | null>(null);
@@ -561,7 +601,33 @@ export default function MasterManagement() {
             });
     }, [watchedFirmName, openDialog]);
 
-    useEffect(() => { loadData(); }, []);
+    const loadData = useCallback(async () => {
+        setDataLoading(true);
+        try {
+            const [masterRes, contRes, locRes, engRes, termsRes] = await Promise.all([
+                fetchMasterRecords(),
+                fetchContractors(),
+                fetchSiteLocations(),
+                fetchSiteEngineers(),
+                fetchTermsAndConditions(),
+            ]);
+            setAllRecords(masterRes || []);
+            setContractors(contRes || []);
+            setSiteLocations(locRes || []);
+            setSiteEngineers(engRes || []);
+            setTermsConditions(termsRes || []);
+        } catch (error) {
+            console.error('Error loading master records:', error);
+            toast.error('Failed to load master records');
+        } finally {
+            setDataLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
     useEffect(() => {
         const previousOverflow = document.body.style.overflow;
         if (openDialog) {
@@ -652,32 +718,18 @@ export default function MasterManagement() {
         }
     }, [editingRecord, openDialog]);
 
-    async function loadData() {
-        setDataLoading(true);
-        try {
-            const [master, engineers, contractorList, locationList, termsList] = await Promise.all([
-                fetchMasterRecords(),
-                fetchSiteEngineers(),
-                fetchContractors(),
-                fetchSiteLocations(),
-                fetchTermsAndConditions()
-            ]);
-            setAllRecords(master);
-            setSiteEngineers(engineers);
-            setContractors(contractorList);
-            setSiteLocations(locationList);
-            setTermsAndConditions(termsList);
-        } finally {
-            setDataLoading(false);
-        }
-    }
-
     const handleDeleteGHUom = async (record: any) => {
         if (confirm(`Remove this record?`)) {
             const allIds: number[] = Array.isArray(record.all_ids) && record.all_ids.length > 0 ? record.all_ids : (record.id ? [record.id] : []);
             const ops = allIds.map((id: number) => deleteMasterData(id, record.__table || 'group_head'));
             const results = await Promise.all(ops);
-            if (results.every(r => r.success)) { toast.success('Deleted'); loadData(); updateAll(); } else toast.error('Delete failed');
+            if (results.every(r => r.success)) {
+                toast.success('Deleted');
+                await loadData();
+                updateAll();
+            } else {
+                toast.error('Delete failed');
+            }
         }
     };
 
@@ -686,7 +738,9 @@ export default function MasterManagement() {
             const targets = allRecords.filter(r => r.department === deptName);
             const ops = targets.map(t => deleteMasterData(t.id, 'department'));
             await Promise.all(ops);
-            toast.success('Department removed'); loadData(); updateAll();
+            toast.success('Department removed');
+            await loadData();
+            updateAll();
         }
     };
 
@@ -720,7 +774,13 @@ export default function MasterManagement() {
                 res = { success: results.every(r => r.success) };
             }
 
-            if (res.success) { toast.success('Deleted'); loadData(); updateAll(); } else toast.error('Delete failed');
+            if (res.success) {
+                toast.success('Deleted');
+                await loadData();
+                updateAll();
+            } else {
+                toast.error('Delete failed');
+            }
         }
     };
 
@@ -738,7 +798,6 @@ export default function MasterManagement() {
             const res = await insertMasterData({ department: searchTermDept.trim() });
             if (res.success) {
                 toast.success(`Department "${searchTermDept}" added successfully!`);
-                await loadData();
                 updateAll();
                 formInstance.setValue(fieldName, searchTermDept.trim());
                 setSearchTermDept('');
@@ -1200,19 +1259,17 @@ export default function MasterManagement() {
                 }
             } else if (editingRecord) {
                 if (type === 'dept') {
-                    const targets = allRecords.filter(r => r.department === editingRecord.department);
-                    const updates = targets.map(t => updateMasterData(t.id, { department: values.department }));
-                    const results = await Promise.all(updates);
-                    res = { success: results.every(r => r.success) };
+                    // dept tab is hidden; update single record by id
+                    res = await updateMasterData(editingRecord.id, { department: values.department });
                 } else if (type === 'project') {
-                    const targets = allRecords.filter(r => (r.firm_name === editingRecord.firm_name || r.id === editingRecord.id) && r.__table === 'firm');
+                    const targets = allRecords.filter((r) => (r.firm_name === editingRecord.firm_name || r.id === editingRecord.id) && r.__table === 'firm');
                     const targetList = targets.length > 0 ? targets : [{ id: editingRecord.id }];
-                    const updates = targetList.map(t => updateMasterData(t.id, {
+                    const updates = targetList.map((t) => updateMasterData(t.id, {
                         firm_name: values.firm_name,
                         destination_address: values.destination_address || null,
                     }));
                     const results = await Promise.all(updates);
-                    res = { success: results.every(r => r.success) };
+                    res = { success: results.every((r) => r.success) };
                 } else {
                     res = await updateMasterData(editingRecord.id, values);
                 }
@@ -1247,7 +1304,14 @@ export default function MasterManagement() {
                 updateInventorySheet();
             }
 
-            if (res?.success) { toast.success('Saved'); setOpenDialog(null); setEditingRecord(null); setExistingInventoryId(null); loadData(); updateAll(); }
+            if (res?.success) {
+                toast.success('Saved');
+                setOpenDialog(null);
+                setEditingRecord(null);
+                setExistingInventoryId(null);
+                await loadData();
+                updateAll();
+            }
             else { toast.error(res?.error?.message || res?.error?.details || 'Save failed. Please try again.'); }
         } finally {
             setIsSubmitting(false);
@@ -1283,46 +1347,17 @@ export default function MasterManagement() {
         }));
     };
 
-    const rawVendors = allRecords.filter(r => r.vendor_name);
-    const vendorsData = buildGroupedData(rawVendors, (v) => `${(v.vendor_name || '').trim().toLowerCase()}__${(v.vendor_gstin || '').trim()}`);
-
-    const rawItems = allRecords.filter(r => r.item_name);
-    const itemsData = buildGroupedData(rawItems, (i) => (i.item_name || '').trim().toLowerCase());
-
-    const departmentsData = Array.from(new Set(allRecords.map(r => r.department).filter(Boolean))).map(name => {
-        const original = allRecords.find(r => r.department === name);
-        return { department: name, id: original?.id };
-    });
-
-    const projectsData = Array.from(new Set(allRecords.map(r => r.firm_name).filter(Boolean))).map(name => {
-        const original = allRecords.find(r => r.firm_name === name && r.__table === 'firm') || allRecords.find(r => r.firm_name === name);
-        return {
-            ...original,
-            firm_name: name,
-            id: original?.id,
-            destination_address: original?.destination_address || '',
-        };
-    });
-
-    const rawGhs = allRecords.filter(r => r.group_head && !r.item_name && !r.vendor_name);
-    const ghData = buildGroupedData(rawGhs, (g) => (g.group_head || '').trim().toLowerCase());
-
-    const rawUoms = allRecords.filter(r => r.uom && !r.item_name && !r.vendor_name);
-    const uomData = buildGroupedData(rawUoms, (u) => (u.uom || '').trim().toLowerCase());
-
-    const rawAous = allRecords.filter(r => r.area_of_use);
-    const aouData = buildGroupedData(rawAous, (a) => (a.area_of_use || '').trim().toLowerCase());
-
-    const rawGhUoms = allRecords.filter(r => (r.group_head || r.uom) && !r.item_name && !r.vendor_name && !r.company_name);
-    const ghUomData = buildGroupedData(rawGhUoms, (gu) => `${(gu.group_head || '').trim().toLowerCase()}__${(gu.uom || '').trim().toLowerCase()}`);
-
-    const rawCompanies = allRecords.filter(r => r.__table === 'company');
-    const companiesData = buildGroupedData(rawCompanies, (c) => (c.company_name || '').trim().toLowerCase());
-
-    const contractorsData = buildGroupedData(contractors, (c) => `${(c.contractor_name || '').trim().toLowerCase()}__${(c.contractor_gstin || '').trim()}`);
-    const siteLocationsData = buildGroupedData(siteLocations, (l) => (l.location || '').trim().toLowerCase());
-    const siteEngineersData = buildGroupedData(siteEngineers, (se) => `${(se.name || '').trim().toLowerCase()}__${(se.number || '').trim()}`);
-    const termsData = buildGroupedData(termsAndConditions, (tc) => `${(tc.title || '').trim().toLowerCase()}__${(tc.name || '').trim().toLowerCase()}`);
+    const vendorsData = useMemo(() => buildGroupedData(allRecords.filter((r) => r.__table === 'vendors'), (v) => `${(v.vendor_name || '').trim().toLowerCase()}__${(v.vendor_gstin || '').trim()}`), [allRecords]);
+    const itemsData = useMemo(() => buildGroupedData(allRecords.filter((r) => r.__table === 'item'), (i) => (i.item_name || '').trim().toLowerCase()), [allRecords]);
+    const ghData = useMemo(() => buildGroupedData(allRecords.filter((r) => r.__table === 'group_head'), (g) => (g.group_head || '').trim().toLowerCase()), [allRecords]);
+    const uomData = useMemo(() => buildGroupedData(allRecords.filter((r) => r.__table === 'uom'), (u) => (u.uom || '').trim().toLowerCase()), [allRecords]);
+    const aouData = useMemo(() => buildGroupedData(allRecords.filter((r) => r.__table === 'area_of_use'), (a) => (a.area_of_use || '').trim().toLowerCase()), [allRecords]);
+    const companiesData = useMemo(() => buildGroupedData(allRecords.filter((r) => r.__table === 'company'), (c) => (c.company_name || '').trim().toLowerCase()), [allRecords]);
+    const projectsData = useMemo(() => allRecords.filter((r) => r.__table === 'firm'), [allRecords]);
+    const contractorsData = useMemo(() => buildGroupedData(contractors, (c) => `${(c.contractor_name || '').trim().toLowerCase()}__${(c.contractor_gstin || '').trim()}`), [contractors]);
+    const siteLocationsData = useMemo(() => buildGroupedData(siteLocations, (l) => (l.location || '').trim().toLowerCase()), [siteLocations]);
+    const siteEngineersData = useMemo(() => buildGroupedData(siteEngineers, (se) => `${(se.name || '').trim().toLowerCase()}__${(se.number || '').trim()}`), [siteEngineers]);
+    const termsData = useMemo(() => buildGroupedData(termsConditions, (tc) => `${(tc.title || '').trim().toLowerCase()}__${(tc.name || '').trim().toLowerCase()}`), [termsConditions]);
 
     return (
         <div className="h-full space-y-4 md:space-y-6 flex flex-col px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -1350,7 +1385,7 @@ export default function MasterManagement() {
                                     const IconComponent = sec.icon;
                                     return (
                                         <SelectItem key={sec.id} value={sec.id} className="cursor-pointer">
-                                            <div className="flex items-center gap-2">
+                                             <div className="flex items-center gap-2">
                                                 <IconComponent size={16} className={sec.color} /> {sec.label}
                                             </div>
                                         </SelectItem>
@@ -1360,46 +1395,22 @@ export default function MasterManagement() {
                         </Select>
                     </div>
 
-                <TabsContent value="vendors" className="flex-1 outline-none"><DataTable data={vendorsData} columns={vendorColumns} searchFields={['vendor_name']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { vForm.reset(); setEditingRecord(null); setOpenDialog('vendor'); }}><Plus size={18} /> Add Vendor</Button>} /></TabsContent>
-                <TabsContent value="items" className="flex-1 outline-none"><DataTable data={itemsData} columns={itemColumns} searchFields={['item_name']} dataLoading={dataLoading} extraActions={<Button className="bg-blue-600" onClick={() => { iForm.reset(); setEditingRecord(null); setOpenDialog('item'); }}><Plus size={18} /> Add Item</Button>} /></TabsContent>
-                {/* <TabsContent value="departments" className="flex-1 outline-none">
-                    <Tabs defaultValue="dept-table" className="h-full flex flex-col">
-                        <div className="flex w-full mb-4">
-                            <TabsList className="bg-muted/50 p-1 rounded-lg w-full">
-                                <TabsTrigger value="dept-table" className="text-xs px-4">Dept Name</TabsTrigger>
-                                <TabsTrigger value="project-table" className="text-xs px-4">Project Name</TabsTrigger>
-                            </TabsList>
-                        </div>
-
-                        <TabsContent value="dept-table" className="flex-1 outline-none ">
-                            <DataTable
-                                data={departmentsData}
-                                columns={departmentColumns}
-                                searchFields={['department']}
-                                dataLoading={dataLoading}
-                                extraActions={
-                                    <Button className="bg-orange-600" onClick={() => { dForm.reset(); setEditingRecord(null); setOpenDialog('dept'); }}>
-                                        <Plus size={18} /> Add Dept
-                                    </Button>
-                                }
-                            />
-                        </TabsContent>
-
-                        <TabsContent value="project-table" className="flex-1 outline-none">
-                            <DataTable
-                                data={projectsData}
-                                columns={projectColumns}
-                                searchFields={['firm_name']}
-                                dataLoading={dataLoading}
-                                extraActions={
-                                    <Button className="bg-purple-600" onClick={() => { pForm.reset(); setEditingRecord(null); setOpenDialog('project'); }}>
-                                        <Plus size={18} /> Add Project
-                                    </Button>
-                                }
-                            />
-                        </TabsContent>
-                    </Tabs>
-                </TabsContent> */}
+                <TabsContent value="vendors" className="flex-1 outline-none">
+                    <DataTable
+                        data={vendorsData}
+                        columns={vendorColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-indigo-600" onClick={() => { vForm.reset(); setEditingRecord(null); setOpenDialog('vendor'); }}><Plus size={18} /> Add Vendor</Button>}
+                    />
+                </TabsContent>
+                <TabsContent value="items" className="flex-1 outline-none">
+                    <DataTable
+                        data={itemsData}
+                        columns={itemColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-blue-600" onClick={() => { iForm.reset(); setEditingRecord(null); setOpenDialog('item'); }}><Plus size={18} /> Add Item</Button>}
+                    />
+                </TabsContent>
                 <TabsContent value="group-heads" className="flex-1 outline-none">
                     <Tabs defaultValue="gh-table" className="h-full flex flex-col">
                         <div className="flex w-full mb-4">
@@ -1414,7 +1425,6 @@ export default function MasterManagement() {
                             <DataTable
                                 data={ghData}
                                 columns={ghColumns}
-                                searchFields={['group_head']}
                                 dataLoading={dataLoading}
                                 extraActions={
                                     <Button className="bg-blue-600" onClick={() => { ghForm.reset(); setEditingRecord(null); setOpenDialog('gh'); }}>
@@ -1428,7 +1438,6 @@ export default function MasterManagement() {
                             <DataTable
                                 data={uomData}
                                 columns={uomColumns}
-                                searchFields={['uom']}
                                 dataLoading={dataLoading}
                                 extraActions={
                                     <Button className="bg-emerald-600" onClick={() => { uomForm.reset(); setEditingRecord(null); setOpenDialog('uom'); }}>
@@ -1442,7 +1451,6 @@ export default function MasterManagement() {
                             <DataTable
                                 data={aouData}
                                 columns={aouColumns}
-                                searchFields={['area_of_use']}
                                 dataLoading={dataLoading}
                                 extraActions={
                                     <Button className="bg-red-600" onClick={() => { aouForm.reset(); setEditingRecord(null); setOpenDialog('areaofuse'); }}>
@@ -1453,12 +1461,54 @@ export default function MasterManagement() {
                         </TabsContent>
                     </Tabs>
                 </TabsContent>
-                <TabsContent value="projects" className="flex-1 outline-none"><DataTable data={projectsData} columns={projectColumns} searchFields={['firm_name']} dataLoading={dataLoading} extraActions={<Button className="bg-purple-600" onClick={() => { pForm.reset(); setEditingRecord(null); setOpenDialog('project'); }}><Plus size={18} /> Add Project</Button>} /></TabsContent>
-                <TabsContent value="companies" className="flex-1 outline-none"><DataTable data={companiesData} columns={companyColumns} searchFields={['company_name']} dataLoading={dataLoading} extraActions={<Button className="bg-emerald-600" onClick={() => { cForm.reset(); setEditingRecord(null); setOpenDialog('company'); }}><Plus size={18} /> Add Company</Button>} /></TabsContent>
-                <TabsContent value="contractors" className="flex-1 outline-none"><DataTable data={contractorsData} columns={contractorColumns} searchFields={['contractor_name']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { conForm.reset(); setEditingRecord(null); setOpenDialog('contractor'); }}><Plus size={18} /> Add Contractor</Button>} /></TabsContent>
-                <TabsContent value="site_locations" className="flex-1 outline-none"><DataTable data={siteLocationsData} columns={siteLocationColumns} searchFields={['location']} dataLoading={dataLoading} extraActions={<Button className="bg-indigo-600" onClick={() => { slForm.reset(); setEditingRecord(null); setOpenDialog('site_location'); }}><Plus size={18} /> Add Location</Button>} /></TabsContent>
-                <TabsContent value="site_engineers" className="flex-1 outline-none"><DataTable data={siteEngineersData} columns={siteEngineerColumns} searchFields={['name', 'email']} dataLoading={dataLoading} extraActions={<Button className="bg-orange-600" onClick={() => { seForm.reset(); setEditingRecord(null); setOpenDialog('site_engineer'); }}><Plus size={18} /> Add Engineer</Button>} /></TabsContent>
-                <TabsContent value="terms_conditions" className="flex-1 outline-none"><DataTable data={termsData} columns={termsColumns} searchFields={['title', 'name']} dataLoading={dataLoading} extraActions={<Button className="bg-teal-600" onClick={() => { tcForm.reset(); setEditingRecord(null); setOpenDialog('terms_condition'); }}><Plus size={18} /> Add Condition</Button>} /></TabsContent>
+                <TabsContent value="projects" className="flex-1 outline-none">
+                    <DataTable
+                        data={projectsData}
+                        columns={projectColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-purple-600" onClick={() => { pForm.reset(); setEditingRecord(null); setOpenDialog('project'); }}><Plus size={18} /> Add Project</Button>}
+                    />
+                </TabsContent>
+                <TabsContent value="companies" className="flex-1 outline-none">
+                    <DataTable
+                        data={companiesData}
+                        columns={companyColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-emerald-600" onClick={() => { cForm.reset(); setEditingRecord(null); setOpenDialog('company'); }}><Plus size={18} /> Add Company</Button>}
+                    />
+                </TabsContent>
+                <TabsContent value="contractors" className="flex-1 outline-none">
+                    <DataTable
+                        data={contractorsData}
+                        columns={contractorColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-indigo-600" onClick={() => { conForm.reset(); setEditingRecord(null); setOpenDialog('contractor'); }}><Plus size={18} /> Add Contractor</Button>}
+                    />
+                </TabsContent>
+                <TabsContent value="site_locations" className="flex-1 outline-none">
+                    <DataTable
+                        data={siteLocationsData}
+                        columns={siteLocationColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-indigo-600" onClick={() => { slForm.reset(); setEditingRecord(null); setOpenDialog('site_location'); }}><Plus size={18} /> Add Location</Button>}
+                    />
+                </TabsContent>
+                <TabsContent value="site_engineers" className="flex-1 outline-none">
+                    <DataTable
+                        data={siteEngineersData}
+                        columns={siteEngineerColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-orange-600" onClick={() => { seForm.reset(); setEditingRecord(null); setOpenDialog('site_engineer'); }}><Plus size={18} /> Add Engineer</Button>}
+                    />
+                </TabsContent>
+                <TabsContent value="terms_conditions" className="flex-1 outline-none">
+                    <DataTable
+                        data={termsData}
+                        columns={termsColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-teal-600" onClick={() => { tcForm.reset(); setEditingRecord(null); setOpenDialog('terms_condition'); }}><Plus size={18} /> Add Condition</Button>}
+                    />
+                </TabsContent>
                 <TabsContent value="doc_types" className="flex-1 outline-none">
                     <MasterListTab type="docDocumentType" title="Document Types" placeholder="Enter document type (e.g. Agreement, License, Certificate, Policy)" />
                 </TabsContent>
@@ -1947,3 +1997,4 @@ export default function MasterManagement() {
         </div>
     );
 }
+

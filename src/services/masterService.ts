@@ -1,5 +1,6 @@
 import { apiClient, storeApi } from '@/lib/apiClient';
 import { isAllowedFirm } from '@/lib/firmAccess';
+import { invalidateMasterDataCache } from '@/services/poService';
 
 /**
  * Master Service
@@ -69,19 +70,19 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             locationRes,
             tcRes,
         ]: any[] = await Promise.all([
-            apiClient.get('/store/entity/company', { params: { order: 'id.asc' } }),
-            apiClient.get('/store/entity/firm', { params: { active: true, order: 'firm_name.asc' } }),
-            apiClient.get('/store/entity/group_head', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/uom', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/area_of_use', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/item', { params: { order: 'item_name.asc' } }),
-            apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc' } }),
-            apiClient.get('/store/entity/department', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/default_po_terms', { params: { active: true, order: 'sort_order.asc' } }),
-            apiClient.get('/store/entity/site_engineer_details'),
-            apiClient.get('/store/entity/contractor_details'),
-            apiClient.get('/store/entity/site_location_details'),
-            apiClient.get('/store/entity/terms_and_condition', { params: { order: 'id.asc' } }),
+            apiClient.get('/store/entity/company', { params: { order: 'id.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/firm', { params: { active: true, order: 'firm_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/group_head', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/uom', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/area_of_use', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/item', { params: { order: 'item_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/department', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/default_po_terms', { params: { active: true, order: 'sort_order.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/site_engineer_details', { params: { limit: 'all' } }),
+            apiClient.get('/store/entity/contractor_details', { params: { limit: 'all' } }),
+            apiClient.get('/store/entity/site_location_details', { params: { limit: 'all' } }),
+            apiClient.get('/store/entity/terms_and_condition', { params: { order: 'id.asc', limit: 'all' } }),
         ]);
 
         const directCompanyRows = companyRes?.data || [];
@@ -312,15 +313,15 @@ export async function fetchMasterRecords(): Promise<any[]> {
             departmentsRes,
             defaultTermsRes,
         ]: any[] = await Promise.all([
-            apiClient.get('/store/entity/company', { params: { order: 'company_name.asc' } }),
-            apiClient.get('/store/entity/firm', { params: { order: 'firm_name.asc' } }),
-            apiClient.get('/store/entity/group_head', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/uom', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/area_of_use', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc' } }),
-            apiClient.get('/store/entity/item', { params: { order: 'item_name.asc' } }),
-            apiClient.get('/store/entity/department', { params: { order: 'name.asc' } }),
-            apiClient.get('/store/entity/default_po_terms', { params: { order: 'sort_order.asc' } }),
+            apiClient.get('/store/entity/company', { params: { order: 'company_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/firm', { params: { order: 'firm_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/group_head', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/uom', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/area_of_use', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/item', { params: { order: 'item_name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/department', { params: { order: 'name.asc', limit: 'all' } }),
+            apiClient.get('/store/entity/default_po_terms', { params: { order: 'sort_order.asc', limit: 'all' } }),
         ]);
 
         const companies = companiesRes?.data || [];
@@ -410,6 +411,193 @@ export async function fetchMasterRecords(): Promise<any[]> {
     }
 }
 
+export async function fetchItemsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'item_name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/item', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((i: any) => ({
+        id: i.id,
+        __table: 'item',
+        item_name: i.item_name,
+        firm_id: i.firm_id,
+        firm_name: i.firm?.firm_name || i.firm_name || '--',
+        group_head: i.group_head?.name || '',
+        uom: i.uom?.name || '',
+        regular_conditions: typeof i.regular_pay_condition === 'string' && i.regular_pay_condition
+            ? i.regular_pay_condition.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : (Array.isArray(i.regular_pay_condition) ? i.regular_pay_condition : []),
+        third_party_conditions: typeof i.third_party_pay_condition === 'string' && i.third_party_pay_condition
+            ? i.third_party_pay_condition.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : (Array.isArray(i.third_party_pay_condition) ? i.third_party_pay_condition : []),
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchVendorsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'vendor_name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/vendors', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((v: any) => ({
+        id: v.id,
+        __table: 'vendors',
+        vendor_name: v.vendor_name,
+        vendor_gstin: v.gstin || '',
+        vendor_address: v.address || '',
+        vendor_email: v.email || '',
+        payment_term: v.payment_term || '',
+        person_name: v.person_name || '',
+        responsible_person: v.person_name || '',
+        phone: v.phone || '',
+        location: v.location || '',
+        billing_address: v.address || '',
+        destination_address: v.address || '',
+        firm_id: v.firm_id,
+        firm_name: v.firm?.firm_name || v.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchContractorsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'contractor_name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/contractor_details', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((c: any) => ({
+        id: c.id,
+        contractor_name: c.contractor_name,
+        contractor_gstin: c.contractor_gstin || '',
+        contractor_address: c.contractor_address || '',
+        contractor_email: c.contractor_email || '',
+        responsible_person: c.responsible_person || '',
+        location: c.location || '',
+        phone: c.phone || '',
+        firm_id: c.firm_id,
+        firm_name: c.firm?.firm_name || c.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchSiteLocationsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'location.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/site_location_details', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((l: any) => ({
+        id: l.id,
+        location: l.location,
+        firm_id: l.firm_id,
+        firm_name: l.firm?.firm_name || l.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchSiteEngineersPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/site_engineer_details', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((se: any) => ({
+        id: se.id,
+        name: se.name,
+        number: se.number,
+        email: se.email,
+        firm_id: se.firm_id,
+        firm_name: se.firm?.firm_name || se.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchCompaniesPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'company_name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/company', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((c: any) => ({
+        id: c.id,
+        __table: 'company',
+        company_name: c.company_name,
+        company_gstin: c.gstin || '',
+        company_pan: c.pan || '',
+        company_email: c.email || '',
+        company_phone: c.phone || '',
+        company_address: c.address || '',
+        company_contact_person: c.contact_person || '',
+        billing_address: c.billing_address || '',
+        destination_address: c.destination_address || '',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchFirmsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'firm_name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/firm', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((f: any) => ({
+        id: f.id,
+        __table: 'firm',
+        firm_name: f.firm_name,
+        company_name: f.company?.company_name || '',
+        company_address: f.company?.address || '',
+        company_gstin: f.company?.gstin || '',
+        company_pan: f.company?.pan || '',
+        billing_address: f.billing_address || '',
+        destination_address: f.destination_address || '',
+        company_contact_person: f.contact_person || '',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchGroupHeadsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/group_head', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((g: any) => ({
+        id: g.id,
+        __table: 'group_head',
+        group_head: g.name,
+        firm_id: g.firm_id,
+        firm_name: g.firm?.firm_name || g.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchUomsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/uom', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((u: any) => ({
+        id: u.id,
+        __table: 'uom',
+        uom: u.name,
+        firm_id: u.firm_id,
+        firm_name: u.firm?.firm_name || u.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchAreaOfUsesPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'name.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/area_of_use', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((a: any) => ({
+        id: a.id,
+        __table: 'area_of_use',
+        area_of_use: a.name,
+        firm_id: a.firm_id,
+        firm_name: a.firm?.firm_name || a.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
+export async function fetchTermsAndConditionsPaginated(params: { offset?: number; limit?: number; q?: string; order?: string } = {}) {
+    const { offset = 0, limit = 50, q, order = 'id.asc' } = params;
+    const res: any = await apiClient.get('/store/entity/terms_and_condition', { params: { offset, limit, q, order } });
+    const raw = res?.data || [];
+    const data = raw.map((t: any) => ({
+        id: t.id,
+        title: t.title || '',
+        name: t.name || '',
+        firm_name: t.firm?.firm_name || t.firm_name || '--',
+    }));
+    return { data, hasMore: !!res?.hasMore, nextCursor: res?.nextCursor };
+}
+
 /**
  * Insert a new master registry record into the normalized table for that field.
  */
@@ -424,6 +612,7 @@ export async function insertMasterData(data: Record<string, any>): Promise<{ suc
 }
 
 async function upsertNormalizedMasterRecord(values: Record<string, any>, id?: number) {
+    invalidateMasterDataCache();
     if ('company_name' in values) {
         const payload = {
             company_name: values.company_name,
@@ -621,6 +810,7 @@ export async function updateMasterData(id: number, data: Record<string, any>): P
  */
 export async function deleteMasterData(id: number, type?: string): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const tableByType: Record<string, string> = {
             company: 'company',
             project: 'firm',
@@ -667,6 +857,7 @@ export async function fetchSiteEngineers() {
 
 export async function upsertSiteEngineer(data: { id?: number; name: string; number: string; email: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             name: data.name,
             number: data.number,
@@ -698,6 +889,7 @@ export async function insertSiteEngineer(data: { id?: number; name: string; numb
  */
 export async function updateSiteEngineer(id: number, data: { name: string; number: string; email: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         await storeApi.update('site_engineer_details', id, {
             name: data.name,
             number: data.number,
@@ -717,6 +909,7 @@ export async function updateSiteEngineer(id: number, data: { name: string; numbe
  */
 export async function deleteSiteEngineer(id: number): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         await storeApi.delete('site_engineer_details', id);
         return { success: true };
     } catch (error) {
@@ -743,6 +936,7 @@ export async function fetchContractors() {
 
 export async function insertContractor(data: any): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             ...data,
             firm_id: data.firm_id ? Number(data.firm_id) : null,
@@ -758,6 +952,7 @@ export async function insertContractor(data: any): Promise<{ success: boolean; e
 
 export async function updateContractor(id: number, data: any): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             ...data,
             firm_id: data.firm_id ? Number(data.firm_id) : null,
@@ -773,6 +968,7 @@ export async function updateContractor(id: number, data: any): Promise<{ success
 
 export async function deleteContractor(id: number): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         await storeApi.delete('contractor_details', id);
         return { success: true };
     } catch (error) {
@@ -799,6 +995,7 @@ export async function fetchSiteLocations() {
 
 export async function insertSiteLocation(data: { location: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             location: data.location,
             firm_id: data.firm_id ? Number(data.firm_id) : null,
@@ -814,6 +1011,7 @@ export async function insertSiteLocation(data: { location: string; firm_id?: num
 
 export async function updateSiteLocation(id: number, data: { location: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             location: data.location,
             firm_id: data.firm_id ? Number(data.firm_id) : null,
@@ -829,6 +1027,7 @@ export async function updateSiteLocation(id: number, data: { location: string; f
 
 export async function deleteSiteLocation(id: number): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         await storeApi.delete('site_location_details', id);
         return { success: true };
     } catch (error) {
@@ -852,6 +1051,7 @@ export async function fetchTermsAndConditions() {
 
 export async function insertTermsAndCondition(data: { title: string; name: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             title: data.title,
             name: data.name,
@@ -868,6 +1068,7 @@ export async function insertTermsAndCondition(data: { title: string; name: strin
 
 export async function updateTermsAndCondition(id: number, data: { title: string; name: string; firm_id?: number | null; firm_name?: string | null }): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         const payload = {
             title: data.title,
             name: data.name,
@@ -884,6 +1085,7 @@ export async function updateTermsAndCondition(id: number, data: { title: string;
 
 export async function deleteTermsAndCondition(id: number): Promise<{ success: boolean; error?: any }> {
     try {
+        invalidateMasterDataCache();
         await storeApi.delete('terms_and_condition', id);
         return { success: true };
     } catch (error) {

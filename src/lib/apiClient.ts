@@ -36,6 +36,20 @@ export const storeApi = {
     return res.data || [];
   },
 
+  async fetchAll(table: string, params?: Record<string, any>) {
+    const res: any = await apiClient.get(`/store/entity/${table}`, { params: { limit: 'all', ...params } });
+    return res.data || [];
+  },
+
+  async fetchWithPagination(table: string, params?: Record<string, any>) {
+    const res: any = await apiClient.get(`/store/entity/${table}`, { params });
+    return {
+      data: res.data || [],
+      hasMore: !!res.hasMore,
+      nextCursor: res.nextCursor || null,
+    };
+  },
+
   async fetchById(table: string, id: string | number) {
     const res: any = await apiClient.get(`/store/entity/${table}/${id}`);
     return res.data;

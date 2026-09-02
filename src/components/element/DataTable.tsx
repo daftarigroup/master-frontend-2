@@ -143,15 +143,29 @@ interface DataTableProps<TData, TValue> {
     onRowSelectionChange?: (updater: any) => void;
     getRowId?: (row: TData) => string;
     meta?: any;
+    onSearch?: (query: string) => void;
+    onLoadMore?: () => void;
+    hasMore?: boolean;
+    loadingMore?: boolean;
+    searchValue?: string;
 }
 
 function globalFilterFn<TData>(row: TData, columnIds: string[], filterValue: string) {
-    return columnIds.some((columnId) => {
-        const value = (row as any)[columnId];
-        return String(value ?? '')
-            .toLowerCase()
-            .includes(filterValue.toLowerCase());
-    });
+    if (!filterValue) return true;
+    const lowerFilter = filterValue.toLowerCase();
+    if (columnIds && columnIds.length > 0) {
+        return columnIds.some((columnId) => {
+            const value = (row as any)[columnId];
+            return String(value ?? '')
+                .toLowerCase()
+                .includes(lowerFilter);
+        });
+    }
+    return Object.values(row as any).some((val) =>
+        typeof val === 'object' && val !== null
+            ? Object.values(val).some((nestedVal) => String(nestedVal ?? '').toLowerCase().includes(lowerFilter))
+            : String(val ?? '').toLowerCase().includes(lowerFilter)
+    );
 }
 
 export default function DataTable<TData, TValue>({
@@ -159,17 +173,55 @@ export default function DataTable<TData, TValue>({
     data,
     searchFields = [],
     dataLoading,
-    children: _children, // <-- underscore avoids TS unused variable error
+    children: _children,
     className,
     extraActions,
     rowSelection = {},
     onRowSelectionChange,
     getRowId,
     meta,
+    onSearch,
+    onLoadMore,
+    hasMore = false,
+    loadingMore = false,
+    searchValue,
 }: DataTableProps<TData, TValue>) {
     const [globalFilter, setGlobalFilter] = useState('');
+    const [searchInput, setSearchInput] = useState(searchValue ?? '');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const mobileScrollRef = useRef<HTMLDivElement>(null);
     const [isScrollableHorizontally, setIsScrollableHorizontally] = useState(false);
+    const isFirstSearchRender = useRef(true);
+    // Prevents multiple concurrent load-more calls from rapid scroll events
+    // before React can propagate loadingMore=true back into props
+    const loadMoreInFlight = useRef(false);
+
+    // Sync external searchValue if provided
+    useEffect(() => {
+        if (searchValue !== undefined && searchValue !== searchInput) {
+            setSearchInput(searchValue);
+        }
+    }, [searchValue]);
+
+    // Debounce search query to hit database when onSearch is provided
+    useEffect(() => {
+        if (!onSearch) return;
+        if (isFirstSearchRender.current) {
+            isFirstSearchRender.current = false;
+            return;
+        }
+        const timer = setTimeout(() => {
+            onSearch(searchInput);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchInput, onSearch]);
+
+    // Reset in-flight flag once the parent signals loading is done
+    useEffect(() => {
+        if (!loadingMore) {
+            loadMoreInFlight.current = false;
+        }
+    }, [loadingMore]);
 
     const table = useReactTable({
         data,
@@ -178,16 +230,26 @@ export default function DataTable<TData, TValue>({
         getFilteredRowModel: getFilteredRowModel(),
         enableRowSelection: !!onRowSelectionChange,
         globalFilterFn: (row, _, filterValue) =>
-            row?.original ? globalFilterFn(row.original, searchFields || [], filterValue) : false,
+            onSearch ? true : (row?.original ? globalFilterFn(row.original, searchFields || [], filterValue) : false),
         getRowId,
         meta,
         state: {
-            globalFilter,
+            globalFilter: onSearch ? '' : globalFilter,
             rowSelection: rowSelection || {},
         },
         onGlobalFilterChange: setGlobalFilter,
         onRowSelectionChange: onRowSelectionChange,
     });
+
+    const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        if (!onLoadMore || !hasMore || loadingMore || dataLoading || loadMoreInFlight.current) return;
+        const threshold = 150;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight <= threshold) {
+            loadMoreInFlight.current = true;
+            onLoadMore();
+        }
+    };
 
     useEffect(() => {
         const el = scrollRef.current;
@@ -234,14 +296,18 @@ export default function DataTable<TData, TValue>({
         <div className="p-3 sm:p-5 grid gap-3 sm:gap-4">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center w-full gap-2.5 sm:gap-3">
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                    {searchFields.length !== 0 && (
-                        <Input
-                            placeholder={`Search...`}
-                            value={globalFilter}
-                            onChange={(e) => setGlobalFilter(e.target.value)}
-                            className="w-full sm:w-64 h-9 text-xs sm:text-sm rounded-xl"
-                        />
-                    )}
+                    <Input
+                        placeholder="Search..."
+                        value={onSearch ? searchInput : globalFilter}
+                        onChange={(e) => {
+                            if (onSearch) {
+                                setSearchInput(e.target.value);
+                            } else {
+                                setGlobalFilter(e.target.value);
+                            }
+                        }}
+                        className="w-full sm:w-64 h-9 text-xs sm:text-sm rounded-xl"
+                    />
                     {isScrollableHorizontally && (
                         <div className="flex items-center gap-1 border-l pl-2 ml-1 shrink-0">
                             <Button
@@ -275,6 +341,7 @@ export default function DataTable<TData, TValue>({
             <div className="relative w-full min-w-0 overflow-hidden hidden md:block">
                 <div
                     ref={scrollRef}
+                    onScroll={handleContainerScroll}
                     className={cn('rounded-sm border h-[74dvh] w-full overflow-auto scroll-smooth pb-4', className)}
                 >
                     <Table className="min-w-max">
@@ -310,26 +377,41 @@ export default function DataTable<TData, TValue>({
                                     </TableCell>
                                 </TableRow>
                             ) : table.getRowModel().rows?.length ? (
-                                table.getRowModel().rows.map((row) => (
-                                    row && (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={row.getIsSelected?.() && 'selected'}
-                                            className="p-1"
-                                        >
-                                            {row.getVisibleCells?.().map((cell) => (
-                                                cell && (
-                                                    <TableCell key={cell.id}>
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </TableCell>
-                                                )
-                                            ))}
+                                <>
+                                    {table.getRowModel().rows.map((row) => (
+                                        row && (
+                                            <TableRow
+                                                key={row.id}
+                                                data-state={row.getIsSelected?.() && 'selected'}
+                                                className="p-1"
+                                            >
+                                                {row.getVisibleCells?.().map((cell) => (
+                                                    cell && (
+                                                        <TableCell key={cell.id}>
+                                                            {flexRender(
+                                                                cell.column.columnDef.cell,
+                                                                cell.getContext()
+                                                            )}
+                                                        </TableCell>
+                                                    )
+                                                ))}
+                                            </TableRow>
+                                        )
+                                    ))}
+                                    {loadingMore && (
+                                        <TableRow className="hover:bg-transparent">
+                                            <TableCell
+                                                colSpan={columns?.length || 0}
+                                                className="py-3 text-center border-t bg-muted/20"
+                                            >
+                                                <div className="flex justify-center items-center gap-2 text-xs font-medium text-primary">
+                                                    <ClipLoader color="#9333ea" size={16} />
+                                                    <span>Loading more records from database...</span>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
-                                    )
-                                ))
+                                    )}
+                                </>
                             ) : (
                                 <TableRow className="hover:bg-transparent">
                                     <TableCell
@@ -339,7 +421,7 @@ export default function DataTable<TData, TValue>({
                                         <div className="flex flex-col justify-center items-center w-full gap-1">
                                             <Package className="text-gray-400" size={50} />
                                             <p className="text-muted-foreground font-semibold">
-                                                No Indents Found.
+                                                No Records Found.
                                             </p>
                                         </div>
                                     </TableCell>
@@ -354,13 +436,25 @@ export default function DataTable<TData, TValue>({
             </div>
 
             {/* Mobile (<768px): stacked cards, primary fields up top, rest in an expandable accordion */}
-            <div className={cn('md:hidden w-full space-y-2.5 overflow-y-auto pb-4', className)}>
+            <div
+                ref={mobileScrollRef}
+                onScroll={handleContainerScroll}
+                className={cn('md:hidden w-full space-y-2.5 overflow-y-auto pb-4 max-h-[74dvh]', className)}
+            >
                 {dataLoading ? (
                     <div className="flex justify-center items-center w-full py-20">
                         <ClipLoader color="#9333ea" size={40} />
                     </div>
                 ) : table.getRowModel().rows?.length ? (
-                    table.getRowModel().rows.map((row) => row && <MobileRowCard key={row.id} row={row} />)
+                    <>
+                        {table.getRowModel().rows.map((row) => row && <MobileRowCard key={row.id} row={row} />)}
+                        {loadingMore && (
+                            <div className="flex justify-center items-center gap-2 py-3 text-xs font-medium text-primary bg-muted/20 rounded-lg">
+                                <ClipLoader color="#9333ea" size={16} />
+                                <span>Loading more records from database...</span>
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div className="flex flex-col justify-center items-center w-full gap-1 py-16">
                         <Package className="text-gray-400" size={50} />

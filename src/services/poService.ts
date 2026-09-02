@@ -462,6 +462,11 @@ export async function fetchPoMasterByPoNumber(poNumber: string): Promise<PoMaste
 let masterDataCache: any = null;
 let masterDataPromise: Promise<any> | null = null;
 
+export function invalidateMasterDataCache() {
+    masterDataCache = null;
+    masterDataPromise = null;
+}
+
 export async function fetchMasterData(forceRefresh = false) {
     if (!forceRefresh && masterDataCache) return masterDataCache;
     if (!forceRefresh && masterDataPromise) return masterDataPromise;
@@ -476,12 +481,12 @@ export async function fetchMasterData(forceRefresh = false) {
                 termsRes,
                 seRes,
             ]: any[] = await Promise.all([
-                apiClient.get('/store/entity/company', { params: { order: 'company_name.asc' } }),
-                apiClient.get('/store/entity/firm', { params: { order: 'firm_name.asc' } }),
-                apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc' } }),
-                apiClient.get('/store/entity/item', { params: { order: 'item_name.asc' } }),
-                apiClient.get('/store/entity/default_po_terms', { params: { active: true, order: 'sort_order.asc' } }),
-                apiClient.get('/store/entity/site_engineer_details'),
+                apiClient.get('/store/entity/company', { params: { order: 'company_name.asc', limit: 'all' } }),
+                apiClient.get('/store/entity/firm', { params: { order: 'firm_name.asc', limit: 'all' } }),
+                apiClient.get('/store/entity/vendors', { params: { order: 'vendor_name.asc', limit: 'all' } }),
+                apiClient.get('/store/entity/item', { params: { order: 'item_name.asc', limit: 'all' } }),
+                apiClient.get('/store/entity/default_po_terms', { params: { active: true, order: 'sort_order.asc', limit: 'all' } }),
+                apiClient.get('/store/entity/site_engineer_details', { params: { limit: 'all' } }),
             ]);
 
             const companies = companiesRes?.data || [];
