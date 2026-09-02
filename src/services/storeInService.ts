@@ -114,6 +114,7 @@ export async function fetchStoreInRecords(
         const firms = normalizeFirmAccess(permittedFirms);
         const params: Record<string, any> = {
             order: 'indent_no.desc',
+            limit: 'all',
         };
 
         if (options?.cursor) params['cursor'] = options.cursor;
@@ -230,7 +231,7 @@ export async function fetchDirectRecords(permittedFirms?: string[]) {
         if (hasNoFirmAccess(permittedFirms)) return [];
 
         const firms = normalizeFirmAccess(permittedFirms);
-        const directParams: Record<string, any> = {};
+        const directParams: Record<string, any> = { limit: 'all' };
         if (firms) {
             const ids = firms.filter(f => /^\d+$/.test(f)).map(Number);
             if (ids.length > 0) directParams['in__firm_id'] = ids.join(',');

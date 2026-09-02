@@ -12,7 +12,7 @@ import type { PcReportSheet } from '@/types/sheets';
 export async function fetchPcReportRecords(): Promise<PcReportSheet[]> {
     try {
         const res: any = await apiClient.get('/store/entity/pc_report', {
-            params: { order: 'created_at.desc' },
+            params: { order: 'created_at.desc', limit: 'all' },
         });
         const data = res.data || [];
 

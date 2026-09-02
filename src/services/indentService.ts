@@ -99,6 +99,7 @@ export async function fetchIndentRecords(
 
         const params: Record<string, any> = {
             order: 'indent_number.desc',
+            limit: 'all',
         };
 
         if (options?.cursor) params['cursor'] = options.cursor;

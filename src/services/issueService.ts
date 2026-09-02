@@ -47,6 +47,7 @@ export async function fetchIssueRecords(permittedFirms?: string[]): Promise<Issu
 
         const params: Record<string, any> = {
             order: 'issue_no.desc',
+            limit: 'all',
         };
 
         const res: any = await apiClient.get('/store/entity/issue', { params });

@@ -18,6 +18,7 @@ export async function fetchPayments(permittedFirms?: string[]): Promise<Payments
 
         const params: Record<string, any> = {
             order: 'timestamp.desc',
+            limit: 'all',
         };
 
         if (firms) {
@@ -81,6 +82,7 @@ export async function fetchPaymentHistory(permittedFirms?: string[]): Promise<Pa
         const params: Record<string, any> = {
             payment_done: true,
             order: 'actual.desc',
+            limit: 'all',
         };
 
         if (firms) {

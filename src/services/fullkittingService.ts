@@ -66,6 +66,7 @@ export async function fetchFullkittingRecords(permittedFirms?: string[]): Promis
 
         const params: Record<string, any> = {
             order: 'timestamp.desc',
+            limit: 'all',
         };
 
         if (firms) {

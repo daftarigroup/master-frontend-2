@@ -127,6 +127,7 @@ export async function fetchIndentRecords(permittedFirms?: string[]) {
 
         const params: Record<string, any> = {
             order: 'indent_number.desc',
+            limit: 'all',
         };
 
         if (firms) {
@@ -196,6 +197,7 @@ export async function fetchStoreInRecords(permittedFirms?: string[]) {
 
         const params: Record<string, any> = {
             order: 'timestamp.desc',
+            limit: 'all',
         };
 
         if (firms) {
@@ -244,6 +246,7 @@ export const fetchVendorOptions = async (): Promise<string[]> => {
             params: {
                 not_null__vendor_name: true,
                 order: 'vendor_name.asc',
+                limit: 'all',
             },
         });
         const data = res?.data || [];

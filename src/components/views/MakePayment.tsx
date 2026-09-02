@@ -251,9 +251,9 @@ export default function MakePayment() {
                 }
 
                 const [paymentsRes, storeInRes, historyRes]: any[] = await Promise.all([
-                    apiClient.get('/store/entity/payments', { params: { ...queryParams, order: 'id.desc' } }),
-                    apiClient.get('/store/entity/store_in', { params: { ...queryParams, order: 'indent_no.desc' } }),
-                    apiClient.get('/store/entity/payment_history', { params: { ...queryParams, order: 'id.desc' } }),
+                    apiClient.get('/store/entity/payments', { params: { ...queryParams, order: 'id.desc', limit: 'all' } }),
+                    apiClient.get('/store/entity/store_in', { params: { ...queryParams, order: 'indent_no.desc', limit: 'all' } }),
+                    apiClient.get('/store/entity/payment_history', { params: { ...queryParams, order: 'id.desc', limit: 'all' } }),
                 ]);
 
                 const paymentsData = paymentsRes?.data || [];

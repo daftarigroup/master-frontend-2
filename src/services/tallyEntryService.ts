@@ -80,12 +80,14 @@ export async function fetchTallyEntryRecords(permittedFirms?: string[]): Promise
         const allowedIds = allowed.filter((v) => /^\d+$/.test(v)).map(Number);
 
         const tallyRes: any = await apiClient.get('/store/entity/tally_entry', {
-            params: { order: 'lift_number.desc' },
+            params: { order: 'lift_number.desc', limit: 'all' },
         });
         const tallyData = tallyRes.data || [];
 
         // Fetch additional details from store_in entity
-        const storeRes: any = await apiClient.get('/store/entity/store_in');
+        const storeRes: any = await apiClient.get('/store/entity/store_in', {
+            params: { limit: 'all' },
+        });
         const storeData = storeRes.data || [];
 
         // Map store_in data with trimmed keys for matching
@@ -163,7 +165,7 @@ export async function fetchTallyEntryRecords(permittedFirms?: string[]): Promise
         let fallbackAllowedNames = new Set<string>();
         if (allowedIds.length > 0) {
             const firmRes: any = await apiClient.get('/store/entity/firm', {
-                params: { in__id: allowedIds.join(',') },
+                params: { in__id: allowedIds.join(','), limit: 'all' },
             });
             const firmRows = firmRes.data || [];
 
