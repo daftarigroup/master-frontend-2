@@ -122,9 +122,9 @@ export default function Order() {
             }
 
             const [poRes, indentRes, storeInRes]: any[] = await Promise.all([
-                apiClient.get('/store/entity/po_master', { params: { ...queryParams, order: 'timestamp.desc' } }),
-                apiClient.get('/store/entity/indent', { params: { ...queryParams, neq__po_number: '' } }),
-                apiClient.get('/store/entity/store_in', { params: { ...queryParams, neq__po_number: '' } }),
+                apiClient.get('/store/entity/po_master', { params: { ...queryParams, order: 'timestamp.desc', limit: 'all' } }),
+                apiClient.get('/store/entity/indent', { params: { ...queryParams, neq__po_number: '', limit: 'all' } }),
+                apiClient.get('/store/entity/store_in', { params: { ...queryParams, neq__po_number: '', limit: 'all' } }),
             ]);
 
             const poMasterData = poRes?.data || [];

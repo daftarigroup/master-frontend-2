@@ -25,7 +25,7 @@ export const GlobalDashboard: React.FC = () => {
     >
       <div className="space-y-6 max-w-7xl mx-auto">
         {/* Welcome Hero Banner */}
-        <Card className="relative overflow-hidden border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-xs">
+        {/* <Card className="relative overflow-hidden border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-xs">
           <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 size-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
           <CardContent className="p-6 relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1.5">
@@ -49,7 +49,7 @@ export const GlobalDashboard: React.FC = () => {
               </span>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Systems Section Header */}
         <div className="flex items-center justify-between pt-1">
