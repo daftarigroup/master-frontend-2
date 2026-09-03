@@ -347,11 +347,15 @@ export const TopBar: React.FC = () => {
         [pendingReminders]
     );
 
+    const isGlobalDashboard = location.pathname === '/' || location.pathname === '/dashboard';
+
     return (
         <header className="h-14 border-b bg-card px-4 flex items-center justify-between gap-4 sticky top-0 z-30 shadow-xs">
             {/* Left: Sidebar Toggle Button + Brand Logo & System Switcher */}
             <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-                <SidebarTrigger className="size-8 rounded-md border border-input text-primary hover:bg-accent shrink-0" />
+                {!isGlobalDashboard && (
+                    <SidebarTrigger className="size-8 rounded-md border border-input text-primary hover:bg-accent shrink-0" />
+                )}
                 <div
                     className="flex items-center gap-2 cursor-pointer shrink-0"
                     onClick={() => navigate('/dashboard')}

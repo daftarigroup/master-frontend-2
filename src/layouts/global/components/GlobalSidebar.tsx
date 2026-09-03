@@ -35,57 +35,25 @@ import { LayoutDashboard, ChevronRight, KeyRound } from 'lucide-react';
 gsap.registerPlugin(useGSAP);
 
 /**
- * Animated expand/collapse wrapper (GSAP height/opacity tween) used for both
- * system-level sections and group-level accordions in the Hybrid sidebar.
+ * Animated expand/collapse wrapper using CSS Grid transition for robust,
+ * glitch-free accordion behavior across system sections and sub-menus.
  */
 const CollapsibleSection: React.FC<{
     isOpen: boolean;
     children: React.ReactNode;
     className?: string;
 }> = ({ isOpen, children, className }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const isFirstRender = useRef(true);
-
-    useGSAP(
-        () => {
-            const el = containerRef.current;
-            if (!el) return;
-
-            if (isFirstRender.current) {
-                isFirstRender.current = false;
-                gsap.set(el, {
-                    height: isOpen ? 'auto' : 0,
-                    opacity: isOpen ? 1 : 0,
-                    display: isOpen ? 'block' : 'none',
-                });
-                return;
-            }
-
-            if (isOpen) {
-                gsap.set(el, { display: 'block' });
-                gsap.fromTo(
-                    el,
-                    { height: 0, opacity: 0 },
-                    { height: 'auto', opacity: 1, duration: 0.2, ease: 'power2.out' }
-                );
-            } else {
-                gsap.to(el, {
-                    height: 0,
-                    opacity: 0,
-                    duration: 0.18,
-                    ease: 'power1.out',
-                    onComplete: () => {
-                        if (el) el.style.display = 'none';
-                    },
-                });
-            }
-        },
-        { dependencies: [isOpen], scope: containerRef }
-    );
-
     return (
-        <div ref={containerRef} className={`overflow-hidden ${className || ''}`}>
-            {children}
+        <div
+            className={cn(
+                'grid transition-all duration-200 ease-out',
+                isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none',
+                className
+            )}
+        >
+            <div className="overflow-hidden">
+                {children}
+            </div>
         </div>
     );
 };
@@ -98,6 +66,9 @@ export const GlobalSidebar: React.FC = () => {
     const navigate = useNavigate();
     const contentRef = useRef<HTMLDivElement>(null);
     const isRail = !isMobile && state === 'collapsed';
+
+    const targetSystemId = getSystemIdFromPath(location.pathname);
+    const effectiveActiveSystemId = targetSystemId !== 'global' ? targetSystemId : activeSystemId;
 
     useGSAP(
         () => {
@@ -112,16 +83,28 @@ export const GlobalSidebar: React.FC = () => {
                 { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out', stagger: 0.02 }
             );
         },
-        { dependencies: [activeSystemId, isMobile ? openMobile : null], scope: contentRef }
+        { dependencies: [effectiveActiveSystemId, isMobile ? openMobile : null], scope: contentRef }
     );
 
     const { indentSheet, storeInSheet, issueSheet, paymentsSheet } = useSheets();
 
-    // Hybrid architecture: the active/"primary" system section starts expanded;
+    // Hybrid architecture: the active system section starts expanded;
     // other systems remain visible as collapsed sections in global mode.
-    const [openSystems, setOpenSystems] = useState<Record<string, boolean>>({
+    const [openSystems, setOpenSystems] = useState<Record<string, boolean>>(() => ({
+        [targetSystemId]: true,
         [activeSystemId]: true,
-    });
+    }));
+
+    // Whenever location.pathname changes, auto-detect and expand the system containing the active route
+    useEffect(() => {
+        const currentTarget = getSystemIdFromPath(location.pathname);
+        if (currentTarget && currentTarget !== 'global') {
+            setOpenSystems((prev) => ({ ...prev, [currentTarget]: true }));
+            if (activeSystemId !== currentTarget) {
+                setActiveSystemId(currentTarget);
+            }
+        }
+    }, [location.pathname]);
 
     // When activeSystemId switches, make sure that system is marked open
     useEffect(() => {
@@ -136,25 +119,12 @@ export const GlobalSidebar: React.FC = () => {
         const permitted = getOrderedNavConfig().filter(
             (system) => system.id !== 'global' && isSystemPermitted(user, system)
         );
-        if (activeSystemId === 'global') {
+        if (effectiveActiveSystemId === 'global') {
             return permitted;
         }
-        const matched = permitted.filter((system) => system.id === activeSystemId);
+        const matched = permitted.filter((system) => system.id === effectiveActiveSystemId);
         return matched.length > 0 ? matched : permitted;
-    }, [user, activeSystemId]);
-
-    // Whenever location.pathname changes, auto-detect and expand the system containing the active route
-    useEffect(() => {
-        const targetSystemId = getSystemIdFromPath(location.pathname);
-        if (targetSystemId && activeSystemId !== targetSystemId) {
-            setActiveSystemId(targetSystemId);
-        }
-        if (targetSystemId && targetSystemId !== 'global') {
-            setOpenSystems((prev) =>
-                prev[targetSystemId] ? prev : { ...prev, [targetSystemId]: true }
-            );
-        }
-    }, [location.pathname, activeSystemId, setActiveSystemId]);
+    }, [user, effectiveActiveSystemId]);
 
     // Instantly position active nav item into view when sidebar is opened or active route changes
     useLayoutEffect(() => {
@@ -178,8 +148,14 @@ export const GlobalSidebar: React.FC = () => {
     }, [location.pathname, openMobile, isMobile]);
 
     const toggleSystem = (systemId: string) => {
-        setOpenSystems((prev) => ({ ...prev, [systemId]: !prev[systemId] }));
+        setOpenSystems((prev) => {
+            const currentIsOpen = typeof prev[systemId] === 'boolean'
+                ? prev[systemId]
+                : systemId === effectiveActiveSystemId || systemId === targetSystemId || effectiveActiveSystemId === 'global';
+            return { ...prev, [systemId]: !currentIsOpen };
+        });
     };
+
 
     const isPermitted = (gateKey?: string) => {
         if (!gateKey) return true;
@@ -380,8 +356,10 @@ export const GlobalSidebar: React.FC = () => {
 
                         {visibleSystems.map((system) => {
                             const accent = getAccentStyle(system.accentClassName);
-                            const isOpen = !!openSystems[system.id];
-                            const isPrimary = system.id === activeSystemId;
+                            const isOpen = typeof openSystems[system.id] === 'boolean'
+                                ? openSystems[system.id]
+                                : system.id === effectiveActiveSystemId || system.id === targetSystemId || effectiveActiveSystemId === 'global';
+                            const isPrimary = system.id === effectiveActiveSystemId;
                             const Icon = system.icon;
 
                             return (

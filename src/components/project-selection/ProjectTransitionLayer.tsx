@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Building, MapPin, Briefcase, Sparkles, Check } from 'lucide-react';
+import { Layers, Sparkles } from 'lucide-react';
 import { type ProjectItem } from '@/context/ProjectContext';
 import { type TransitionState } from '@/hooks/useProjectSelectionAnimation';
 
@@ -63,37 +63,6 @@ export const ProjectTransitionLayer: React.FC<ProjectTransitionLayerProps> = ({
                     <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-1.5 line-clamp-1">
                         {selectedProject.name}
                     </h3>
-
-                    {/* Metadata: Company & Location */}
-                    <div className="space-y-1 text-xs text-slate-600">
-                        {isGlobal ? (
-                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                                View combined inventory stock, cross-firm indents, store receipts, and platform analytics across all projects.
-                            </p>
-                        ) : (
-                            <>
-                                {selectedProject.companyName && (
-                                    <div className="flex items-center gap-1.5 truncate">
-                                        <Building className="size-3.5 text-slate-400 shrink-0" />
-                                        <span className="truncate">{selectedProject.companyName}</span>
-                                    </div>
-                                )}
-                                {selectedProject.location ? (
-                                    <div className="flex items-center gap-1.5 line-clamp-2">
-                                        <MapPin className="size-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                        <span className="line-clamp-2 text-slate-500 leading-snug">
-                                            {selectedProject.location}
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-1.5 text-slate-400">
-                                        <Briefcase className="size-3.5 shrink-0" />
-                                        <span>Dedicated Project Unit</span>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
                 </div>
 
                 {/* Footer Action / Status Indicator */}

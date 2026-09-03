@@ -15,7 +15,7 @@ interface AppIconProps {
 const SIZE_MAP = {
   sm: { box: 'size-8 rounded-lg', icon: 14 },
   md: { box: 'size-10 rounded-xl', icon: 18 },
-  lg: { box: 'size-14 rounded-2xl', icon: 26 },
+  lg: { box: 'size-16 rounded-2xl', icon: 28 },
 } as const;
 
 /**
@@ -38,10 +38,10 @@ export const AppIcon: React.FC<AppIconProps> = ({
   return (
     <div
       className={cn(
-        'flex items-center justify-center text-white shadow-sm transition-all duration-200',
+        'flex items-center justify-center text-white shadow-md transition-all duration-200 border-2 border-white/90 dark:border-white/40',
         dims.box,
-        disabled ? 'bg-muted text-muted-foreground shadow-none' : accent.iconBg,
-        active && !disabled && `ring-2 ring-offset-2 ring-offset-sidebar ${accent.ring}`,
+        disabled ? 'bg-muted text-muted-foreground shadow-none border-transparent' : accent.iconBg,
+        active && !disabled && `ring-4 ring-offset-2 ring-offset-sidebar ${accent.ring}`,
         className
       )}
     >
@@ -51,3 +51,4 @@ export const AppIcon: React.FC<AppIconProps> = ({
 };
 
 export default AppIcon;
+

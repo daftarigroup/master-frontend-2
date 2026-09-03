@@ -1,56 +1,128 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import PageLayout from './PageLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Lock, Sparkles, Layers } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { isSystemPermitted } from '@/components/element/PermissionGuard';
 import { getOrderedNavConfig } from '@/layouts/global/config/navConfig';
 import { AppIcon } from '@/layouts/global/components/AppIcon';
 import { usePlatform } from '@/layouts/global/context/PlatformContext';
+import { getAccentStyle } from '@/layouts/global/config/accentStyles';
 import { cn } from '@/lib/utils';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(useGSAP);
 
 export const GlobalDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { setActiveSystemId } = usePlatform();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iconRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Get all systems except global itself
   const systems = getOrderedNavConfig().filter((s) => s.id !== 'global');
+
+  // GSAP animations for lively wobbly motion and entrance
+  useGSAP(
+    () => {
+      const cards = containerRef.current?.querySelectorAll('.system-card-item');
+      if (!cards || cards.length === 0) return;
+
+      // Staggered entrance animation for cards
+      gsap.fromTo(
+        cards,
+        { scale: 0.9, opacity: 0, y: 16 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.45, stagger: 0.05, ease: 'back.out(1.5)' }
+      );
+
+      // Subtle lively ambient float & wobble on each system icon
+      iconRefs.current.forEach((iconEl, idx) => {
+        if (!iconEl) return;
+        gsap.to(iconEl, {
+          rotation: idx % 2 === 0 ? 3.5 : -3.5,
+          y: -4,
+          duration: 2 + (idx % 3) * 0.4,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+          delay: idx * 0.12,
+        });
+      });
+    },
+    { scope: containerRef, dependencies: [systems.length] }
+  );
+
+  const handleCardMouseEnter = (idx: number, disabled: boolean) => {
+    if (disabled) return;
+    const iconEl = iconRefs.current[idx];
+    if (!iconEl) return;
+
+    gsap.killTweensOf(iconEl);
+    gsap
+      .timeline()
+      .to(iconEl, {
+        scale: 1.18,
+        rotation: idx % 2 === 0 ? -12 : 12,
+        duration: 0.12,
+        ease: 'power1.out',
+      })
+      .to(iconEl, {
+        rotation: idx % 2 === 0 ? 10 : -10,
+        duration: 0.12,
+        ease: 'power1.inOut',
+      })
+      .to(iconEl, {
+        rotation: idx % 2 === 0 ? -6 : 6,
+        duration: 0.1,
+        ease: 'power1.inOut',
+      })
+      .to(iconEl, {
+        rotation: idx % 2 === 0 ? 3 : -3,
+        duration: 0.1,
+        ease: 'power1.inOut',
+      })
+      .to(iconEl, {
+        rotation: 0,
+        scale: 1.15,
+        duration: 0.18,
+        ease: 'power2.out',
+      });
+  };
+
+  const handleCardMouseLeave = (idx: number, disabled: boolean) => {
+    if (disabled) return;
+    const iconEl = iconRefs.current[idx];
+    if (!iconEl) return;
+
+    gsap.killTweensOf(iconEl);
+    gsap.to(iconEl, {
+      scale: 1,
+      rotation: 0,
+      y: 0,
+      duration: 0.35,
+      ease: 'power2.out',
+      onComplete: () => {
+        // Resume ambient subtle wobble
+        gsap.to(iconEl, {
+          rotation: idx % 2 === 0 ? 3.5 : -3.5,
+          y: -4,
+          duration: 2 + (idx % 3) * 0.4,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+        });
+      },
+    });
+  };
 
   return (
     <PageLayout
       title="Platform Enterprise Dashboard"
       breadcrumbs={[{ label: 'Platform' }, { label: 'Global Dashboard' }]}
     >
-      <div className="space-y-6 max-w-7xl mx-auto">
-        {/* Welcome Hero Banner */}
-        {/* <Card className="relative overflow-hidden border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-xs">
-          <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 size-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-          <CardContent className="p-6 relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary">
-                  <Sparkles className="size-3" /> Enterprise Master Platform
-                </span>
-              </div>
-              <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-                Welcome to Enterprise Hub
-              </h2>
-              <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
-                Select any functional system below to open its dedicated workspace and access operational views.
-              </p>
-            </div>
-
-            <div className="hidden lg:flex items-center gap-3 text-xs text-muted-foreground bg-background/60 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-border/50">
-              <Layers className="size-4 text-primary" />
-              <span>
-                <strong className="text-foreground font-semibold">{systems.length}</strong> Enterprise Systems Available
-              </span>
-            </div>
-          </CardContent>
-        </Card> */}
-
+      <div ref={containerRef} className="space-y-6 max-w-7xl mx-auto">
         {/* Systems Section Header */}
         <div className="flex items-center justify-between pt-1">
           <div>
@@ -63,26 +135,27 @@ export const GlobalDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Medium-Sized Grid Icons Navigation */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-4 sm:gap-5">
-          {systems.map((system) => {
+        {/* Responsive Grid Icons Navigation */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-4 sm:gap-6">
+          {systems.map((system, idx) => {
             const hasPermission = system.disabled ? false : isSystemPermitted(user, system);
             const isViewOnly = user?.modify_access === 'VIEW';
             const isCardDisabled = system.disabled || !hasPermission;
             const viewsCount = system.groups.reduce((acc, g) => acc + g.items.length, 0);
+            const accent = getAccentStyle(system.accentClassName);
 
             let badgeText = `${viewsCount} ${viewsCount === 1 ? 'View' : 'Views'}`;
-            let badgeStyle = 'bg-primary/10 text-primary border-primary/20';
+            let badgeStyle = 'bg-primary/10 text-primary border-transparent';
 
             if (system.disabled) {
               badgeText = 'Coming Soon';
-              badgeStyle = 'bg-muted text-muted-foreground border-border/40';
+              badgeStyle = 'bg-muted text-muted-foreground border-transparent';
             } else if (!hasPermission) {
               badgeText = 'No Access';
-              badgeStyle = 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20';
+              badgeStyle = 'bg-red-500/10 text-red-600 dark:text-red-400 border-transparent';
             } else if (isViewOnly) {
               badgeText = 'View Only';
-              badgeStyle = 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20';
+              badgeStyle = 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-transparent';
             }
 
             return (
@@ -102,23 +175,30 @@ export const GlobalDashboard: React.FC = () => {
                     navigate(system.dashboardPath);
                   }
                 }}
+                onMouseEnter={() => handleCardMouseEnter(idx, isCardDisabled)}
+                onMouseLeave={() => handleCardMouseLeave(idx, isCardDisabled)}
                 className={cn(
-                  'group relative flex flex-col items-center justify-between p-5 sm:p-6 rounded-2xl border transition-all duration-200 text-center min-h-[160px]',
+                  'system-card-item group relative flex flex-col items-center justify-between p-5 sm:p-6 rounded-2xl border border-transparent transition-all duration-200 text-center min-h-[175px]',
                   isCardDisabled
-                    ? 'cursor-not-allowed opacity-60 bg-muted/30 border-border/40'
-                    : 'cursor-pointer bg-card/90 hover:bg-card border-border/80 hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 active:scale-[0.98]'
+                    ? 'cursor-not-allowed opacity-50 bg-muted/10'
+                    : 'cursor-pointer bg-card/40 hover:bg-card/90 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98]'
                 )}
               >
-                <div className="flex flex-col items-center gap-3 w-full">
-                  <div className="relative">
+                <div className="flex flex-col items-center gap-3.5 w-full">
+                  <div
+                    ref={(el) => {
+                      iconRefs.current[idx] = el;
+                    }}
+                    className="relative will-change-transform"
+                  >
                     <AppIcon
                       icon={system.icon}
                       accentClassName={system.accentClassName}
                       size="lg"
                       disabled={system.disabled}
                       className={cn(
-                        'shadow-md transition-transform duration-200',
-                        !isCardDisabled && 'group-hover:scale-110'
+                        'shadow-xl border-2 border-white/95 dark:border-white/50 ring-4 ring-offset-2 ring-offset-background/80 transition-shadow duration-200',
+                        !isCardDisabled ? accent.ring : 'ring-transparent'
                       )}
                     />
                     {!hasPermission && !system.disabled && (
@@ -138,7 +218,7 @@ export const GlobalDashboard: React.FC = () => {
                 <div className="pt-2">
                   <span
                     className={cn(
-                      'text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors inline-flex items-center gap-1',
+                      'text-[10px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors inline-flex items-center gap-1',
                       badgeStyle
                     )}
                   >
@@ -156,3 +236,4 @@ export const GlobalDashboard: React.FC = () => {
 };
 
 export default GlobalDashboard;
+
