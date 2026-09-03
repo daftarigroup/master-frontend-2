@@ -1,5 +1,5 @@
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import DataTable from '../element/DataTable';
 import { Button } from '../ui/button';
 import {
@@ -208,6 +208,14 @@ export default function GetPurchase() {
         fileName: string;
         error?: string;
     }>({ status: 'idle', progress: 0, url: '', fileName: '' });
+    // Triggered via .click() from a real button below, instead of relying on
+    // a <label htmlFor> + visually-clipped (sr-only) <input>. Focusing a
+    // clipped-but-still-focusable input makes the browser scroll it into
+    // view per its native focus behavior, which is what caused the dialog to
+    // visibly jump the moment this field was clicked — a plain `hidden`
+    // input triggered programmatically doesn't receive that same focus
+    // handling.
+    const attachmentInputRef = useRef<HTMLInputElement>(null);
 
     const fetchAllData = async () => {
         if (!user?.username) return;
@@ -554,6 +562,11 @@ export default function GetPurchase() {
                 const fileUrl = getPublicFileUrl(photoUrl);
                 const liftNo = row.original.liftNumber;
                 const isUploading = uploadingLiftNo === liftNo;
+                // Plain closure variable (not a ref) — this cell renderer is
+                // a per-row callback, not a component, so hooks like useRef
+                // can't be used here. A fresh one is captured on every
+                // render, which is all a synchronous .click() trigger needs.
+                let fileInputEl: HTMLInputElement | null = null;
 
                 const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     const file = e.target.files?.[0];
@@ -588,19 +601,23 @@ export default function GetPurchase() {
                         )}
                         {canEditLifting && (
                             <div className="flex items-center gap-1.5">
-                                <label
+                                <button
+                                    type="button"
                                     title={photoUrl ? 'Replace bill' : 'Upload bill'}
+                                    onClick={() => fileInputEl?.click()}
+                                    disabled={isUploading}
                                     className={`cursor-pointer inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
                                 >
                                     {isUploading ? <Loader size={12} color="currentColor" /> : (photoUrl ? <Pencil size={12} /> : <Upload size={12} />)}
-                                    <input
-                                        type="file"
-                                        className="sr-only"
-                                        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                                        onChange={handleFileChange}
-                                        disabled={isUploading}
-                                    />
-                                </label>
+                                </button>
+                                <input
+                                    ref={(el) => { fileInputEl = el; }}
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                                    onChange={handleFileChange}
+                                    disabled={isUploading}
+                                />
                                 {isUploading && (
                                     <div className="flex items-center gap-1 w-16">
                                         <Progress value={uploadProgress} className="h-1.5" />
@@ -1026,8 +1043,10 @@ export default function GetPurchase() {
     const renderAttachmentControl = () => (
         <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-                <label
-                    htmlFor="bill-attachment-input"
+                <button
+                    type="button"
+                    onClick={() => attachmentInputRef.current?.click()}
+                    disabled={billAttachment.status === 'uploading'}
                     className={`flex-1 h-11 flex items-center gap-2 px-3 border rounded-md cursor-pointer ${billAttachment.status === 'uploading' ? 'opacity-60 pointer-events-none' : ''}`}
                 >
                     {billAttachment.status === 'uploading' ? (
@@ -1044,15 +1063,15 @@ export default function GetPurchase() {
                                 ? `Uploading… ${billAttachment.progress}%`
                                 : 'Choose File'}
                     </span>
-                    <input
-                        id="bill-attachment-input"
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="sr-only"
-                        disabled={billAttachment.status === 'uploading'}
-                        onChange={handleAttachmentSelect}
-                    />
-                </label>
+                </button>
+                <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    disabled={billAttachment.status === 'uploading'}
+                    onChange={handleAttachmentSelect}
+                />
                 {billAttachment.status === 'uploaded' && (
                     <button
                         type="button"
