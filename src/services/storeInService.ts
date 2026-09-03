@@ -612,33 +612,53 @@ export async function createPaymentEntry(storeInData: {
     }
 }
 
-export async function uploadProductPhoto(file: File, indentNumber: string): Promise<string> {
+export async function uploadProductPhoto(file: File, indentNumber: string, onProgress?: (percent: number) => void): Promise<string> {
+    void indentNumber;
     try {
-        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'product-photos' });
-    } catch {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${indentNumber}_product_${Date.now()}.${fileExt}`;
-        return `/uploads/product-photos/${fileName}`;
+        return await uploadFile({ file, folderId: 'store-and-inventory/store-check', subFolder: 'product-photos', onProgress });
+    } catch (error) {
+        // Previously this silently fabricated a fake /uploads/... path here
+        // instead of rethrowing, which meant a failed upload still looked
+        // like a success and saved a dead link to the DB. Surface it instead.
+        console.error('Product photo upload error:', error);
+        throw error;
     }
 }
 
-export async function uploadBillCopy(file: File, liftNumber: string): Promise<string> {
+// Bill-copy uploads happen from three different sections (Store Check,
+// Bill Not Received, Reject For GRN) — each needs its own S3 folder so the
+// bucket layout mirrors the app's actual module/section structure.
+async function uploadBillCopyTo(folderId: string, file: File, onProgress?: (percent: number) => void): Promise<string> {
     try {
-        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'bills' });
-    } catch {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${liftNumber.replace(/\//g, '-')}_bill_${Date.now()}.${fileExt}`;
-        return `/uploads/Payment Images/${fileName}`;
+        return await uploadFile({ file, folderId, subFolder: 'bills', onProgress });
+    } catch (error) {
+        console.error('Bill copy upload error:', error);
+        throw error;
     }
 }
 
-export async function uploadPaymentImage(file: File, uniqueNo: string): Promise<string> {
+export async function uploadBillCopy(file: File, liftNumber: string, onProgress?: (percent: number) => void): Promise<string> {
+    void liftNumber;
+    return uploadBillCopyTo('store-and-inventory/store-check', file, onProgress);
+}
+
+export async function uploadBillCopyBillNotReceived(file: File, liftNumber: string, onProgress?: (percent: number) => void): Promise<string> {
+    void liftNumber;
+    return uploadBillCopyTo('store-and-inventory/bill-not-received', file, onProgress);
+}
+
+export async function uploadBillCopyGrnRejection(file: File, liftNumber: string, onProgress?: (percent: number) => void): Promise<string> {
+    void liftNumber;
+    return uploadBillCopyTo('store-and-inventory/reject-for-grn', file, onProgress);
+}
+
+export async function uploadPaymentImage(file: File, uniqueNo: string, onProgress?: (percent: number) => void): Promise<string> {
+    void uniqueNo;
     try {
-        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'payment-images' });
-    } catch {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${uniqueNo.replace(/\//g, '-')}_payment_${Date.now()}.${fileExt}`;
-        return `/uploads/Payment Images/${fileName}`;
+        return await uploadFile({ file, folderId: 'store-and-inventory/make-payment', subFolder: 'payment-images', onProgress });
+    } catch (error) {
+        console.error('Payment image upload error:', error);
+        throw error;
     }
 }
 
@@ -661,23 +681,23 @@ export async function updateStoreInReturnToParty(
     }
 }
 
-export async function uploadDebitNoteCopy(file: File, liftNumber: string): Promise<string> {
+export async function uploadDebitNoteCopy(file: File, liftNumber: string, onProgress?: (percent: number) => void): Promise<string> {
+    void liftNumber;
     try {
-        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'debit-notes' });
-    } catch {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${liftNumber.replace(/\//g, '-')}_debit_note_${Date.now()}.${fileExt}`;
-        return `/uploads/debit-notes/${fileName}`;
+        return await uploadFile({ file, folderId: 'store-and-inventory/send-debit-note', subFolder: 'debit-notes', onProgress });
+    } catch (error) {
+        console.error('Debit note copy upload error:', error);
+        throw error;
     }
 }
 
-export async function uploadChallanImage(file: File, liftNumber: string): Promise<string> {
+export async function uploadChallanImage(file: File, liftNumber: string, onProgress?: (percent: number) => void): Promise<string> {
+    void liftNumber;
     try {
-        return await uploadFile({ file, folderId: 'purchase-attachments', subFolder: 'challan-images' });
-    } catch {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${liftNumber.replace(/\//g, '-')}_challan_${Date.now()}.${fileExt}`;
-        return `/uploads/challan-images/${fileName}`;
+        return await uploadFile({ file, folderId: 'store-and-inventory/store-check', subFolder: 'challan-images', onProgress });
+    } catch (error) {
+        console.error('Challan image upload error:', error);
+        throw error;
     }
 }
 

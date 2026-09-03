@@ -25,6 +25,7 @@ import {
 import { updateDelegationTask, deleteDelegationTask, deleteDelegationTasksBatch, type DelegationTaskRow } from '@/services/delegationTaskService';
 import { useChecklistData } from '@/context/ChecklistContext';
 import { uploadFile } from '@/lib/fetchers';
+import { useFileUpload } from '@/hooks/useFileUpload';
 
 interface ChecklistTaskGroup {
     anchorId: number;
@@ -50,6 +51,7 @@ function deriveUniqueGroups(tasks: ChecklistTaskRow[]): ChecklistTaskGroup[] {
 export default function QuickTask() {
     const { user } = useAuth();
     const { checklistTasks, delegationTasks, refresh, loading } = useChecklistData();
+    const { runWithProgress } = useFileUpload();
     const [doers, setDoers] = useState<UserRecord[]>([]);
     const [firmOptions, setFirmOptions] = useState<{ id: number; name: string }[]>([]);
     const [loadingOptions, setLoadingOptions] = useState(true);
@@ -230,8 +232,8 @@ export default function QuickTask() {
         setIsUpdating(true);
         try {
             let uploadedImageUrl: string | undefined; let uploadedAudioUrl: string | undefined;
-            if (editImageFile) uploadedImageUrl = await uploadFile({ file: editImageFile, folderId: 'checklist', subFolder: 'task-edits' });
-            if (editAudioBlob) { const af = new File([editAudioBlob], `task_edit_audio_${Date.now()}.webm`, { type: 'audio/webm' }); uploadedAudioUrl = await uploadFile({ file: af, folderId: 'checklist', subFolder: 'task-edit-audio' }); }
+            if (editImageFile) uploadedImageUrl = await runWithProgress((onProgress) => uploadFile({ file: editImageFile, folderId: 'checklist', subFolder: 'task-edits', onProgress }), 'Uploading image');
+            if (editAudioBlob) { const af = new File([editAudioBlob], `task_edit_audio_${Date.now()}.webm`, { type: 'audio/webm' }); uploadedAudioUrl = await runWithProgress((onProgress) => uploadFile({ file: af, folderId: 'checklist', subFolder: 'task-edit-audio', onProgress }), 'Uploading audio'); }
             const payload: any = { task_description: editTaskDesc.trim(), doer_id: editDoerId ? Number(editDoerId) : undefined, firm_id: editFirmId ? Number(editFirmId) : undefined, duration: editDuration || null, require_attachment: editRequireAttachment, remark: editRemark.trim() || null, ...(uploadedImageUrl ? { instruction_attachment_url: uploadedImageUrl } : {}), ...(uploadedAudioUrl ? { audio_url: uploadedAudioUrl } : {}) };
             if (editingGroup) { payload.frequency = editFrequency as ChecklistFrequency; const result = await updateChecklistTaskGroup(editingGroup.anchorId, payload); toast.success(`Updated ${result.updatedCount} occurrence${result.updatedCount !== 1 ? 's' : ''} of this recurring task`); }
             else if (editingDelegation) { await updateDelegationTask(editingDelegation.task_id, payload); toast.success(`Delegation task DL-${editingDelegation.task_id} updated`); }
@@ -259,8 +261,8 @@ export default function QuickTask() {
         setIsCreating(true);
         try {
             let uploadedImageUrl: string | null = null; let uploadedAudioUrl: string | null = null;
-            if (createImageFile) uploadedImageUrl = await uploadFile({ file: createImageFile, folderId: 'checklist', subFolder: 'quicktask-attachments' });
-            if (createAudioBlob) { const af = new File([createAudioBlob], `quicktask_audio_${Date.now()}.webm`, { type: 'audio/webm' }); uploadedAudioUrl = await uploadFile({ file: af, folderId: 'checklist', subFolder: 'quicktask-audio' }); }
+            if (createImageFile) uploadedImageUrl = await runWithProgress((onProgress) => uploadFile({ file: createImageFile, folderId: 'checklist', subFolder: 'quicktask-attachments', onProgress }), 'Uploading image');
+            if (createAudioBlob) { const af = new File([createAudioBlob], `quicktask_audio_${Date.now()}.webm`, { type: 'audio/webm' }); uploadedAudioUrl = await runWithProgress((onProgress) => uploadFile({ file: af, folderId: 'checklist', subFolder: 'quicktask-audio', onProgress }), 'Uploading audio'); }
             await assignTask({ firm_id: firm.id, firm_name: firm.name, doer_id: doer.id, doer_name: doer.name, task_description: `[${createPriority}] ${createTaskDesc.trim()}`, frequency: createFrequency, task_start_date: new Date(createStartDate).toISOString(), duration: createDuration || null, require_attachment: createRequireAttachment, enable_reminder: false, instruction_attachment_url: uploadedImageUrl || undefined, instruction_attachment_type: uploadedImageUrl ? 'image' : undefined, audio_url: uploadedAudioUrl || undefined });
             toast.success('New task created successfully'); setIsCreateModalOpen(false); setCreateTaskDesc(''); setCreateAudioBlob(null); setCreateAudioUrl(null); setCreateImageFile(null); refresh();
         } catch { toast.error('Failed to create task'); }

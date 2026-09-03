@@ -5,6 +5,7 @@ import SearchableInput from '../../components/SearchableInput';
 import { documentsApi } from '../../services/document.api';
 import { mastersApi } from '@/systems/petty-cash/services/pettyCash.api';
 import { MacModal } from '@/components/ui/mac-modal';
+import { uploadFile } from '@/lib/fetchers';
 
 const DOC_TYPE_MASTER = 'docDocumentType';
 const DOC_CATEGORY_MASTER = 'docCategory';
@@ -19,6 +20,7 @@ interface EditDocumentProps {
 export const EditDocument: React.FC<EditDocumentProps> = ({ isOpen, onClose, documentId, onSaved }) => {
   const [formData, setFormData] = useState<any>({});
   const [fileName, setFileName] = useState('');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [docTypeOptions, setDocTypeOptions] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<string[]>(['Personal', 'Company', 'Director']);
   const [submitting, setSubmitting] = useState(false);
@@ -61,16 +63,24 @@ export const EditDocument: React.FC<EditDocumentProps> = ({ isOpen, onClose, doc
     setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        handleChange('file', file.name);
-        handleChange('fileContent', reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    setFileName(file.name);
+    setIsUploadingFile(true);
+    try {
+      // Store the S3 URL rather than inlining the file's bytes as base64.
+      const url = await uploadFile({ file, folderId: 'document', subFolder: 'documents' });
+      handleChange('file', file.name);
+      handleChange('fileContent', url);
+    } catch (error) {
+      console.error('Document upload error:', error);
+      setFileName('');
+      toast.error('Failed to upload document. Please try again.');
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
@@ -143,10 +153,10 @@ export const EditDocument: React.FC<EditDocumentProps> = ({ isOpen, onClose, doc
           <button
             type="submit"
             form="edit-doc-form"
-            disabled={submitting}
+            disabled={submitting || isUploadingFile}
             className="flex-[2] flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition shadow-sm disabled:opacity-50"
           >
-            <Save size={14} /> {submitting ? 'Saving Changes...' : 'Save Changes'}
+            <Save size={14} /> {submitting ? 'Saving Changes...' : isUploadingFile ? 'Uploading File...' : 'Save Changes'}
           </button>
         </div>
       }
@@ -229,13 +239,21 @@ export const EditDocument: React.FC<EditDocumentProps> = ({ isOpen, onClose, doc
 
             <div>
               <label className="block text-xs font-semibold text-foreground/80 mb-1">Upload File</label>
-              <input type="file" id="edit-file-upload" className="hidden" onChange={handleFileChange} />
+              <input
+                type="file"
+                id="edit-file-upload"
+                className="hidden"
+                disabled={isUploadingFile}
+                onChange={handleFileChange}
+              />
               <label
                 htmlFor="edit-file-upload"
-                className="flex items-center justify-center gap-1.5 w-full p-2.5 border border-dashed border-input rounded-xl text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition bg-background"
+                className={`flex items-center justify-center gap-1.5 w-full p-2.5 border border-dashed border-input rounded-xl text-muted-foreground cursor-pointer hover:bg-accent hover:text-foreground transition bg-background ${isUploadingFile ? 'opacity-60 pointer-events-none' : ''}`}
               >
                 <Upload size={13} />
-                <span className="text-xs truncate max-w-[180px]">{fileName || 'Change Attachment'}</span>
+                <span className="text-xs truncate max-w-[180px]">
+                  {isUploadingFile ? 'Uploading…' : fileName || 'Change Attachment'}
+                </span>
               </label>
             </div>
           </div>

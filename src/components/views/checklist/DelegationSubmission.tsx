@@ -44,6 +44,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import MediaPreviewDialog from '@/components/element/MediaPreviewDialog';
 import { uploadFile } from '@/lib/fetchers';
+import { useFileUpload } from '@/hooks/useFileUpload';
 import { toDateOnly, getTimeBucket } from '@/lib/checklistBuckets';
 import { useChecklistData } from '@/context/ChecklistContext';
 import { submitDelegationTask, type DelegationTaskRow } from '@/services/delegationTaskService';
@@ -225,6 +226,8 @@ export default function DelegationSubmission() {
     const [extendDate, setExtendDate] = useState('');
     const [extendReason, setExtendReason] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const { runWithProgress: runImageUpload } = useFileUpload();
+    const { runWithProgress: runAudioUpload } = useFileUpload();
 
     // Batch submitting state
     const [batchSubmitting, setBatchSubmitting] = useState(false);
@@ -494,8 +497,8 @@ export default function DelegationSubmission() {
         setSubmitting(true);
         try {
             const [imageUrl, audioUrl] = await Promise.all([
-                imageFile ? uploadFile({ file: imageFile, folderId: 'delegation', subFolder: 'proof-images' }) : Promise.resolve(null),
-                audioFile ? uploadFile({ file: audioFile, folderId: 'delegation', subFolder: 'proof-audio' }) : Promise.resolve(null),
+                imageFile ? runImageUpload((onProgress) => uploadFile({ file: imageFile, folderId: 'delegation', subFolder: 'proof-images', onProgress }), 'Uploading photo') : Promise.resolve(null),
+                audioFile ? runAudioUpload((onProgress) => uploadFile({ file: audioFile, folderId: 'delegation', subFolder: 'proof-audio', onProgress }), 'Uploading audio') : Promise.resolve(null),
             ]);
 
             await submitDelegationTask(activeModalTask.task_id, {

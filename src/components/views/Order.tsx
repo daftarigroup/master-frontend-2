@@ -11,7 +11,7 @@ import { useProject } from '@/context/ProjectContext';
 import { apiClient } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 import { toast } from 'sonner';
-import { formatDate, getPublicFileUrl } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { resetPoStage } from '@/services/poService';
 import { openPoPdfPreview } from '@/lib/poPdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
@@ -44,10 +44,6 @@ interface IndentRecord {
 
 interface ReceivedRecord {
     poNumber?: string;
-}
-
-function getAttachmentUrl(attachment?: string): string {
-    return getPublicFileUrl(attachment);
 }
 
 /**

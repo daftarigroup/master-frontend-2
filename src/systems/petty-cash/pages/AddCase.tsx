@@ -18,12 +18,13 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { fetchMasterOptions } from '@/services/masterService';
 import { creditsApi, expensesApi } from '../services/pettyCash.api';
-import { previewFileInNewTab } from '@/utils/filePreview';
+import { openStoredFile, resolveStoredImageSrc } from '@/utils/filePreview';
+import { uploadFile } from '@/lib/fetchers';
+import { deleteUploadedFile } from '@/lib/s3Upload';
 import { MacModal } from '@/components/ui/mac-modal';
 import {
   formatDate,
   formatCurrency,
-  fileToBase64,
   getTodayDate,
   toDateOnly,
 } from '../utils/helpers';
@@ -61,6 +62,8 @@ export const AddCase: React.FC = () => {
 
   const [image, setImage] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState('');
@@ -139,7 +142,15 @@ export const AddCase: React.FC = () => {
     loadData();
   }, []);
 
-  const clearAttachedImage = () => {
+  // Clears the attached receipt. By default also deletes it from S3, since
+  // this is normally called when the entry form is being abandoned or reset
+  // and an uploaded-but-never-saved file is about to become an orphan. Pass
+  // { committed: true } right after a successful submit that has just
+  // persisted this exact URL to a record — that file is now live.
+  const clearAttachedImage = (opts?: { committed?: boolean }) => {
+    if (!opts?.committed && image) {
+      deleteUploadedFile(image);
+    }
     setImage(null);
     setImagePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -217,19 +228,51 @@ export const AddCase: React.FC = () => {
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file after a removal
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image size must be less than 2MB');
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image size must be less than 10MB');
       return;
     }
 
+    // The "click to upload" button stays clickable even once an image is
+    // already attached, so this can be a replace, not just an initial
+    // select — capture the outgoing url now so it can be cleaned up once
+    // the new one is safely uploaded.
+    const previousUrl = image;
+
+    // Show an instant local preview while the real upload runs, then store the
+    // S3 URL (not the image bytes) on the record.
+    let localPreview = '';
     try {
-      const base64 = await fileToBase64(file);
-      setImage(base64);
-      setImagePreview(base64);
+      localPreview = URL.createObjectURL(file);
+      setImagePreview(localPreview);
+      setIsUploadingImage(true);
+      setUploadProgress(0);
+
+      const url = await uploadFile({
+        file,
+        folderId: 'petty-cash',
+        subFolder: 'receipts',
+        onProgress: setUploadProgress,
+      });
+
+      setImage(url);
+      // Swap the temporary blob preview for the real (S3-backed) one so the
+      // blob can be released without blanking the thumbnail.
+      setImagePreview(resolveStoredImageSrc(url));
+      // A replacement file was chosen — the old one is no longer referenced.
+      if (previousUrl && previousUrl !== url) deleteUploadedFile(previousUrl);
+      toast.success('Receipt uploaded');
     } catch (error) {
-      toast.error('Error reading image');
+      console.error('Receipt upload error:', error);
+      setImage(null);
+      setImagePreview(null);
+      toast.error('Failed to upload receipt. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+      if (localPreview) URL.revokeObjectURL(localPreview);
     }
   };
 
@@ -262,7 +305,7 @@ export const AddCase: React.FC = () => {
       toast.success(`Credit of ${formatCurrency(parseFloat(creditForm.amount))} added successfully!`);
 
       setCreditForm(EMPTY_CREDIT_FORM(user?.username || (user as any)?.name));
-      clearAttachedImage();
+      clearAttachedImage({ committed: true });
       setShowFormModal(false);
     } catch (error: any) {
       console.error(error);
@@ -306,7 +349,7 @@ export const AddCase: React.FC = () => {
       toast.success(`Expense of ${formatCurrency(parseFloat(expenseForm.amount))} submitted for approval!`);
 
       setExpenseForm(EMPTY_EXPENSE_FORM(user?.username || (user as any)?.name));
-      clearAttachedImage();
+      clearAttachedImage({ committed: true });
       setShowFormModal(false);
     } catch (error: any) {
       console.error(error);
@@ -491,7 +534,12 @@ export const AddCase: React.FC = () => {
       {/* Modal - Add Credit / Expense */}
       <MacModal
         isOpen={showFormModal}
-        onClose={() => setShowFormModal(false)}
+        onClose={() => {
+          setShowFormModal(false);
+          // Modal closed (backdrop/Esc/X) without submitting — any
+          // uploaded-but-unsaved receipt is about to become an orphan.
+          clearAttachedImage();
+        }}
         title="New Cash Entry"
         subtitle={entryType === 'CREDIT' ? 'Credit — auto-approved cash in' : 'Expense — recorded cash disbursement'}
         maxWidth="md"
@@ -629,8 +677,10 @@ export const AddCase: React.FC = () => {
                 fileInputRef={fileInputRef}
                 imagePreview={imagePreview}
                 onSelect={handleImageSelect}
-                onClear={clearAttachedImage}
+                onClear={() => clearAttachedImage()}
                 label="Upload Receipt (Optional)"
+                isUploading={isUploadingImage}
+                uploadProgress={uploadProgress}
               />
 
               <div className="flex gap-2 pt-1">
@@ -757,8 +807,10 @@ export const AddCase: React.FC = () => {
                 fileInputRef={fileInputRef}
                 imagePreview={imagePreview}
                 onSelect={handleImageSelect}
-                onClear={clearAttachedImage}
+                onClear={() => clearAttachedImage()}
                 label="Upload Receipt (Optional)"
+                isUploading={isUploadingImage}
+                uploadProgress={uploadProgress}
               />
 
               <div className="flex gap-2 pt-1">
@@ -927,7 +979,7 @@ export const AddCase: React.FC = () => {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => previewFileInNewTab(selectedImage, 'receipt')}
+                onClick={() => openStoredFile(selectedImage, 'receipt')}
                 className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition flex items-center gap-1.5 shadow-xs"
               >
                 <ExternalLink size={13} /> Open in New Tab
@@ -937,7 +989,7 @@ export const AddCase: React.FC = () => {
         }
       >
         <img
-          src={selectedImage}
+          src={resolveStoredImageSrc(selectedImage)}
           alt="Receipt"
           className="w-full max-h-[70vh] object-contain rounded-xl border border-border/60 shadow-sm"
         />

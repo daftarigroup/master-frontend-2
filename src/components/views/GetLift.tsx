@@ -18,8 +18,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
+import { Progress } from '../ui/progress';
 import { PuffLoader as Loader } from 'react-spinners';
 import { storeApi } from '@/lib/apiClient';
+import { deleteUploadedFile } from '@/lib/s3Upload';
 import { isAllowedFirm } from '@/lib/firmAccess';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -193,7 +195,19 @@ export default function GetPurchase() {
     const [indentRecords, setIndentRecords] = useState<GetLiftIndentRecord[]>([]);
     const [storeInRecords, setStoreInRecords] = useState<GetLiftStoreInRecord[]>([]);
     const [uploadingLiftNo, setUploadingLiftNo] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<number>(0);
     const [deleteTarget, setDeleteTarget] = useState<HistoryData | null>(null);
+    // Shared upload state for the "Update Purchase Details" dialog's attachment
+    // field — it's the same RHF field (photoOfBill) rendered in two mutually
+    // exclusive conditional branches (Challan Image vs Attachment), so the
+    // state must live here rather than inside either FormField render callback.
+    const [billAttachment, setBillAttachment] = useState<{
+        status: 'idle' | 'uploading' | 'uploaded' | 'error';
+        progress: number;
+        url: string;
+        fileName: string;
+        error?: string;
+    }>({ status: 'idle', progress: 0, url: '', fileName: '' });
 
     const fetchAllData = async () => {
         if (!user?.username) return;
@@ -544,16 +558,21 @@ export default function GetPurchase() {
                 const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     const file = e.target.files?.[0];
                     if (!file || !liftNo) return;
+                    const oldUrl = photoUrl;
                     setUploadingLiftNo(liftNo);
+                    setUploadProgress(0);
                     try {
-                        const newUrl = await uploadBillPhoto(file, liftNo);
+                        const newUrl = await uploadBillPhoto(file, liftNo, setUploadProgress);
                         await storeApi.updateWhere('store_in', { lift_number: liftNo }, { photo_of_bill: newUrl });
                         setHistoryData(prev => prev.map(r => r.liftNumber === liftNo ? { ...r, photoOfBill: newUrl } : r));
+                        // The old photo is no longer referenced by this record — clean it up.
+                        if (oldUrl && oldUrl !== newUrl) deleteUploadedFile(oldUrl);
                         toast.success('Photo of bill updated');
                     } catch {
                         toast.error('Failed to upload photo');
                     } finally {
                         setUploadingLiftNo(null);
+                        setUploadProgress(0);
                         e.target.value = '';
                     }
                 };
@@ -568,19 +587,27 @@ export default function GetPurchase() {
                             <span className="text-muted-foreground text-xs">-</span>
                         )}
                         {canEditLifting && (
-                            <label
-                                title={photoUrl ? 'Replace bill' : 'Upload bill'}
-                                className={`cursor-pointer inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-                            >
-                                {isUploading ? <Loader size={12} color="currentColor" /> : (photoUrl ? <Pencil size={12} /> : <Upload size={12} />)}
-                                <input
-                                    type="file"
-                                    className="sr-only"
-                                    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                                    onChange={handleFileChange}
-                                    disabled={isUploading}
-                                />
-                            </label>
+                            <div className="flex items-center gap-1.5">
+                                <label
+                                    title={photoUrl ? 'Replace bill' : 'Upload bill'}
+                                    className={`cursor-pointer inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                                >
+                                    {isUploading ? <Loader size={12} color="currentColor" /> : (photoUrl ? <Pencil size={12} /> : <Upload size={12} />)}
+                                    <input
+                                        type="file"
+                                        className="sr-only"
+                                        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                                        onChange={handleFileChange}
+                                        disabled={isUploading}
+                                    />
+                                </label>
+                                {isUploading && (
+                                    <div className="flex items-center gap-1 w-16">
+                                        <Progress value={uploadProgress} className="h-1.5" />
+                                        <span className="text-[10px] text-muted-foreground tabular-nums w-7 shrink-0">{uploadProgress}%</span>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 );
@@ -758,7 +785,10 @@ export default function GetPurchase() {
                 });
             }
 
-            const hasFile = data.photoOfBill && (data.photoOfBill instanceof File);
+            // Accept an already-uploaded URL string (set once handleAttachmentSelect
+            // finishes uploading it), not just a raw File — the field no longer
+            // holds a File by the time the form is actually submitted.
+            const hasFile = data.photoOfBill && (data.photoOfBill instanceof File || typeof data.photoOfBill === 'string');
 
             if (data.billStatus === 'Bill Received') {
                 if (data.typeOfBill === 'independent' && !hasFile) {
@@ -895,7 +925,15 @@ export default function GetPurchase() {
             });
 
             setVendorSearch('');
+            // Opening for a (possibly different) indent — any uploaded-but-
+            // unsaved attachment from a previous open of this dialog is now
+            // abandoned, clean it up.
+            if (billAttachment.status === 'uploaded' && billAttachment.url) {
+                deleteUploadedFile(billAttachment.url);
+            }
+            setBillAttachment({ status: 'idle', progress: 0, url: '', fileName: '' });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedIndent, form, tableData]);
 
     const typeOfBillWatcher = useWatch({ control: form.control, name: 'typeOfBill' }) || 'independent';
@@ -923,8 +961,117 @@ export default function GetPurchase() {
         if (!open) {
             setSelectedIndent(null);
             form.reset();
+            // Dialog closed without submitting — any uploaded-but-unsaved
+            // attachment is about to become an orphan, clean it up.
+            if (billAttachment.status === 'uploaded' && billAttachment.url) {
+                deleteUploadedFile(billAttachment.url);
+            }
+            setBillAttachment({ status: 'idle', progress: 0, url: '', fileName: '' });
         }
     };
+
+    // Uploads the "Update Purchase Details" dialog's attachment (Challan Image
+    // or Bill Attachment — same underlying photoOfBill field) immediately on
+    // selection, mirroring the inline "Photo Of Bill" table column's pattern.
+    const handleAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = ''; // allow re-selecting the same filename later
+        if (!file) return;
+
+        const allowedTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'application/pdf',
+        ];
+        if (!allowedTypes.includes(file.type)) {
+            setBillAttachment({ status: 'error', progress: 0, url: '', fileName: '', error: 'File must be an image (JPEG, PNG, GIF, WebP) or PDF' });
+            return;
+        }
+
+        const previousUrl = billAttachment.status === 'uploaded' ? billAttachment.url : null;
+        setBillAttachment({ status: 'uploading', progress: 0, url: '', fileName: file.name });
+        try {
+            const url = await uploadBillPhoto(file, selectedIndent?.indentNo || '', (pct) => {
+                setBillAttachment((prev) => ({ ...prev, progress: pct }));
+            });
+            setBillAttachment({ status: 'uploaded', progress: 100, url, fileName: file.name });
+            form.setValue('photoOfBill', url, { shouldValidate: true });
+            // A replacement file was chosen — the old one is no longer referenced.
+            if (previousUrl) deleteUploadedFile(previousUrl);
+            toast.success(file.type === 'application/pdf' ? 'PDF document uploaded successfully' : 'Image uploaded successfully');
+        } catch (error) {
+            console.error('❌ Attachment upload error:', error);
+            setBillAttachment({ status: 'error', progress: 0, url: '', fileName: '', error: 'Upload failed. Please try again.' });
+            form.setValue('photoOfBill', undefined, { shouldValidate: true });
+            toast.error('Failed to upload file. Please try again.');
+        }
+    };
+
+    const handleRemoveAttachment = () => {
+        // Explicit "throw this away" action — always deletes an
+        // already-uploaded object, no ambiguity about whether it's still wanted.
+        if (billAttachment.status === 'uploaded' && billAttachment.url) {
+            deleteUploadedFile(billAttachment.url);
+        }
+        setBillAttachment({ status: 'idle', progress: 0, url: '', fileName: '' });
+        form.setValue('photoOfBill', undefined, { shouldValidate: true });
+    };
+
+    // Shared control for both "Challan Image" and "Attachment (Photo/PDF)" —
+    // same underlying photoOfBill field, rendered in two mutually exclusive
+    // conditional branches below, so the markup lives here once.
+    const renderAttachmentControl = () => (
+        <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+                <label
+                    htmlFor="bill-attachment-input"
+                    className={`flex-1 h-11 flex items-center gap-2 px-3 border rounded-md cursor-pointer ${billAttachment.status === 'uploading' ? 'opacity-60 pointer-events-none' : ''}`}
+                >
+                    {billAttachment.status === 'uploading' ? (
+                        <Loader size={14} />
+                    ) : billAttachment.status === 'uploaded' ? (
+                        <Pencil size={14} className="text-primary shrink-0" />
+                    ) : (
+                        <Upload size={14} className="text-muted-foreground shrink-0" />
+                    )}
+                    <span className="text-sm truncate flex-1">
+                        {billAttachment.status === 'uploaded'
+                            ? billAttachment.fileName
+                            : billAttachment.status === 'uploading'
+                                ? `Uploading… ${billAttachment.progress}%`
+                                : 'Choose File'}
+                    </span>
+                    <input
+                        id="bill-attachment-input"
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="sr-only"
+                        disabled={billAttachment.status === 'uploading'}
+                        onChange={handleAttachmentSelect}
+                    />
+                </label>
+                {billAttachment.status === 'uploaded' && (
+                    <button
+                        type="button"
+                        onClick={handleRemoveAttachment}
+                        className="h-11 w-11 shrink-0 flex items-center justify-center rounded-md border text-muted-foreground hover:text-destructive hover:border-destructive/50"
+                        title="Remove attachment"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
+            </div>
+            {billAttachment.status === 'uploading' && (
+                <Progress value={billAttachment.progress} className="h-1.5" />
+            )}
+            {billAttachment.status === 'error' && (
+                <p className="text-xs text-destructive">{billAttachment.error}</p>
+            )}
+        </div>
+    );
 
     async function onSubmit() {
         const values = form.getValues();
@@ -937,21 +1084,10 @@ export default function GetPurchase() {
 
 
             if (values.billStatus && values.items) {
-                let photoUrl = '';
-                if (values.photoOfBill) {
-                    try {
-                        photoUrl = await uploadBillPhoto(values.photoOfBill, selectedIndent?.indentNo || '');
-                        if (values.photoOfBill.type === 'application/pdf') {
-                            toast.success('PDF document uploaded successfully');
-                        } else {
-                            toast.success('Image uploaded successfully');
-                        }
-                    } catch (uploadError) {
-                        console.error('❌ File upload error:', uploadError);
-                        toast.error('Failed to upload file. Please try again.');
-                        return;
-                    }
-                }
+                // The attachment (if any) was already uploaded directly to S3 at
+                // selection time by handleAttachmentSelect — values.photoOfBill
+                // holds the resulting URL string here, not a raw File.
+                const photoUrl = (values.photoOfBill as unknown as string) || '';
 
                 const currentDateTime = new Date().toISOString();
 
@@ -1053,6 +1189,7 @@ export default function GetPurchase() {
 
             setOpenDialog(false);
             form.reset();
+            setBillAttachment({ status: 'idle', progress: 0, url: '', fileName: '' });
 
             setTimeout(async () => {
                 const firms = user?.firm_access;
@@ -1373,17 +1510,11 @@ export default function GetPurchase() {
                                                 <FormField
                                                     control={form.control}
                                                     name="photoOfBill"
-                                                    render={({ field: { value, onChange, ...field } }) => (
+                                                    render={() => (
                                                         <FormItem>
                                                             <FormLabel>Challan Image *</FormLabel>
                                                             <FormControl>
-                                                                <Input
-                                                                    type="file"
-                                                                    accept="image/*,.pdf"
-                                                                    onChange={(e) => onChange(e.target.files?.[0])}
-                                                                    {...field}
-                                                                    className="h-11 file:bg-primary/10 file:text-primary file:border-0 file:rounded-md cursor-pointer"
-                                                                />
+                                                                {renderAttachmentControl()}
                                                             </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
@@ -1560,17 +1691,11 @@ export default function GetPurchase() {
                                                         <FormField
                                                             control={form.control}
                                                             name="photoOfBill"
-                                                            render={({ field: { value, onChange, ...field } }) => (
+                                                            render={() => (
                                                                 <FormItem>
                                                                     <FormLabel>Attachment (Photo/PDF) *</FormLabel>
                                                                     <FormControl>
-                                                                        <Input
-                                                                            type="file"
-                                                                            accept="image/*,.pdf"
-                                                                            onChange={(e) => onChange(e.target.files?.[0])}
-                                                                            {...field}
-                                                                            className="h-11 file:bg-primary/10 file:text-primary file:border-0 file:rounded-md cursor-pointer"
-                                                                        />
+                                                                        {renderAttachmentControl()}
                                                                     </FormControl>
                                                                     <FormMessage />
                                                                 </FormItem>
@@ -1589,10 +1714,10 @@ export default function GetPurchase() {
 
                                     <Button
                                         type="submit"
-                                        disabled={form.formState.isSubmitting}
+                                        disabled={form.formState.isSubmitting || billAttachment.status === 'uploading'}
                                         className="w-full sm:w-auto min-w-[120px]"
                                     >
-                                        {form.formState.isSubmitting && (
+                                        {(form.formState.isSubmitting || billAttachment.status === 'uploading') && (
                                             <Loader size={18} className="mr-2" />
                                         )}
                                         Update

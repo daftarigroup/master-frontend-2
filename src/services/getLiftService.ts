@@ -451,13 +451,15 @@ export async function updatePendingLiftQty(indentNumber: string, productName: st
  * Upload bill photo/document to Storage
  * @param file - File to upload
  * @param indentNumber - Indent number for file naming
+ * @param onProgress - Optional 0-100 upload progress callback
  */
-export async function uploadBillPhoto(file: File, _indentNumber: string): Promise<string> {
+export async function uploadBillPhoto(file: File, _indentNumber: string, onProgress?: (percent: number) => void): Promise<string> {
     try {
         return await uploadFile({
             file,
-            folderId: 'bill_image_status',
-            subFolder: 'Payment Images',
+            folderId: 'store-and-inventory/lifting',
+            subFolder: 'payment-images',
+            onProgress,
         });
     } catch (error) {
         console.error('Bill photo upload error:', error);

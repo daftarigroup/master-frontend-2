@@ -19,11 +19,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel } from '../ui/form';
 import { PuffLoader as Loader } from 'react-spinners';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Input } from '../ui/input';
 import {
     fetchStoreInRecords,
     updateStoreInBillStatus,
-    uploadBillCopy,
+    uploadBillCopyBillNotReceived,
     resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
@@ -38,6 +37,8 @@ import { getPublicFileUrl, formatDateTime, parseCustomDate } from '@/lib/utils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
 import { useProject } from '@/context/ProjectContext';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 
 interface StoreInPendingData {
     id?: number;
@@ -169,7 +170,9 @@ export default () => {
     useEffect(() => {
         if (!openDialog) {
             form.reset({ status: undefined });
+            billImageAttachment.reset();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDialog]);
 
     const formatDate = (dateString: string) => {
@@ -183,23 +186,12 @@ export default () => {
 
     const schema = z.object({
         status: z.enum(['ok']),
-        billImageStatus: z.instanceof(File).optional()
-            .refine((file) => {
-                if (!file) return true; // Optional field
-                const allowedTypes = [
-                    'image/jpeg',
-                    'image/jpg',
-                    'image/png',
-                    'image/gif',
-                    'image/webp',
-                    'application/pdf'
-                ];
-                return allowedTypes.includes(file.type);
-            }, 'File must be an image (JPEG, PNG, GIF, WebP) or PDF')
-            .refine((file) => {
-                if (!file) return true;
-                return file.size <= 5 * 1024 * 1024; // 5MB max
-            }, 'File size should be less than 5MB'),
+        // Holds an already-uploaded S3 URL string by submit time (upload
+        // happens on file-select — see AttachmentUploadField). MIME-type/size
+        // validation now happens in handleBillImageSelect BEFORE the upload
+        // starts, rather than here after the fact — by the time this schema
+        // runs, an invalid file would already have been rejected pre-upload.
+        billImageStatus: z.any().optional(),
     });
 
     const form = useForm({
@@ -209,6 +201,30 @@ export default () => {
             billImageStatus: undefined,
         },
     });
+
+    const billImageAttachment = useAttachmentUpload(uploadBillCopyBillNotReceived);
+
+    const ALLOWED_BILL_IMAGE_TYPES = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/pdf',
+    ];
+
+    const handleBillImageSelect = async (file: File) => {
+        if (!ALLOWED_BILL_IMAGE_TYPES.includes(file.type)) {
+            toast.error('File must be an image (JPEG, PNG, GIF, WebP) or PDF');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('File size should be less than 5MB');
+            return;
+        }
+        const url = await billImageAttachment.select(file);
+        form.setValue('billImageStatus', url ?? undefined, { shouldValidate: true });
+    };
 
 
     const canEditBillNotReceived = hasPageAccess(user as any, 'finance_logistics', 'EDIT', 'billNotReceived');
@@ -371,23 +387,8 @@ export default () => {
 
     async function onSubmit(values: z.infer<typeof schema>) {
         try {
-
-            let billImageUrl = '';
-
-            // Upload file if provided
-            if (values.billImageStatus) {
-                try {
-                    billImageUrl = await uploadBillCopy(
-                        values.billImageStatus,
-                        selectedIndent?.liftNumber || 'unknown'
-                    );
-                    toast.success('Document uploaded successfully');
-                } catch (uploadError) {
-                    console.error('❌ File upload error:', uploadError);
-                    toast.error('Failed to upload file. Please try again.');
-                    return;
-                }
-            }
+            // Already uploaded directly to S3 at selection time.
+            const billImageUrl = (values.billImageStatus as unknown as string) || '';
 
             const currentDateTime = new Date().toISOString();
 
@@ -409,6 +410,7 @@ export default () => {
             );
 
             toast.success(`Bill status updated for ${selectedIndent?.indentNo}`);
+            billImageAttachment.reset({ committed: true });
             setOpenDialog(false);
 
             // Refresh data
@@ -567,26 +569,24 @@ export default () => {
                                         <FormField
                                             control={form.control}
                                             name="billImageStatus"
-                                            render={({ field: { onChange, value, ...field } }) => (
+                                            render={() => (
                                                 <FormItem>
                                                     <FormLabel>Bill Image/Document</FormLabel>
                                                     <FormControl>
-                                                        <Input
-                                                            type="file"
-                                                            accept="image/*,.pdf,application/pdf" // ✅ Accept both images and PDFs
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) onChange(file);
+                                                        <AttachmentUploadField
+                                                            id="bill-not-received-image"
+                                                            accept="image/*,.pdf,application/pdf"
+                                                            status={billImageAttachment.status}
+                                                            progress={billImageAttachment.progress}
+                                                            fileName={billImageAttachment.fileName}
+                                                            error={billImageAttachment.error}
+                                                            onSelect={handleBillImageSelect}
+                                                            onRemove={() => {
+                                                                billImageAttachment.remove();
+                                                                form.setValue('billImageStatus', undefined, { shouldValidate: true });
                                                             }}
-                                                            {...field}
                                                         />
                                                     </FormControl>
-                                                    {/* ✅ Add error message display */}
-                                                    {form.formState.errors.billImageStatus && (
-                                                        <p className="text-sm text-red-500">
-                                                            {form.formState.errors.billImageStatus.message}
-                                                        </p>
-                                                    )}
                                                     <p className="text-xs text-muted-foreground">
                                                         Upload image (JPEG, PNG, GIF, WebP) or PDF document (Max: 5MB)
                                                     </p>
@@ -602,7 +602,7 @@ export default () => {
                                         <Button variant="outline">Close</Button>
                                     </DialogClose>
 
-                                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                                    <Button type="submit" disabled={form.formState.isSubmitting || billImageAttachment.status === 'uploading'}>
                                         {form.formState.isSubmitting && (
                                             <Loader
                                                 size={20}

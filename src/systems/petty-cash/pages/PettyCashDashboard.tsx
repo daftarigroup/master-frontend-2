@@ -11,7 +11,7 @@ import {
   toDateOnly,
 } from '../utils/helpers';
 import { creditsApi, expensesApi } from '../services/pettyCash.api';
-import { previewFileInNewTab } from '@/utils/filePreview';
+import { openStoredFile, resolveStoredImageSrc } from '@/utils/filePreview';
 import { MacModal } from '@/components/ui/mac-modal';
 import { useProject } from '@/context/ProjectContext';
 
@@ -558,7 +558,7 @@ export const PettyCashDashboard: React.FC = () => {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => previewFileInNewTab(selectedImage, 'receipt')}
+                onClick={() => openStoredFile(selectedImage, 'receipt')}
                 className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition flex items-center gap-1.5 shadow-xs"
               >
                 <ExternalLink size={13} /> Open in New Tab
@@ -568,7 +568,7 @@ export const PettyCashDashboard: React.FC = () => {
         }
       >
         <img
-          src={selectedImage}
+          src={resolveStoredImageSrc(selectedImage)}
           alt="Transaction Receipt"
           className="w-full max-h-[70vh] object-contain rounded-xl border border-border/60 shadow-sm"
         />

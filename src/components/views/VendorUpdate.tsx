@@ -30,6 +30,8 @@ import Heading from '../element/Heading';
 import { Pill } from '../ui/pill';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { uploadFile } from '@/lib/fetchers';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 import {
     fetchPendingVendorUpdates,
     fetchCompletedVendorUpdates,
@@ -53,7 +55,6 @@ export default () => {
     const { masterSheet: options } = useSheets();
     const { user } = useAuth();
     const { effectivePermittedFirms } = useProject();
-
     const [selectedIndent, setSelectedIndent] = useState<VendorUpdateData | null>(null);
     const [historyData, setHistoryData] = useState<HistoryData[]>([]);
     const [tableData, setTableData] = useState<VendorUpdateData[]>([]);
@@ -275,18 +276,11 @@ export default () => {
         setHistorySearchQuery('');
     };
 
-    // Upload file to Storage
-    const uploadFileToSupabase = async (file: File, _indentNumber: string): Promise<string> => {
-        try {
-            return await uploadFile({
-                file,
-                folderId: 'comparison_sheet',
-                subFolder: 'comparison-sheets',
-            });
-        } catch (error) {
-            console.error('File upload error:', error);
-            throw error;
-        }
+    // Matches the (file, id, onProgress?) => Promise<string> shape
+    // useAttachmentUpload expects — the second param is unused, kept only
+    // for call-site consistency with the rest of the app's upload functions.
+    const uploadComparisonSheet = async (file: File, _id: string, onProgress?: (percent: number) => void): Promise<string> => {
+        return uploadFile({ file, folderId: 'store-and-inventory/vendor-rate-update', subFolder: 'comparison-sheets', onProgress });
     };
 
     // Creating table columns
@@ -307,6 +301,7 @@ export default () => {
                                 setDialogStep(1);
                                 setAmountToDetermineType(0);
                                 setComputedVendorType(indent.vendorType);
+                                comparisonSheetAttachment.reset();
                                 setOpenDialog(true);
                             }}
                         >
@@ -685,6 +680,8 @@ export default () => {
         },
     });
 
+    const comparisonSheetAttachment = useAttachmentUpload(uploadComparisonSheet);
+
     const { fields } = useFieldArray({
         control: threePartyForm.control,
         name: 'vendors',
@@ -795,15 +792,9 @@ export default () => {
                 return;
             }
 
-            let url: string = '';
+            // Already uploaded directly to S3 at selection time.
+            const url = (values.comparisonSheet as unknown as string) || '';
             const now = new Date().toISOString();
-
-            if (values.comparisonSheet) {
-                url = await uploadFileToSupabase(
-                    values.comparisonSheet,
-                    selectedIndent.indentNo || ''
-                );
-            }
 
             const processVendorData = (vendor: any) => {
                 const rateTypeText = 'Basic Rate';
@@ -884,6 +875,7 @@ export default () => {
             toast.success(`Updated vendors of ${selectedIndent.indentNo}`);
             setOpenDialog(false);
             threePartyForm.reset();
+            comparisonSheetAttachment.reset({ committed: true });
             setSelectedIndent(null);
             await loadPendingVendorUpdates();
             await loadCompletedVendorUpdates();
@@ -906,6 +898,7 @@ export default () => {
                     setOpenDialog(open);
                     if (!open) {
                         setSelectedIndent(null);
+                        comparisonSheetAttachment.reset();
                     }
                 }}
             >
@@ -1490,6 +1483,36 @@ export default () => {
                                             </FormItem>
                                         )}
                                     />
+                                    <FormField
+                                        control={threePartyForm.control}
+                                        name="comparisonSheet"
+                                        render={() => (
+                                            <FormItem>
+                                                <FormLabel>Comparison Sheet (Optional)</FormLabel>
+                                                <FormControl>
+                                                    <AttachmentUploadField
+                                                        id="vendor-comparison-sheet"
+                                                        status={comparisonSheetAttachment.status}
+                                                        progress={comparisonSheetAttachment.progress}
+                                                        fileName={comparisonSheetAttachment.fileName}
+                                                        error={comparisonSheetAttachment.error}
+                                                        onSelect={async (file) => {
+                                                            const url = await comparisonSheetAttachment.select(file);
+                                                            threePartyForm.setValue('comparisonSheet', url ?? undefined, {
+                                                                shouldValidate: true,
+                                                            });
+                                                        }}
+                                                        onRemove={() => {
+                                                            comparisonSheetAttachment.remove();
+                                                            threePartyForm.setValue('comparisonSheet', undefined, {
+                                                                shouldValidate: true,
+                                                            });
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1802,7 +1825,10 @@ export default () => {
                                     </Button>
                                     <Button
                                         type="submit"
-                                        disabled={threePartyForm.formState.isSubmitting}
+                                        disabled={
+                                            threePartyForm.formState.isSubmitting ||
+                                            comparisonSheetAttachment.status === 'uploading'
+                                        }
                                     >
                                         {threePartyForm.formState.isSubmitting && (
                                             <Loader

@@ -31,6 +31,8 @@ import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 
 // Helper function to format date as "YYYY-MM-DD"
 function formatDate(date: Date): string {
@@ -191,7 +193,9 @@ export default function FullKiting() {
         biltyNumber: z.string().min(1, 'Bilty Number is required'),
         rateType: z.enum(['Fixed', 'Per MT'], { required_error: 'Rate Type is required' }),
         amount: z.string().min(1, 'Amount is required'),
-        biltyImage: z.instanceof(File).optional(),
+        // Holds an already-uploaded S3 URL string by submit time (upload
+        // happens on file-select — see AttachmentUploadField), not the raw File.
+        biltyImage: z.any().optional(),
     });
 
     const form = useForm({
@@ -208,6 +212,8 @@ export default function FullKiting() {
         },
     });
 
+    const biltyAttachment = useAttachmentUpload(uploadBiltyImage);
+
     useEffect(() => {
         if (openDialog && selectedIndent) {
             form.reset({
@@ -220,6 +226,7 @@ export default function FullKiting() {
                 amount: selectedIndent.amount?.toString() || '',
                 biltyImage: undefined,
             });
+            biltyAttachment.reset();
         } else if (!openDialog) {
             form.reset({
                 vehicleNumber: '',
@@ -231,7 +238,9 @@ export default function FullKiting() {
                 amount: '',
                 biltyImage: undefined,
             });
+            biltyAttachment.reset();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDialog, selectedIndent, form]);
     // Actually form.reset is stable.
 
@@ -246,10 +255,8 @@ export default function FullKiting() {
             setIsSubmitting(true);
             const currentDateTime = new Date().toISOString();
 
-            let biltyImageUrl = '';
-            if (values.biltyImage) {
-                biltyImageUrl = await uploadBiltyImage(values.biltyImage, selectedIndent.indentNumber);
-            }
+            // Already uploaded directly to S3 at selection time.
+            const biltyImageUrl = (values.biltyImage as unknown as string) || '';
 
             await updateFullkittingRecord(selectedIndent.indentNumber, {
                 id: selectedIndent.id,
@@ -281,6 +288,7 @@ export default function FullKiting() {
             }, biltyImageUrl);
 
             toast.success(`Updated fullkitting and created payment entry for ${selectedIndent.indentNumber}`);
+            biltyAttachment.reset({ committed: true });
             setOpenDialog(false);
             fetchData();
         } catch (error) {
@@ -475,17 +483,24 @@ export default function FullKiting() {
                                 <FormField
                                     control={form.control}
                                     name="biltyImage"
-                                    render={({ field: { value, onChange, ...fieldProps } }) => (
+                                    render={() => (
                                         <FormItem>
                                             <FormLabel>Bilty Image</FormLabel>
                                             <FormControl>
-                                                <Input
-                                                    {...fieldProps}
-                                                    type="file"
+                                                <AttachmentUploadField
+                                                    id="fullkitting-bilty-image"
                                                     accept="image/*"
-                                                    onChange={(event) => {
-                                                        const file = event.target.files?.[0];
-                                                        onChange(file);
+                                                    status={biltyAttachment.status}
+                                                    progress={biltyAttachment.progress}
+                                                    fileName={biltyAttachment.fileName}
+                                                    error={biltyAttachment.error}
+                                                    onSelect={async (file) => {
+                                                        const url = await biltyAttachment.select(file);
+                                                        form.setValue('biltyImage', url ?? undefined, { shouldValidate: true });
+                                                    }}
+                                                    onRemove={() => {
+                                                        biltyAttachment.remove();
+                                                        form.setValue('biltyImage', undefined, { shouldValidate: true });
                                                     }}
                                                 />
                                             </FormControl>
@@ -500,7 +515,7 @@ export default function FullKiting() {
                                             Cancel
                                         </Button>
                                     </DialogClose>
-                                    <Button type="submit" disabled={isSubmitting}>
+                                    <Button type="submit" disabled={isSubmitting || biltyAttachment.status === 'uploading'}>
                                         {isSubmitting ? (
                                             <>
                                                 <Loader size={20} className="mr-2" />

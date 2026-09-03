@@ -9,7 +9,8 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { uploadFile } from '@/lib/fetchers';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 import { toast } from 'sonner';
 import { Checkbox } from '../ui/checkbox';
 import { formatDate, formatDateTime as formatTimestamp, getPublicFileUrl } from '@/lib/utils';
@@ -183,14 +184,24 @@ export default function MakePayment() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [originalData, setOriginalData] = useState<PaymentsRecord[]>([]);
     const [activeTab, setActiveTab] = useState('pending');
-    
+
     // Payment Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [selectedPaymentItem, setSelectedPaymentItem] = useState<DisplayPayment | null>(null);
     const [paymentModalStatus, setPaymentModalStatus] = useState('Paid');
     const [paymentModalRemark, setPaymentModalRemark] = useState('');
     const [paymentModalAmount, setPaymentModalAmount] = useState<number | string>('');
-    const [paymentModalFile, setPaymentModalFile] = useState<File | null>(null);
+    const paymentAttachment = useAttachmentUpload(uploadPaymentImage);
+
+    // No close-reset existed for this modal before — Cancel/Esc/backdrop-click
+    // used to leave a stale selected file in state until the next "Make
+    // Payment" click overwrote it. Fixed here, matching the pattern elsewhere.
+    useEffect(() => {
+        if (!isPaymentModalOpen) {
+            paymentAttachment.reset();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPaymentModalOpen]);
 
     const [stats, setStats] = useState({
         total: 0,
@@ -626,10 +637,9 @@ export default function MakePayment() {
         const currentDateOnly = isoNow.split('T')[0];
 
         try {
-            let attachmentUrl = selectedPaymentItem.file || selectedPaymentItem.pdf || '';
-            if (paymentModalFile) {
-                attachmentUrl = await uploadPaymentImage(paymentModalFile, selectedPaymentItem.uniqueNo);
-            }
+            // Already uploaded directly to S3 at selection time (falls back to
+            // any pre-existing file if the user didn't pick a new one).
+            const attachmentUrl = paymentAttachment.url || selectedPaymentItem.file || selectedPaymentItem.pdf || '';
 
             const ids = selectedPaymentItem.rowIds || [selectedPaymentItem.rowIndex];
             
@@ -693,7 +703,7 @@ export default function MakePayment() {
 
             toast.success(`Successfully recorded payment`);
             setIsPaymentModalOpen(false);
-            setPaymentModalFile(null);
+            paymentAttachment.reset({ committed: true });
             setTimeout(() => updateAll(), 800);
             // Refresh context so sidebar badge decrements immediately
             updatePaymentsSheet(true);
@@ -748,7 +758,7 @@ export default function MakePayment() {
                                     setPaymentModalRemark(item.remark || '');
                                     setPaymentModalStatus('Complete');
                                     setPaymentModalAmount(item.payAmount || '');
-                                    setPaymentModalFile(null);
+                                    paymentAttachment.reset();
                                     setIsPaymentModalOpen(true);
                                 }}
                                 className="bg-green-600 hover:bg-green-700 shadow-sm"
@@ -1156,11 +1166,14 @@ export default function MakePayment() {
                             </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="file" className="text-xs sm:text-sm">Attachment (Proof)</Label>
-                                <Input
-                                    id="file"
-                                    type="file"
-                                    onChange={(e) => setPaymentModalFile(e.target.files?.[0] || null)}
-                                    className="cursor-pointer h-10 sm:h-11 file:bg-primary/10 file:text-primary file:border-0 file:rounded-md text-xs sm:text-sm"
+                                <AttachmentUploadField
+                                    id="make-payment-proof"
+                                    status={paymentAttachment.status}
+                                    progress={paymentAttachment.progress}
+                                    fileName={paymentAttachment.fileName}
+                                    error={paymentAttachment.error}
+                                    onSelect={(file) => { paymentAttachment.select(file); }}
+                                    onRemove={paymentAttachment.remove}
                                 />
                             </div>
                         </div>
@@ -1180,9 +1193,9 @@ export default function MakePayment() {
 
                     <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t shrink-0">
                         <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsPaymentModalOpen(false)}>Cancel</Button>
-                        <Button 
-                            onClick={handleSinglePaymentSubmit} 
-                            disabled={isSubmitting || !paymentModalAmount}
+                        <Button
+                            onClick={handleSinglePaymentSubmit}
+                            disabled={isSubmitting || !paymentModalAmount || paymentAttachment.status === 'uploading'}
                             className="w-full sm:w-auto bg-primary hover:bg-primary/90 shadow-md min-w-[120px]"
                         >
                             {isSubmitting ? 'Processing...' : 'Confirm Payment'}

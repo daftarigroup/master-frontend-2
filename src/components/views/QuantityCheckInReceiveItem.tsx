@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
     fetchStoreInRecords,
     updateStoreInQuantityCheck,
-    uploadBillCopy,
+    uploadBillCopyGrnRejection,
     resetStoreInStage,
     type StoreInRecord,
 } from '@/services/storeInService';
@@ -38,6 +38,8 @@ import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 import StageDeleteDialog from '../element/StageDeleteDialog';
 import { useProject } from '@/context/ProjectContext';
 
@@ -118,7 +120,9 @@ const formatPlannedDate = (dateString: string) => {
 
 const schema = z.object({
     status: z.enum(['Accept', 'Reject']),
-    billCopyAttached: z.instanceof(File).optional(),
+    // Holds an already-uploaded S3 URL string by submit time (upload happens
+    // on file-select — see AttachmentUploadField), not the raw File.
+    billCopyAttached: z.any().optional(),
     debitNote: z.enum(['Yes', 'No']),
     reason: z.string().min(1, 'Reason is required'),
 });
@@ -147,6 +151,8 @@ export default () => {
             reason: '',
         },
     });
+
+    const billCopyAttachment = useAttachmentUpload(uploadBillCopyGrnRejection);
 
     const fetchAllData = async () => {
         setDataLoading(true);
@@ -248,26 +254,15 @@ export default () => {
                 debitNote: undefined,
                 reason: '',
             });
+            billCopyAttachment.reset();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDialog, form]);
 
     async function onSubmit(values: FormValues) {
         try {
-
-            let billCopyAttachedUrl = '';
-
-            if (values.billCopyAttached) {
-                try {
-                    billCopyAttachedUrl = await uploadBillCopy(
-                        values.billCopyAttached,
-                        selectedItem?.liftNumber || 'unknown'
-                    );
-                } catch (uploadError) {
-                    console.error('❌ Upload error:', uploadError);
-                    toast.error('Failed to upload bill copy');
-                    return;
-                }
-            }
+            // Already uploaded directly to S3 at selection time.
+            const billCopyAttachedUrl = (values.billCopyAttached as unknown as string) || '';
 
             const currentDateTime = new Date().toISOString();
 
@@ -291,6 +286,7 @@ export default () => {
             );
 
             toast.success(`Updated status for ${selectedItem.liftNumber}`);
+            billCopyAttachment.reset({ committed: true });
             setOpenDialog(false);
 
             // Refresh data
@@ -718,14 +714,25 @@ export default () => {
                                         <FormField
                                             control={form.control}
                                             name="billCopyAttached"
-                                            render={({ field }) => (
+                                            render={() => (
                                                 <FormItem>
                                                     <FormLabel>Bill Copy Attached</FormLabel>
                                                     <FormControl>
-                                                        <Input
-                                                            type="file"
+                                                        <AttachmentUploadField
+                                                            id="grn-bill-copy-attached"
                                                             accept="image/*,.pdf"
-                                                            onChange={(e) => field.onChange(e.target.files?.[0])}
+                                                            status={billCopyAttachment.status}
+                                                            progress={billCopyAttachment.progress}
+                                                            fileName={billCopyAttachment.fileName}
+                                                            error={billCopyAttachment.error}
+                                                            onSelect={async (file) => {
+                                                                const url = await billCopyAttachment.select(file);
+                                                                form.setValue('billCopyAttached', url ?? undefined, { shouldValidate: true });
+                                                            }}
+                                                            onRemove={() => {
+                                                                billCopyAttachment.remove();
+                                                                form.setValue('billCopyAttached', undefined, { shouldValidate: true });
+                                                            }}
                                                         />
                                                     </FormControl>
                                                 </FormItem>
@@ -780,7 +787,7 @@ export default () => {
                                         <Button variant="outline">Close</Button>
                                     </DialogClose>
 
-                                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                                    <Button type="submit" disabled={form.formState.isSubmitting || billCopyAttachment.status === 'uploading'}>
                                         {form.formState.isSubmitting && (
                                             <Loader
                                                 size={20}

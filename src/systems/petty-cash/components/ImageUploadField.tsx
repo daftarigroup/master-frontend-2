@@ -7,6 +7,8 @@ interface ImageUploadFieldProps {
   onSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
   label: string;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
@@ -15,6 +17,8 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
   onSelect,
   onClear,
   label,
+  isUploading = false,
+  uploadProgress = 0,
 }) => {
   return (
     <div>
@@ -32,13 +36,23 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="w-full border border-dashed border-input rounded-lg p-2.5 hover:border-primary/50 hover:bg-accent/40 transition flex flex-col items-center justify-center cursor-pointer"
+          disabled={isUploading}
+          className="w-full border border-dashed border-input rounded-lg p-2.5 hover:border-primary/50 hover:bg-accent/40 transition flex flex-col items-center justify-center cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Upload className="text-muted-foreground mb-1 size-5" />
           <span className="text-xs font-medium text-muted-foreground">
-            Click to upload image
+            {isUploading ? `Uploading… ${uploadProgress}%` : 'Click to upload image'}
           </span>
         </button>
+
+        {isUploading && (
+          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        )}
 
         {imagePreview && (
           <div className="mt-2">

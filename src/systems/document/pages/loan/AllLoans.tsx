@@ -3,7 +3,7 @@ import { Plus, Search, Building, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { loansApi } from '../../services/document.api';
 import { formatDate } from '../../utils/dateFormatter';
-import { previewFileInNewTab } from '../../utils/filePreview';
+import { openStoredFile } from '../../utils/filePreview';
 import AddLoan from './AddLoan';
 import { TablePagination } from '../../components/TablePagination';
 
@@ -57,7 +57,7 @@ export const AllLoans: React.FC = () => {
   const handlePreview = async (item: any) => {
     try {
       if (item.fileContent) {
-        previewFileInNewTab(item.fileContent, item.file);
+        openStoredFile(item.fileContent, item.file);
         return;
       }
       const toastId = toast.loading('Loading loan attachment...');
@@ -66,7 +66,7 @@ export const AllLoans: React.FC = () => {
         const data = fullLoan?.data || fullLoan;
         toast.dismiss(toastId);
         if (data?.fileContent) {
-          previewFileInNewTab(data.fileContent, data.file || item.file);
+          openStoredFile(data.fileContent, data.file || item.file);
         } else {
           toast.error('File attachment is not available for preview.');
         }

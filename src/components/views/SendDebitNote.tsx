@@ -35,6 +35,8 @@ import { hasPageAccess } from '@/components/element/PermissionGuard';
 import Heading from '../element/Heading';
 import { formatDateTime, parseCustomDate, getPublicFileUrl } from '@/lib/utils';
 import { Pill } from '../ui/pill';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 
 function formatDateDisplay(dateString: string): string {
     if (!dateString) return '';
@@ -99,7 +101,9 @@ interface StoreInHistoryData {
 }
 
 const schema = z.object({
-    debitNoteCopy: z.instanceof(File).optional(),
+    // Holds an already-uploaded S3 URL string by submit time (upload happens
+    // on file-select — see AttachmentUploadField), not the raw File.
+    debitNoteCopy: z.any().optional(),
     debitNoteNumber: z.string().optional(),
 });
 
@@ -123,6 +127,8 @@ export default () => {
             debitNoteNumber: '',
         },
     });
+
+    const debitNoteAttachment = useAttachmentUpload(uploadDebitNoteCopy);
 
     const fetchAllData = async () => {
         setDataLoading(true);
@@ -218,26 +224,15 @@ export default () => {
                 debitNoteCopy: undefined,
                 debitNoteNumber: '',
             });
+            debitNoteAttachment.reset();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDialog, form]);
 
     async function onSubmit(values: FormValues) {
         try {
-
-            let debitNoteCopyUrl = '';
-
-            if (values.debitNoteCopy) {
-                try {
-                    debitNoteCopyUrl = await uploadDebitNoteCopy(
-                        values.debitNoteCopy,
-                        selectedItem?.liftNumber || 'unknown'
-                    );
-                } catch (uploadError) {
-                    console.error('❌ Upload error:', uploadError);
-                    toast.error('Failed to upload file');
-                    return;
-                }
-            }
+            // Already uploaded directly to S3 at selection time.
+            const debitNoteCopyUrl = (values.debitNoteCopy as unknown as string) || '';
 
             const currentDateTime = new Date().toISOString();
 
@@ -284,6 +279,7 @@ export default () => {
             }
 
             toast.success(`Updated status for ${selectedItem.indentNumber}`);
+            debitNoteAttachment.reset({ committed: true });
             setOpenDialog(false);
 
             // Refresh data
@@ -578,15 +574,24 @@ export default () => {
                                     <FormField
                                         control={form.control}
                                         name="debitNoteCopy"
-                                        render={({ field }) => (
+                                        render={() => (
                                             <FormItem>
                                                 <FormLabel>Debit Note Copy</FormLabel>
                                                 <FormControl>
-                                                    <Input
-                                                        type="file"
-                                                        onChange={(e) =>
-                                                            field.onChange(e.target.files?.[0])
-                                                        }
+                                                    <AttachmentUploadField
+                                                        id="debit-note-copy"
+                                                        status={debitNoteAttachment.status}
+                                                        progress={debitNoteAttachment.progress}
+                                                        fileName={debitNoteAttachment.fileName}
+                                                        error={debitNoteAttachment.error}
+                                                        onSelect={async (file) => {
+                                                            const url = await debitNoteAttachment.select(file);
+                                                            form.setValue('debitNoteCopy', url ?? undefined, { shouldValidate: true });
+                                                        }}
+                                                        onRemove={() => {
+                                                            debitNoteAttachment.remove();
+                                                            form.setValue('debitNoteCopy', undefined, { shouldValidate: true });
+                                                        }}
                                                     />
                                                 </FormControl>
                                             </FormItem>
@@ -616,7 +621,7 @@ export default () => {
                                         <Button variant="outline">Close</Button>
                                     </DialogClose>
 
-                                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                                    <Button type="submit" disabled={form.formState.isSubmitting || debitNoteAttachment.status === 'uploading'}>
                                         {form.formState.isSubmitting && (
                                             <Loader
                                                 size={20}

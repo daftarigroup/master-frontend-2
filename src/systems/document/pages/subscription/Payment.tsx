@@ -3,7 +3,8 @@ import { subscriptionsApi } from '../../services/document.api';
 import { CreditCard, FileText, Eye, X, Save, Upload, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatDate } from '../../utils/dateFormatter';
-import { previewFileInNewTab } from '../../utils/filePreview';
+import { openStoredFile } from '../../utils/filePreview';
+import { uploadFile } from '@/lib/fetchers';
 import { MacModal } from '@/components/ui/mac-modal';
 import { TablePagination } from '../../components/TablePagination';
 
@@ -42,6 +43,7 @@ export const SubscriptionPayment: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('Credit Card');
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState<string>('');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -111,15 +113,24 @@ export const SubscriptionPayment: React.FC = () => {
     setFileContent('');
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFileContent(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    setFileName(file.name);
+    setIsUploadingFile(true);
+    try {
+      // Store the S3 URL rather than inlining the file's bytes as base64.
+      const url = await uploadFile({ file, folderId: 'document', subFolder: 'subscription-payments' });
+      setFileContent(url);
+    } catch (error) {
+      console.error('Payment receipt upload error:', error);
+      setFileName('');
+      setFileContent('');
+      toast.error('Failed to upload receipt. Please try again.');
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
@@ -152,7 +163,7 @@ export const SubscriptionPayment: React.FC = () => {
   const handlePreview = async (content: string | undefined, name: string | undefined, subId?: string) => {
     try {
       if (content) {
-        previewFileInNewTab(content, name);
+        openStoredFile(content, name);
         return;
       }
       if (subId) {
@@ -162,7 +173,7 @@ export const SubscriptionPayment: React.FC = () => {
           const data = fullSub?.data || fullSub;
           toast.dismiss(toastId);
           if (data?.paymentFileContent) {
-            previewFileInNewTab(data.paymentFileContent, data.paymentFile || name);
+            openStoredFile(data.paymentFileContent, data.paymentFile || name);
           } else {
             toast.error('Receipt file is not available for preview.');
           }
@@ -172,7 +183,7 @@ export const SubscriptionPayment: React.FC = () => {
         }
         return;
       }
-      previewFileInNewTab(content, name);
+      openStoredFile(content, name);
     } catch (err: any) {
       toast.error(err.message || 'Payment file not available for preview.');
     }

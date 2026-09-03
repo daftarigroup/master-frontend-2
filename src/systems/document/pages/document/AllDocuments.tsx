@@ -6,7 +6,7 @@ import AddDocument from './AddDocument';
 import EditDocument from './EditDocument';
 import ShareModal from './ShareModal';
 import { formatDate } from '../../utils/dateFormatter';
-import { previewFileInNewTab } from '../../utils/filePreview';
+import { openStoredFile } from '../../utils/filePreview';
 import { TablePagination } from '../../components/TablePagination';
 
 export const AllDocuments: React.FC = () => {
@@ -115,7 +115,7 @@ export const AllDocuments: React.FC = () => {
   const handlePreview = async (item: any) => {
     try {
       if (item.fileContent) {
-        previewFileInNewTab(item.fileContent, item.file);
+        openStoredFile(item.fileContent, item.file);
         return;
       }
       // On-demand fetch file content for fast lightweight listing
@@ -125,7 +125,7 @@ export const AllDocuments: React.FC = () => {
         const data = fullDoc?.data || fullDoc;
         toast.dismiss(toastId);
         if (data?.fileContent) {
-          previewFileInNewTab(data.fileContent, data.file || item.file);
+          openStoredFile(data.fileContent, data.file || item.file);
         } else {
           toast.error('File attachment is not available for preview.');
         }

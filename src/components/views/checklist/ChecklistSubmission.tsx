@@ -47,6 +47,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import MediaPreviewDialog from '@/components/element/MediaPreviewDialog';
 import { uploadFile } from '@/lib/fetchers';
+import { useFileUpload } from '@/hooks/useFileUpload';
 import { useChecklistData } from '@/context/ChecklistContext';
 import { submitChecklistTask, type ChecklistTaskRow } from '@/services/checklistTaskService';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -222,6 +223,8 @@ export default function ChecklistSubmission() {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const { runWithProgress: runImageUpload } = useFileUpload();
+    const { runWithProgress: runAudioUpload } = useFileUpload();
 
     // Batch submit state
     const [batchSubmitting, setBatchSubmitting] = useState(false);
@@ -492,8 +495,8 @@ export default function ChecklistSubmission() {
         setSubmitting(true);
         try {
             const [imageUrl, audioUrl] = await Promise.all([
-                imageFile ? uploadFile({ file: imageFile, folderId: 'checklist', subFolder: 'proof-images' }) : Promise.resolve(null),
-                audioFile ? uploadFile({ file: audioFile, folderId: 'checklist', subFolder: 'proof-audio' }) : Promise.resolve(null),
+                imageFile ? runImageUpload((onProgress) => uploadFile({ file: imageFile, folderId: 'checklist', subFolder: 'proof-images', onProgress }), 'Uploading photo') : Promise.resolve(null),
+                audioFile ? runAudioUpload((onProgress) => uploadFile({ file: audioFile, folderId: 'checklist', subFolder: 'proof-audio', onProgress }), 'Uploading audio') : Promise.resolve(null),
             ]);
 
             await submitChecklistTask(activeModalTask.task_id, {

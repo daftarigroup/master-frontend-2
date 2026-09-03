@@ -3,7 +3,8 @@ import { documentsApi } from '../../services/document.api';
 import { Search, Check, X, Calendar, Upload, Eye, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatDate } from '../../utils/dateFormatter';
-import { previewFileInNewTab } from '../../utils/filePreview';
+import { openStoredFile } from '../../utils/filePreview';
+import { uploadFile } from '@/lib/fetchers';
 import { MacModal } from '@/components/ui/mac-modal';
 import { TablePagination } from '../../components/TablePagination';
 
@@ -28,6 +29,7 @@ export const DocumentRenewal: React.FC = () => {
   const [nextRenewalDate, setNextRenewalDate] = useState('');
   const [newFileName, setNewFileName] = useState('');
   const [newFileContent, setNewFileContent] = useState<string>('');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const loadData = () => {
@@ -97,22 +99,31 @@ export const DocumentRenewal: React.FC = () => {
     setSelectedDoc(null);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setNewFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewFileContent(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    setNewFileName(file.name);
+    setIsUploadingFile(true);
+    try {
+      // Store the S3 URL rather than inlining the file's bytes as base64.
+      const url = await uploadFile({ file, folderId: 'document', subFolder: 'renewals' });
+      setNewFileContent(url);
+    } catch (error) {
+      console.error('Renewal document upload error:', error);
+      setNewFileName('');
+      setNewFileContent('');
+      toast.error('Failed to upload document. Please try again.');
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
   const handlePreview = async (fileContent: string | undefined, fileName: string | null, docId?: string) => {
     try {
       if (fileContent) {
-        previewFileInNewTab(fileContent, fileName);
+        openStoredFile(fileContent, fileName);
         return;
       }
       if (docId) {
@@ -122,7 +133,7 @@ export const DocumentRenewal: React.FC = () => {
           const data = fullDoc?.data || fullDoc;
           toast.dismiss(toastId);
           if (data?.fileContent) {
-            previewFileInNewTab(data.fileContent, data.file || fileName);
+            openStoredFile(data.fileContent, data.file || fileName);
           } else {
             toast.error('File attachment is not available for preview.');
           }
@@ -132,7 +143,7 @@ export const DocumentRenewal: React.FC = () => {
         }
         return;
       }
-      previewFileInNewTab(fileContent, fileName);
+      openStoredFile(fileContent, fileName);
     } catch (err: any) {
       toast.error(err.message || 'File attachment not available.');
     }

@@ -5,6 +5,7 @@ import SearchableInput from '../../components/SearchableInput';
 import { documentsApi } from '../../services/document.api';
 import { mastersApi } from '@/systems/petty-cash/services/pettyCash.api';
 import { MacModal } from '@/components/ui/mac-modal';
+import { uploadFile } from '@/lib/fetchers';
 
 const DOC_TYPE_MASTER = 'docDocumentType';
 const DOC_CATEGORY_MASTER = 'docCategory';
@@ -20,6 +21,7 @@ interface DocumentEntry {
   file: File | null;
   fileName: string;
   fileContent?: string;
+  uploading?: boolean;
 }
 
 interface AddDocumentProps {
@@ -74,25 +76,24 @@ export const AddDocument: React.FC<AddDocumentProps> = ({ isOpen, onClose, onSav
     setEntries((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
   };
 
-  const handleFileChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEntries((prev) =>
-          prev.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  file: file,
-                  fileName: file.name,
-                  fileContent: reader.result as string,
-                }
-              : item
-          )
-        );
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    const patch = (changes: Record<string, unknown>) =>
+      setEntries((prev) => prev.map((item) => (item.id === id ? { ...item, ...changes } : item)));
+
+    patch({ file, fileName: file.name, uploading: true });
+    try {
+      // Store the S3 URL on the record instead of inlining the file's bytes
+      // as base64 in the database column.
+      const url = await uploadFile({ file, folderId: 'document', subFolder: 'documents' });
+      patch({ fileContent: url, uploading: false });
+    } catch (error) {
+      console.error('Document upload error:', error);
+      patch({ file: null, fileName: '', fileContent: '', uploading: false });
+      toast.error('Failed to upload document. Please try again.');
     }
   };
 

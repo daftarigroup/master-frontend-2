@@ -1,4 +1,5 @@
 import { toast } from 'react-hot-toast';
+import { getPublicFileUrl } from '@/lib/utils';
 
 /**
  * Maps common file extensions to MIME types
@@ -533,3 +534,60 @@ export const previewFileInNewTab = (
   }
 };
 
+
+/**
+ * Opens a file stored in a DB column, handling both storage generations:
+ *
+ *  - Legacy rows hold a base64 data-URL (or raw base64) inlined in the column.
+ *    These are decoded client-side into a blob and shown in the viewer tab.
+ *  - New rows hold an S3 URL written by uploadFile(). These are opened through
+ *    getPublicFileUrl(), which routes to the backend endpoint that redirects to
+ *    a short-lived presigned S3 URL, so the bytes come straight from S3.
+ *
+ * @param value    The raw stored column value (base64 payload or S3 URL)
+ * @param fileName Optional original file name, used for the tab title / MIME hint
+ */
+export const openStoredFile = (
+  value: string | undefined | null,
+  fileName?: string | null
+): void => {
+  if (!value || typeof value !== 'string' || value.trim() === '') {
+    toast.error('File attachment is not available for preview.');
+    return;
+  }
+
+  const trimmed = value.trim();
+  const isRemoteUrl = /^https?:\/\//i.test(trimmed);
+
+  if (isRemoteUrl) {
+    const url = getPublicFileUrl(trimmed);
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener,noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    return;
+  }
+
+  // Legacy base64 / data-URL rows keep using the client-side blob viewer.
+  previewFileInNewTab(trimmed, fileName);
+};
+
+/**
+ * Resolves a stored column value into something usable as an <img src>.
+ * Base64 payloads are already renderable as-is; S3 URLs are routed through
+ * getPublicFileUrl() so the presigned-redirect endpoint serves them.
+ */
+export const resolveStoredImageSrc = (value: string | undefined | null): string => {
+  if (!value || typeof value !== 'string' || value.trim() === '') return '';
+  const trimmed = value.trim();
+  if (trimmed.startsWith('data:')) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return getPublicFileUrl(trimmed);
+  // Raw base64 with no data: prefix — render as a generic image data URL.
+  return `data:image/*;base64,${trimmed}`;
+};

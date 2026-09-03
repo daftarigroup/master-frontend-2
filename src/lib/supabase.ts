@@ -3,15 +3,9 @@
  * All database operations route through master-backend at http://localhost:5001/api.
  * This module intentionally has NO dependency on @supabase/supabase-js.
  */
-import { storeApi, apiClient } from '@/lib/apiClient';
-import { compressImageIfNeeded } from '@/lib/utils';
+import { storeApi } from '@/lib/apiClient';
 
 export const supabaseEnabled = true;
-
-// Caches the real S3 URL returned by the backend for a given bucket/path so
-// a later getPublicUrl() call (which has no access to the upload response)
-// can return the exact URL that was actually uploaded to.
-const uploadedUrlCache = new Map<string, string>();
 
 // Splits a PostgREST-style or() expression ("col.op.val,col2.op2.val2") into
 // clauses, respecting commas nested inside in.(...) lists.
@@ -442,51 +436,13 @@ function makeBuilder(tableName: string): any {
 
 // ---------------------------------------------------------------------------
 
+// Database adapter only. File storage is NOT handled here — all uploads go
+// browser->S3 directly via lib/fetchers.ts's uploadFile() using a presigned
+// PUT URL. The old storage shim (which POSTed multipart data to the server and
+// fabricated /uploads/... paths) has been removed along with the server-side
+// upload route it depended on.
 export const supabase: any = {
   from(tableName: string) {
     return makeBuilder(tableName);
-  },
-
-  storage: {
-    from(bucket: string) {
-      return {
-        async upload(path: string, file: any) {
-          try {
-            let fileToUpload = file;
-            if (file instanceof File) {
-              fileToUpload = await compressImageIfNeeded(file);
-            }
-
-            const formData = new FormData();
-            formData.append('file', fileToUpload);
-            formData.append('bucket', bucket);
-            formData.append('path', path);
-
-            // Do not set Content-Type manually: the browser must generate its
-            // own multipart boundary for FormData bodies. A hardcoded
-            // 'multipart/form-data' header (no boundary) makes the server
-            // fail to parse the body, which surfaces in the browser as a
-            // misleading CORS error since the failed response skips the
-            // server's CORS headers. `apiClient` defaults to
-            // 'application/json', so explicitly clear it here rather than
-            // relying on axios to detect the FormData body on its own.
-            const res: any = await apiClient.post('/store/upload', formData);
-
-            const url = res?.data?.url;
-            if (url) {
-              uploadedUrlCache.set(`${bucket}/${path}`, url);
-            }
-
-            return { data: { path }, error: null };
-          } catch (error: any) {
-            return { data: null, error };
-          }
-        },
-        getPublicUrl(path: string) {
-          const cached = uploadedUrlCache.get(`${bucket}/${path}`);
-          return { data: { publicUrl: cached || `/uploads/${bucket}/${path}` } };
-        },
-      };
-    },
   },
 };

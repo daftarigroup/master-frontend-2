@@ -10,6 +10,8 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { uploadFile } from '@/lib/fetchers';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 import {
     Dialog,
     DialogContent,
@@ -26,7 +28,6 @@ import { toast } from 'sonner';
 import { Input } from '../ui/input';
 import { createPaymentEntry, uploadProductPhoto, updateStoreInReceiving } from '@/services/storeInService';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { getPublicFileUrl } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { useMemo } from 'react';
 import {
@@ -36,6 +37,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../ui/select';
+
+// Matches the (file, id, onProgress?) => Promise<string> shape useAttachmentUpload
+// expects — the second param is unused, kept only for call-site consistency
+// with the rest of the app's upload functions.
+async function uploadPaymentProofFile(file: File, _id: string, onProgress?: (percent: number) => void): Promise<string> {
+    return uploadFile({ file, folderId: 'store-and-inventory/payment-status', subFolder: 'receipts', onProgress });
+}
 
 // ✅ UPDATED INTERFACE
 interface PIPendingData {
@@ -107,7 +115,6 @@ export default function PIApprovals() {
     const [pendingData, setPendingData] = useState<PIPendingData[]>([]);
     const [selectedItem, setSelectedItem] = useState<PIPendingData | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
-    const [uploadingFile, setUploadingFile] = useState(false);
     const [filterTerm, setFilterTerm] = useState('Advance Terms');
 
     // ✅ Memoized filtered data
@@ -635,16 +642,17 @@ export default function PIApprovals() {
         },
     });
 
+    const paymentProofAttachment = useAttachmentUpload(uploadPaymentProofFile);
+
     useEffect(() => {
         if (!openDialog) {
             form.reset();
+            paymentProofAttachment.reset();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDialog, form]);
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    const handleFileUpload = async (file: File) => {
         const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
         if (!allowedTypes.includes(file.type)) {
             toast.error('Only PDF, JPG, and PNG files are allowed');
@@ -657,20 +665,10 @@ export default function PIApprovals() {
             return;
         }
 
-        try {
-            setUploadingFile(true);
-            const driveLink = await uploadFile({
-                file: file,
-                folderId: 'photo_of_bill'
-            });
-
-            form.setValue('file', driveLink);
+        const url = await paymentProofAttachment.select(file);
+        if (url) {
+            form.setValue('file', url);
             toast.success('File uploaded successfully');
-        } catch (error) {
-            toast.error('Failed to upload file');
-            console.error('Upload error:', error);
-        } finally {
-            setUploadingFile(false);
         }
     };
 
@@ -775,6 +773,7 @@ export default function PIApprovals() {
                 toast.success(`Payment submitted for PO: ${selectedItem.poNumber}`);
             }
 
+            paymentProofAttachment.reset({ committed: true });
             setOpenDialog(false);
             setTimeout(() => updateAll(), 1000);
         } catch (error) {
@@ -1023,7 +1022,7 @@ export default function PIApprovals() {
                                         <FormField
                                             control={form.control}
                                             name="file"
-                                            render={({ field }) => (
+                                            render={() => (
                                                 <FormItem>
                                                     <FormLabel className="font-medium flex items-center gap-2">
                                                         <Upload className="h-4 w-4" />
@@ -1032,39 +1031,23 @@ export default function PIApprovals() {
                                                     <FormControl>
                                                         <div className="space-y-2">
                                                             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-purple-400 transition-colors">
-                                                                <Input
-                                                                    type="file"
+                                                                <AttachmentUploadField
+                                                                    id="payment-status-proof"
                                                                     accept=".pdf,.jpg,.jpeg,.png"
-                                                                    onChange={handleFileUpload}
-                                                                    disabled={uploadingFile}
-                                                                    className="border-0 cursor-pointer"
+                                                                    status={paymentProofAttachment.status}
+                                                                    progress={paymentProofAttachment.progress}
+                                                                    fileName={paymentProofAttachment.fileName}
+                                                                    error={paymentProofAttachment.error}
+                                                                    onSelect={handleFileUpload}
+                                                                    onRemove={() => {
+                                                                        paymentProofAttachment.remove();
+                                                                        form.setValue('file', '', { shouldValidate: true });
+                                                                    }}
                                                                 />
                                                                 <p className="text-xs text-gray-500 mt-2">
                                                                     Upload payment proof (PDF, JPG, PNG - Max 10MB)
                                                                 </p>
                                                             </div>
-                                                            {uploadingFile && (
-                                                                <div className="flex items-center gap-2 text-sm text-blue-600">
-                                                                    <Loader size={16} color="blue" />
-                                                                    Uploading...
-                                                                </div>
-                                                            )}
-                                                            {field.value && !uploadingFile && (
-                                                                <div className="space-y-1">
-                                                                    <p className="text-sm text-green-600 flex items-center gap-2">
-                                                                        <CheckCircle className="h-4 w-4" />
-                                                                        File uploaded successfully
-                                                                    </p>
-                                                                    <a
-                                                                        href={getPublicFileUrl(field.value)}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                                                                    >
-                                                                        View uploaded file →
-                                                                    </a>
-                                                                </div>
-                                                            )}
                                                         </div>
                                                     </FormControl>
                                                     <FormMessage />
@@ -1081,7 +1064,7 @@ export default function PIApprovals() {
                                                 variant="outline"
                                                 type="button"
                                                 className="border-gray-300"
-                                                disabled={form.formState.isSubmitting || uploadingFile}
+                                                disabled={form.formState.isSubmitting || paymentProofAttachment.status === 'uploading'}
                                             >
                                                 Cancel
                                             </Button>
@@ -1089,7 +1072,7 @@ export default function PIApprovals() {
                                         <Button
                                             type="submit"
                                             className="bg-purple-600 hover:bg-purple-700 shadow-sm"
-                                            disabled={form.formState.isSubmitting || uploadingFile}
+                                            disabled={form.formState.isSubmitting || paymentProofAttachment.status === 'uploading'}
                                         >
                                             {form.formState.isSubmitting ? (
                                                 <>

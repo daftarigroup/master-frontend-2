@@ -30,6 +30,8 @@ import { Pill } from '../ui/pill';
 import { filterByFirmAccess, isAllowedFirm } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
 import { useSheets } from '@/context/SheetsContext';
@@ -248,7 +250,7 @@ export default () => {
     const [editHistoryRow, setEditHistoryRow] = useState<StoreInHistoryData | null>(null);
     const [editSubmitting, setEditSubmitting] = useState(false);
     const [editDeliveryDate, setEditDeliveryDate] = useState('');
-    const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+    const editPhotoAttachment = useAttachmentUpload(uploadBillCopy);
     const [vendorOptions, setVendorOptions] = useState<{ label: string; value: string }[]>([]);
     const [productOptions, setProductOptions] = useState<{ label: string; value: string }[]>([]);
     const [deleteTarget, setDeleteTarget] = useState<StoreInHistoryData | null>(null);
@@ -611,7 +613,7 @@ export default () => {
                     onClick={() => {
                         setEditHistoryRow(row.original);
                         setEditDeliveryDate(row.original.materialDate || '');
-                        setEditPhotoFile(null);
+                        editPhotoAttachment.reset();
                     }}
                 >
                     <Pencil size={12} />
@@ -640,16 +642,20 @@ export default () => {
             },
         }] as ColumnDef<HistoryData>[],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    ], [setEditHistoryRow, setEditDeliveryDate, setEditPhotoFile, user?.role, user?.administrate]);
+    ], [setEditHistoryRow, setEditDeliveryDate, editPhotoAttachment, user?.role, user?.administrate]);
 
     const schema = z.object({
         status: z.enum(['Received', 'Not Received']),
         receiverName: z.string().optional(),
         challanNo: z.string().optional(),
-        challanImage: z.instanceof(File).optional(),
-        photoOfProduct: z.instanceof(File, {
-            message: "Photo of product is required"
-        }),
+        // Holds an already-uploaded S3 URL string by the time the form is
+        // submitted (upload happens on file-select, not at submit time — see
+        // AttachmentUploadField), not the raw File.
+        challanImage: z.any().optional(),
+        photoOfProduct: z.any().refine(
+            (v) => v instanceof File || (typeof v === 'string' && v.length > 0),
+            { message: 'Photo of product is required' }
+        ),
         damageOrder: z.enum(['Yes', 'No']),
         quantityAsPerBill: z.enum(['Yes', 'No']),
         priceAsPerPoCheck: z.enum(['Yes', 'No']),
@@ -691,12 +697,18 @@ export default () => {
     const statusSelector = form.watch('status');
     const itemsWatcher = form.watch('items');
 
+    const challanAttachment = useAttachmentUpload(uploadChallanImage);
+    const productPhotoAttachment = useAttachmentUpload(uploadProductPhoto);
+
     // Reset form when dialog closes
     useEffect(() => {
         if (!openDialog) {
             form.reset();
+            challanAttachment.reset();
+            productPhotoAttachment.reset();
             fetchAllData(); // Refresh data on close
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDialog, form]);
 
     useEffect(() => {
@@ -721,29 +733,20 @@ export default () => {
                     damageOrder: '',
                 })),
             });
+            challanAttachment.reset();
+            productPhotoAttachment.reset();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedIndent, form, user]);
 
     async function onSubmit(values: FormValues) {
         if (!selectedIndent) return;
         try {
-            let photoUrl = '';
-            let challanImageUrl = '';
-
-            // 1. Upload photo once for all items
-            if (values.photoOfProduct) {
-                photoUrl = await uploadProductPhoto(
-                    values.photoOfProduct,
-                    selectedIndent.indentNo || ''
-                );
-            }
-
-            // 2. Upload challan image if provided
-            if (values.challanImage) {
-                // Using first lift number as identifier for challan
-                const liftId = values.items[0]?.liftNumber || 'unknown';
-                challanImageUrl = await uploadChallanImage(values.challanImage, liftId);
-            }
+            // Both attachments were already uploaded directly to S3 at
+            // selection time by AttachmentUploadField — these are already
+            // URL strings, not raw Files.
+            const photoUrl = (values.photoOfProduct as unknown as string) || '';
+            const challanImageUrl = (values.challanImage as unknown as string) || '';
 
             const currentDateTime = new Date().toISOString();
 
@@ -795,6 +798,8 @@ export default () => {
 
 
             toast.success(`All ${values.items.length} items stored in successfully!`);
+            challanAttachment.reset({ committed: true });
+            productPhotoAttachment.reset({ committed: true });
             setOpenDialog(false);
             await fetchAllData();
         } catch (error) {
@@ -811,14 +816,19 @@ export default () => {
         productName: z.string().min(1, 'Product name is required'),
         receivingQty: z.coerce.number().optional(),
         status: z.enum(['Received', 'Not Received'], { required_error: 'Please select a status' }),
-        billImage: z.instanceof(File).optional(),
-        productImage: z.instanceof(File, { message: 'Product image is required' }),
+        // Hold already-uploaded S3 URL strings by submit time (upload happens
+        // on file-select — see AttachmentUploadField), not raw Files.
+        billImage: z.any().optional(),
+        productImage: z.any().refine(
+            (v) => v instanceof File || (typeof v === 'string' && v.length > 0),
+            { message: 'Product image is required' }
+        ),
         anyTransport: z.enum(['Yes', 'No']),
         transportAmount: z.coerce.number().optional(),
         transporterName: z.string().optional(),
         vehicleNo: z.string().optional(),
         challanNo: z.string().optional(),
-        challanImage: z.instanceof(File).optional(),
+        challanImage: z.any().optional(),
         firmName: z.string().min(1, 'Project name is required'),
         firmId: z.coerce.number().optional(),
     });
@@ -862,6 +872,23 @@ export default () => {
     const watchAnyTransport = directForm.watch('anyTransport');
     const watchDirectStatus = directForm.watch('status');
 
+    const directChallanAttachment = useAttachmentUpload(uploadChallanImage);
+    const directBillAttachment = useAttachmentUpload(uploadBillCopy);
+    const directProductAttachment = useAttachmentUpload(uploadProductPhoto);
+
+    // Reset attachment state whenever the dialog closes, regardless of
+    // whether that happened via Radix's onOpenChange (ESC/overlay click) or
+    // a direct setOpenDirectDialog(false) call elsewhere in this file — a
+    // useEffect watching the boolean catches both, unlike wrapping onOpenChange.
+    useEffect(() => {
+        if (!openDirectDialog) {
+            directChallanAttachment.reset();
+            directBillAttachment.reset();
+            directProductAttachment.reset();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openDirectDialog]);
+
     async function onDirectSubmit(values: DirectFormValues) {
         try {
             const roundedBillAmount = Number((values.billAmount || 0).toFixed(2));
@@ -875,17 +902,11 @@ export default () => {
             const liftId = `DIRECT-${timestamp}`;
             const indentId = `DIRECT-${timestamp}`;
 
-            // 1. Upload Images
-            const photoUrl = await uploadProductPhoto(values.productImage, indentId);
-            let billUrl = '';
-            if (values.billImage) {
-                billUrl = await uploadBillCopy(values.billImage, liftId);
-            }
-
-            let challanUrl = '';
-            if (values.challanImage) {
-                challanUrl = await uploadChallanImage(values.challanImage, liftId);
-            }
+            // All three attachments were already uploaded directly to S3 at
+            // selection time by AttachmentUploadField — already URL strings.
+            const photoUrl = (values.productImage as unknown as string) || '';
+            const billUrl = (values.billImage as unknown as string) || '';
+            const challanUrl = (values.challanImage as unknown as string) || '';
 
             // 2. Create Record
             await createDirectRecord({
@@ -950,6 +971,9 @@ export default () => {
             }
 
             toast.success('Direct entry saved successfully!');
+            directChallanAttachment.reset({ committed: true });
+            directBillAttachment.reset({ committed: true });
+            directProductAttachment.reset({ committed: true });
             setOpenDirectDialog(false);
             directForm.reset();
             await fetchAllData();
@@ -1170,11 +1194,26 @@ export default () => {
                                                         <FormField
                                                             control={directForm.control}
                                                             name="challanImage"
-                                                            render={({ field: { value, onChange, ...fieldProps } }) => (
+                                                            render={() => (
                                                                 <FormItem>
                                                                     <FormLabel>Challan Image</FormLabel>
                                                                     <FormControl>
-                                                                        <Input type="file" accept="image/*" onChange={(e) => onChange(e.target.files?.[0])} {...fieldProps} />
+                                                                        <AttachmentUploadField
+                                                                            id="direct-challan-image"
+                                                                            accept="image/*"
+                                                                            status={directChallanAttachment.status}
+                                                                            progress={directChallanAttachment.progress}
+                                                                            fileName={directChallanAttachment.fileName}
+                                                                            error={directChallanAttachment.error}
+                                                                            onSelect={async (file) => {
+                                                                                const url = await directChallanAttachment.select(file);
+                                                                                directForm.setValue('challanImage', url ?? undefined, { shouldValidate: true });
+                                                                            }}
+                                                                            onRemove={() => {
+                                                                                directChallanAttachment.remove();
+                                                                                directForm.setValue('challanImage', undefined, { shouldValidate: true });
+                                                                            }}
+                                                                        />
                                                                     </FormControl>
                                                                 </FormItem>
                                                             )}
@@ -1250,11 +1289,26 @@ export default () => {
                                                     <FormField
                                                         control={directForm.control}
                                                         name="billImage"
-                                                        render={({ field: { value, onChange, ...fieldProps } }) => (
+                                                        render={() => (
                                                             <FormItem>
                                                                 <FormLabel>Bill Image</FormLabel>
                                                                 <FormControl>
-                                                                    <Input type="file" accept="image/*" onChange={(e) => onChange(e.target.files?.[0])} {...fieldProps} />
+                                                                    <AttachmentUploadField
+                                                                        id="direct-bill-image"
+                                                                        accept="image/*"
+                                                                        status={directBillAttachment.status}
+                                                                        progress={directBillAttachment.progress}
+                                                                        fileName={directBillAttachment.fileName}
+                                                                        error={directBillAttachment.error}
+                                                                        onSelect={async (file) => {
+                                                                            const url = await directBillAttachment.select(file);
+                                                                            directForm.setValue('billImage', url ?? undefined, { shouldValidate: true });
+                                                                        }}
+                                                                        onRemove={() => {
+                                                                            directBillAttachment.remove();
+                                                                            directForm.setValue('billImage', undefined, { shouldValidate: true });
+                                                                        }}
+                                                                    />
                                                                 </FormControl>
                                                             </FormItem>
                                                         )}
@@ -1263,11 +1317,26 @@ export default () => {
                                                 <FormField
                                                     control={directForm.control}
                                                     name="productImage"
-                                                    render={({ field: { value, onChange, ...fieldProps } }) => (
+                                                    render={() => (
                                                         <FormItem>
                                                             <FormLabel>Product Image</FormLabel>
                                                             <FormControl>
-                                                                <Input type="file" accept="image/*" onChange={(e) => onChange(e.target.files?.[0])} {...fieldProps} />
+                                                                <AttachmentUploadField
+                                                                    id="direct-product-image"
+                                                                    accept="image/*"
+                                                                    status={directProductAttachment.status}
+                                                                    progress={directProductAttachment.progress}
+                                                                    fileName={directProductAttachment.fileName}
+                                                                    error={directProductAttachment.error}
+                                                                    onSelect={async (file) => {
+                                                                        const url = await directProductAttachment.select(file);
+                                                                        directForm.setValue('productImage', url ?? undefined, { shouldValidate: true });
+                                                                    }}
+                                                                    onRemove={() => {
+                                                                        directProductAttachment.remove();
+                                                                        directForm.setValue('productImage', undefined, { shouldValidate: true });
+                                                                    }}
+                                                                />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -1277,7 +1346,16 @@ export default () => {
                                             </div>
 
                                             <DialogFooter className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t mt-4 shrink-0">
-                                                <Button type="submit" disabled={directForm.formState.isSubmitting} className="w-full sm:w-auto">
+                                                <Button
+                                                    type="submit"
+                                                    disabled={
+                                                        directForm.formState.isSubmitting ||
+                                                        directChallanAttachment.status === 'uploading' ||
+                                                        directBillAttachment.status === 'uploading' ||
+                                                        directProductAttachment.status === 'uploading'
+                                                    }
+                                                    className="w-full sm:w-auto"
+                                                >
                                                     <Plus className="h-4 w-4 mr-2" />
                                                     Submit Direct Entry
                                                 </Button>
@@ -1536,15 +1614,25 @@ export default () => {
                                     <FormField
                                         control={form.control}
                                         name="challanImage"
-                                        render={({ field: { value, onChange, ...fieldProps } }) => (
+                                        render={() => (
                                             <FormItem>
                                                 <FormLabel>Challan Image (optional)</FormLabel>
                                                 <FormControl>
-                                                    <Input
-                                                        type="file"
+                                                    <AttachmentUploadField
+                                                        id="storein-challan-image"
                                                         accept="image/*"
-                                                        onChange={(e) => onChange(e.target.files?.[0])}
-                                                        {...fieldProps}
+                                                        status={challanAttachment.status}
+                                                        progress={challanAttachment.progress}
+                                                        fileName={challanAttachment.fileName}
+                                                        error={challanAttachment.error}
+                                                        onSelect={async (file) => {
+                                                            const url = await challanAttachment.select(file);
+                                                            form.setValue('challanImage', url ?? undefined, { shouldValidate: true });
+                                                        }}
+                                                        onRemove={() => {
+                                                            challanAttachment.remove();
+                                                            form.setValue('challanImage', undefined, { shouldValidate: true });
+                                                        }}
                                                     />
                                                 </FormControl>
                                             </FormItem>
@@ -1554,19 +1642,28 @@ export default () => {
                                     <FormField
                                         control={form.control}
                                         name="photoOfProduct"
-                                        render={({ field }) => (
+                                        render={() => (
                                             <FormItem>
                                                 <div className="flex items-center gap-1">
                                                     <FormLabel className="m-0">Photo of Product</FormLabel>
                                                     <span className="text-destructive font-bold">*</span>
                                                 </div>
                                                 <FormControl>
-                                                    <Input
-                                                        type="file"
+                                                    <AttachmentUploadField
+                                                        id="storein-product-photo"
                                                         accept="image/*"
-                                                        onChange={(e) =>
-                                                            field.onChange(e.target.files?.[0])
-                                                        }
+                                                        status={productPhotoAttachment.status}
+                                                        progress={productPhotoAttachment.progress}
+                                                        fileName={productPhotoAttachment.fileName}
+                                                        error={productPhotoAttachment.error}
+                                                        onSelect={async (file) => {
+                                                            const url = await productPhotoAttachment.select(file);
+                                                            form.setValue('photoOfProduct', url ?? undefined, { shouldValidate: true });
+                                                        }}
+                                                        onRemove={() => {
+                                                            productPhotoAttachment.remove();
+                                                            form.setValue('photoOfProduct', undefined, { shouldValidate: true });
+                                                        }}
                                                     />
                                                 </FormControl>
                                             </FormItem>
@@ -1673,7 +1770,11 @@ export default () => {
                                         <Button variant="outline" className="w-full sm:w-auto">Close</Button>
                                     </DialogClose>
 
-                                    <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto min-w-[120px]">
+                                    <Button
+                                        type="submit"
+                                        disabled={form.formState.isSubmitting || challanAttachment.status === 'uploading' || productPhotoAttachment.status === 'uploading'}
+                                        className="w-full sm:w-auto min-w-[120px]"
+                                    >
                                         Store In
                                     </Button>
                                 </DialogFooter>
@@ -1684,7 +1785,7 @@ export default () => {
             </Dialog>
 
             {/* Admin edit dialog for Lifting History */}
-            <Dialog open={!!editHistoryRow} onOpenChange={(open) => { if (!open) setEditHistoryRow(null); }}>
+            <Dialog open={!!editHistoryRow} onOpenChange={(open) => { if (!open) { setEditHistoryRow(null); editPhotoAttachment.reset(); } }}>
                 <DialogContent className="w-[95vw] sm:w-full sm:max-w-md p-4 sm:p-6 rounded-2xl sm:rounded-xl">
                     <DialogHeader className="text-left pr-6">
                         <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -1719,11 +1820,15 @@ export default () => {
                                     View current photo
                                 </a>
                             )}
-                            <Input
-                                type="file"
+                            <AttachmentUploadField
+                                id="edit-lift-photo-of-bill"
                                 accept="image/*,.pdf"
-                                onChange={(e) => setEditPhotoFile(e.target.files?.[0] || null)}
-                                className="h-10 file:bg-primary/10 file:text-primary file:border-0 file:rounded-md cursor-pointer"
+                                status={editPhotoAttachment.status}
+                                progress={editPhotoAttachment.progress}
+                                fileName={editPhotoAttachment.fileName}
+                                error={editPhotoAttachment.error}
+                                onSelect={(file) => { editPhotoAttachment.select(file); }}
+                                onRemove={editPhotoAttachment.remove}
                             />
                         </div>
                     </div>
@@ -1734,21 +1839,20 @@ export default () => {
                         </DialogClose>
                         <Button
                             className="w-full sm:w-auto min-w-[100px]"
-                            disabled={editSubmitting}
+                            disabled={editSubmitting || editPhotoAttachment.status === 'uploading'}
                             onClick={async () => {
                                 if (!editHistoryRow) return;
                                 setEditSubmitting(true);
                                 try {
-                                    let photoUrl: string | undefined;
-                                    if (editPhotoFile) {
-                                        photoUrl = await uploadBillCopy(editPhotoFile, editHistoryRow.liftNumber);
-                                    }
+                                    // Already uploaded directly to S3 at selection time.
+                                    const photoUrl = editPhotoAttachment.url || undefined;
                                     await updateLiftHistoryAdmin(editHistoryRow.id, {
                                         materialDate: editDeliveryDate || null,
                                         ...(photoUrl !== undefined && { photoOfBill: photoUrl }),
                                     });
                                     toast.success('Record updated successfully');
                                     setEditHistoryRow(null);
+                                    editPhotoAttachment.reset({ committed: true });
                                     fetchAllData();
                                 } catch {
                                     toast.error('Failed to update record');

@@ -1,5 +1,6 @@
 import { apiClient, storeApi } from '@/lib/apiClient';
 import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
+import { uploadFile } from '@/lib/fetchers';
 
 /**
  * Indent Service
@@ -81,6 +82,27 @@ export interface IndentRecord {
     rate2?: number;
     rate3?: number;
     vendor_rate?: number;
+}
+
+// ==================== UPLOAD FUNCTIONS ====================
+
+/**
+ * Uploads a product attachment for an indent directly to S3.
+ * Matches the (file, id, onProgress?) => Promise<string> shape useAttachmentUpload
+ * expects — the second param is unused, kept only for call-site consistency
+ * with the rest of the app's upload functions.
+ */
+export async function uploadIndentAttachment(
+    file: File,
+    _id: string,
+    onProgress?: (percent: number) => void
+): Promise<string> {
+    return await uploadFile({
+        file,
+        folderId: 'store-and-inventory/create-indent',
+        subFolder: 'indent-attachments',
+        onProgress,
+    });
 }
 
 // ==================== FETCH FUNCTIONS ====================

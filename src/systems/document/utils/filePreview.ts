@@ -1,1 +1,1 @@
-export { previewFileInNewTab } from '@/utils/filePreview';
+export { previewFileInNewTab, openStoredFile, resolveStoredImageSrc } from '@/utils/filePreview';

@@ -15,11 +15,12 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import DataTable from '../element/DataTable';
-import { fetchIndentRecords, deleteIndentRecord, type IndentRecord } from '@/services/indentService';
+import { fetchIndentRecords, deleteIndentRecord, uploadIndentAttachment, type IndentRecord } from '@/services/indentService';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
-import { uploadFile } from '@/lib/fetchers';
+import { AttachmentUploadField } from '../element/AttachmentUploadField';
+import { useAttachmentUpload } from '@/hooks/useAttachmentUpload';
 
 import { formatDate, formatDateTimeFull, cn } from '@/lib/utils';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -28,7 +29,7 @@ import { ClipLoader as Loader } from 'react-spinners';
 import { ClipboardList, Trash, Search, PlusCircle, Download, Calendar as CalendarIcon } from 'lucide-react';
 import { useSheets } from '@/context/SheetsContext';
 import Heading from '../element/Heading';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { storeApi } from '@/lib/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
@@ -37,6 +38,85 @@ import IndentPdf from '../element/IndentPdf';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
+// useAttachmentUpload is a hook, so it can't be called inside the products
+// .map() loop directly — this child component gives each product row its
+// own hook instance instead, keyed by the row's stable field.id so add/remove
+// unmounts exactly the right row's upload state via React's own reconciliation.
+function ProductAttachmentField({
+    control,
+    index,
+    setValue,
+    onUploadingChange,
+    justSubmittedRef,
+}: {
+    control: any;
+    index: number;
+    setValue: (name: any, value: any, options?: any) => void;
+    onUploadingChange: (index: number, isUploading: boolean) => void;
+    justSubmittedRef: { current: boolean };
+}) {
+    const attachment = useAttachmentUpload(uploadIndentAttachment);
+    // Mirrors `attachment` for the unmount-cleanup effect below, so that
+    // effect doesn't need attachment (and its changing identity) as a dep.
+    const attachmentRef = useRef(attachment);
+    attachmentRef.current = attachment;
+
+    useEffect(() => {
+        onUploadingChange(index, attachment.status === 'uploading');
+        return () => onUploadingChange(index, false);
+    }, [attachment.status, index, onUploadingChange]);
+
+    // This row unmounts either because the user removed it (its own Trash
+    // button, via useFieldArray's remove()) or because a successful submit
+    // replaced the whole products array with one fresh row. Only the first
+    // case should discard an uploaded-but-unsaved file — justSubmittedRef is
+    // briefly true during the second case, since the URL was just persisted.
+    useEffect(() => {
+        return () => {
+            // Intentionally reading the LATEST ref value at cleanup time
+            // (not a snapshot) — that's the entire point here, see the
+            // comment above. Not a DOM-node ref, so the usual
+            // "may have changed by cleanup time" concern doesn't apply.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            if (!justSubmittedRef.current) {
+                attachmentRef.current.reset();
+            }
+        };
+    }, [justSubmittedRef]);
+
+    return (
+        <FormField
+            control={control}
+            name={`products.${index}.attachment`}
+            render={() => (
+                <FormItem>
+                    <FormLabel>Attachment</FormLabel>
+                    <FormControl>
+                        <AttachmentUploadField
+                            id={`indent-attachment-${index}`}
+                            status={attachment.status}
+                            progress={attachment.progress}
+                            fileName={attachment.fileName}
+                            error={attachment.error}
+                            onSelect={async (file: File) => {
+                                const url = await attachment.select(file);
+                                setValue(`products.${index}.attachment`, url ?? undefined, {
+                                    shouldValidate: true,
+                                });
+                            }}
+                            onRemove={() => {
+                                attachment.remove();
+                                setValue(`products.${index}.attachment`, undefined, {
+                                    shouldValidate: true,
+                                });
+                            }}
+                        />
+                    </FormControl>
+                </FormItem>
+            )}
+        />
+    );
+}
 
 export default () => {
     const {
@@ -96,7 +176,9 @@ export default () => {
                     }, {
                         message: "Date cannot be in the past",
                     }),
-                    attachment: z.instanceof(File).optional(),
+                    // Already uploaded directly to S3 at selection time — this
+                    // field holds the resulting URL string by submit time, not a File.
+                    attachment: z.any().optional(),
                     specifications: z.string().optional(),
                 })
             )
@@ -134,7 +216,38 @@ export default () => {
         control: form.control,
         name: 'products',
     });
-    
+
+    // Tracks which product rows currently have an attachment upload in
+    // flight, aggregated from each row's own ProductAttachmentField instance.
+    const [uploadingRows, setUploadingRows] = useState<Set<number>>(new Set());
+    const handleUploadingChange = useCallback((index: number, isUploading: boolean) => {
+        setUploadingRows((prev) => {
+            const next = new Set(prev);
+            if (isUploading) {
+                next.add(index);
+            } else {
+                next.delete(index);
+            }
+            return next;
+        });
+    }, []);
+
+    // Briefly set to true around the post-submit form.reset() below, so the
+    // product rows' own unmount-cleanup (see ProductAttachmentField) knows
+    // not to discard attachments that were just successfully persisted.
+    const justSubmittedRef = useRef(false);
+    // Always flips the flag back off after every commit. No dependency array
+    // is intentional: React runs every removed component's effect cleanup
+    // before any new/changed effect's setup within one commit, so on the
+    // commit caused by the post-submit form.reset() below, the old rows'
+    // unmount cleanup (which reads justSubmittedRef) is guaranteed to run
+    // before this effect's setup (which clears it) — see the comment at the
+    // reset() call site in onSubmit for why a microtask-based reset is wrong.
+    useEffect(() => {
+        justSubmittedRef.current = false;
+    });
+
+
     useEffect(() => {
         if (user?.username) {
             fetchHistory();
@@ -468,20 +581,6 @@ export default () => {
         return `SI-${String(maxNum + 1).padStart(4, '0')}`;
     };
 
-    // Helper: Upload file to storage
-    const uploadFileToStorage = async (file: File, _indentNumber: string): Promise<string> => {
-        try {
-            return await uploadFile({
-                file,
-                folderId: 'indent_attachment',
-                subFolder: 'indent-attachments',
-            });
-        } catch (error) {
-            console.error('File upload error:', error);
-            throw error;
-        }
-    };
-
     async function handleExportIndentPdf(indentNo: string) {
         setExportingIndentNo(indentNo);
         try {
@@ -556,16 +655,10 @@ export default () => {
 
             // 1. Indent number calculated directly from DB + state
             const nextIndentNumber = await fetchNextIndentNumber();
-            const attachmentUrls = await Promise.all(
-                data.products.map(product =>
-                    product.attachment instanceof File
-                        ? uploadFileToStorage(product.attachment, nextIndentNumber).catch(err => {
-                            console.error('File upload failed:', err);
-                            toast.warning('Attachment upload failed, continuing without it');
-                            return '';
-                        })
-                        : Promise.resolve('')
-                )
+            // Already uploaded directly to S3 at selection time — each
+            // product's attachment field holds the resulting URL string.
+            const attachmentUrls = data.products.map(
+                (product) => (product.attachment as unknown as string) || ''
             );
 
             // 2. Insert rows immediately — don't wait for PDF
@@ -614,6 +707,18 @@ export default () => {
                 handleProductSelect(0, product.productName, groupHead, Number(product.quantity) || 1).catch(console.error);
             });
 
+            // The row(s) being replaced below just had their attachment URLs
+            // persisted via storeApi.insert above — tell each row's
+            // ProductAttachmentField (about to unmount) not to delete them.
+            // The flag is flipped back off by the always-on effect further
+            // down, which — because React runs every removed component's
+            // effect cleanup before any new/changed effect's setup within a
+            // single commit — is guaranteed to run after these rows' unmount
+            // cleanup has already read it as true. A queueMicrotask reset
+            // here would fire too early (microtasks drain before React's
+            // passive-effects flush), incorrectly deleting files that were
+            // just successfully saved.
+            justSubmittedRef.current = true;
             form.reset({
                 createdDate: new Date().toISOString().split('T')[0],
                 indenterName: '',
@@ -1313,22 +1418,12 @@ export default () => {
                                                         )}
                                                     />
                                                 </div>
-                                                <FormField
+                                                <ProductAttachmentField
                                                     control={form.control}
-                                                    name={`products.${index}.attachment`}
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>Attachment</FormLabel>
-                                                            <FormControl>
-                                                                <Input
-                                                                    type="file"
-                                                                    onChange={(e) =>
-                                                                        field.onChange(e.target.files?.[0])
-                                                                    }
-                                                                />
-                                                            </FormControl>
-                                                        </FormItem>
-                                                    )}
+                                                    index={index}
+                                                    setValue={form.setValue}
+                                                    onUploadingChange={handleUploadingChange}
+                                                    justSubmittedRef={justSubmittedRef}
                                                 />
                                                 <FormField
                                                     control={form.control}
@@ -1356,7 +1451,7 @@ export default () => {
                                 <Button
                                     className="w-full"
                                     type="submit"
-                                    disabled={form.formState.isSubmitting}
+                                    disabled={form.formState.isSubmitting || uploadingRows.size > 0}
                                 >
                                     {form.formState.isSubmitting && (
                                         <Loader size={20} color="white" aria-label="Loading Spinner" />

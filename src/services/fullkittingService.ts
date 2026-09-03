@@ -238,12 +238,13 @@ export async function updateFullkittingRecord(
 /**
  * Upload bilty image to Storage
  */
-export async function uploadBiltyImage(file: File, _indentNumber: string): Promise<string> {
+export async function uploadBiltyImage(file: File, _indentNumber: string, onProgress?: (percent: number) => void): Promise<string> {
     try {
         return await uploadFile({
             file,
-            folderId: 'fullkitting-photos',
+            folderId: 'store-and-inventory/freight-payment',
             subFolder: 'bilty-images',
+            onProgress,
         });
     } catch (error) {
         console.error('Bilty image upload error:', error);

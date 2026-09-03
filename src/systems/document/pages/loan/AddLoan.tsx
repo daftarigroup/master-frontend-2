@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import { Save, Upload } from 'lucide-react';
 import { loansApi } from '../../services/document.api';
 import { MacModal } from '@/components/ui/mac-modal';
+import { uploadFile } from '@/lib/fetchers';
 
 interface AddLoanProps {
   isOpen: boolean;
@@ -24,19 +25,25 @@ export const AddLoan: React.FC<AddLoanProps> = ({ isOpen, onClose, onSaved }) =>
     fileContent: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({
-          ...prev,
-          file: file.name,
-          fileContent: reader.result as string,
-        }));
-      };
-      reader.readAsDataURL(file);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    setFormData((prev) => ({ ...prev, file: file.name }));
+    setIsUploadingFile(true);
+    try {
+      // Store the S3 URL rather than inlining the file's bytes as base64.
+      const url = await uploadFile({ file, folderId: 'document', subFolder: 'loans' });
+      setFormData((prev) => ({ ...prev, fileContent: url }));
+    } catch (error) {
+      console.error('Loan document upload error:', error);
+      setFormData((prev) => ({ ...prev, file: '', fileContent: '' }));
+      toast.error('Failed to upload document. Please try again.');
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
@@ -94,10 +101,10 @@ export const AddLoan: React.FC<AddLoanProps> = ({ isOpen, onClose, onSaved }) =>
           <button
             type="submit"
             form="add-loan-form"
-            disabled={submitting}
+            disabled={submitting || isUploadingFile}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition shadow-sm disabled:opacity-50"
           >
-            <Save size={14} /> {submitting ? 'Saving...' : 'Save Loan Record'}
+            <Save size={14} /> {submitting ? 'Saving...' : isUploadingFile ? 'Uploading File...' : 'Save Loan Record'}
           </button>
         </div>
       }
