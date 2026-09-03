@@ -38,14 +38,6 @@ export async function requestPresignedUrl(params: {
 }
 
 /**
- * PUTs a file directly to S3 using a presigned URL. Built on XMLHttpRequest
- * (not fetch, which cannot report upload progress) so callers can show a
- * real percentage. The Content-Type header sent here MUST exactly match the
- * contentType used when requesting the presigned URL — SigV4 signs that
- * header, and a mismatch causes S3 to reject the request with
- * SignatureDoesNotMatch.
- */
-/**
  * Deletes a previously-uploaded S3 object, given its public URL (or bare
  * key). Best-effort housekeeping — never throws, so a failed cleanup never
  * blocks or fails the user-facing remove/replace/close action that
@@ -58,6 +50,15 @@ export async function deleteUploadedFile(urlOrKey: string): Promise<void> {
         console.warn('Failed to delete S3 object (non-fatal, an orphan may be left behind):', error?.message || error);
     }
 }
+
+/**
+ * PUTs a file directly to S3 using a presigned URL. Built on XMLHttpRequest
+ * (not fetch, which cannot report upload progress) so callers can show a
+ * real percentage. Note this presigned URL only signs the `host` header
+ * (X-Amz-SignedHeaders=host) — Content-Type isn't cryptographically bound to
+ * the signature here, so a mismatch won't itself cause SignatureDoesNotMatch;
+ * it's still sent to match what the backend recorded when presigning.
+ */
 
 export function putFileToS3(
     uploadUrl: string,
@@ -82,7 +83,20 @@ export function putFileToS3(
             if (xhr.status >= 200 && xhr.status < 300) {
                 resolve();
             } else {
-                reject(new Error(`S3 upload failed with status ${xhr.status}`));
+                // S3 error responses are a small XML body with the real
+                // <Code>/<Message> (e.g. AccessDenied, RequestTimeTooSkewed,
+                // SignatureDoesNotMatch) — surface it instead of just the
+                // HTTP status, which alone isn't enough to diagnose a 403.
+                let detail = '';
+                try {
+                    const doc = new DOMParser().parseFromString(xhr.responseText, 'application/xml');
+                    const code = doc.querySelector('Code')?.textContent;
+                    const message = doc.querySelector('Message')?.textContent;
+                    if (code || message) detail = ` — ${code || ''}${message ? `: ${message}` : ''}`;
+                } catch {
+                    // Malformed/non-XML body — fall back to the bare status.
+                }
+                reject(new Error(`S3 upload failed with status ${xhr.status}${detail}`));
             }
         };
         xhr.onerror = () => reject(new Error('S3 upload failed (network error) — check the S3 bucket CORS policy allows PUT from this origin.'));
