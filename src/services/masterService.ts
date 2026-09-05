@@ -46,6 +46,7 @@ export interface MasterData {
     siteEngineers: { name: string; number: string; email: string; firmId?: number; firmName?: string }[];
     contractors: { contractorName: string; contractorGstin: string; contractorAddress: string; contractorEmail: string; responsiblePerson: string; location: string; phone: string; firmId?: number; firmName?: string }[];
     siteLocations: string[];
+    siteLocationDetails?: { location: string; firmId?: number; firmName?: string }[];
     defaultTerms: string[];
     firmCompanyMap: Record<string, { companyName: string; companyAddress: string; billingAddress: string; destinationAddress: string; companyGstin: string; companyPan: string }>;
 }
@@ -121,11 +122,17 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             firmName: c.firm?.firm_name || c.firm_name || '',
         }));
 
+        const siteLocationDetails = (locationData || [])
+            .map((l: any) => ({
+                location: String(l.location || '').trim(),
+                firmId: l.firm_id ? Number(l.firm_id) : (l.firm?.id ? Number(l.firm.id) : undefined),
+                firmName: l.firm?.firm_name || l.firm_name || '',
+            }))
+            .filter((l: any) => Boolean(l.location));
+
         const siteLocations: string[] = Array.from(
             new Set<string>(
-                (locationData || [])
-                    .map((l: any) => String(l.location || '').trim())
-                    .filter(Boolean)
+                siteLocationDetails.map((l: any) => l.location)
             )
         );
 
@@ -254,6 +261,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             siteEngineers,
             contractors,
             siteLocations,
+            siteLocationDetails,
             defaultTerms,
             firmCompanyMap,
         };
@@ -287,6 +295,7 @@ export async function fetchMasterOptions(permittedFirms?: string[]): Promise<Mas
             siteEngineers: [],
             contractors: [],
             siteLocations: [],
+            siteLocationDetails: [],
             defaultTerms: [],
             firmCompanyMap: {},
             itemUomMap: {},

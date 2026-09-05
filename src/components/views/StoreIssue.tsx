@@ -32,6 +32,7 @@ import {
 import type { IndentSheet } from '@/types';
 
 import type { IssueSheet } from '@/types';
+import { SearchableSelect, type SearchableOption } from '@/components/ui/searchable-select';
 import Heading from '../element/Heading';
 import { useEffect, useState, useMemo } from 'react';
 
@@ -41,6 +42,206 @@ import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { useProject } from '@/context/ProjectContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
+
+interface ProductItemRowProps {
+    index: number;
+    fieldId: string;
+    canDelete: boolean;
+    onRemove: () => void;
+    form: any;
+    options: MasterData | null;
+    allProductNames: string[];
+    realInventory: any[];
+}
+
+function ProductItemRow({
+    index,
+    fieldId,
+    canDelete,
+    onRemove,
+    form,
+    options,
+    allProductNames,
+    realInventory,
+}: ProductItemRowProps) {
+    const groupHead = form.watch(`products.${index}.groupHead`);
+    const productName = form.watch(`products.${index}.productName`);
+
+    const productOptions = useMemo(() => {
+        if (groupHead && options?.products?.[groupHead]) {
+            return options.products[groupHead];
+        }
+        return allProductNames;
+    }, [groupHead, options?.products, allProductNames]);
+
+    const searchableOptions: SearchableOption[] = useMemo(() => {
+        return productOptions.map((p) => {
+            const inv = realInventory.find((item) => item.itemName === p);
+            const stock = inv ? inv.current : 0;
+            const gh = options?.itemGroupHeadMap?.[p];
+            const sublabel = !groupHead && gh
+                ? `${gh} • Stock: ${stock}`
+                : `Stock: ${stock}`;
+            return {
+                value: p,
+                label: p,
+                sublabel,
+            };
+        });
+    }, [productOptions, realInventory, options?.itemGroupHeadMap, groupHead]);
+
+    return (
+        <Card
+            key={fieldId}
+            className="border-slate-200 shadow-sm hover:border-primary/30 transition-colors"
+        >
+            <CardContent className="p-4 sm:p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Product Item #{index + 1}
+                    </div>
+                    {canDelete && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
+                            onClick={onRemove}
+                        >
+                            <Trash size={16} />
+                        </Button>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <FormField
+                        control={form.control}
+                        name={`products.${index}.groupHead`}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
+                                    Group Head <span className="text-destructive">*</span>
+                                </FormLabel>
+                                <Select
+                                    onValueChange={(val) => {
+                                        field.onChange(val);
+                                        const currentProd = form.getValues(`products.${index}.productName`);
+                                        if (
+                                            currentProd &&
+                                            options?.products?.[val] &&
+                                            !options.products[val].includes(currentProd)
+                                        ) {
+                                            form.setValue(`products.${index}.productName`, '');
+                                            form.setValue(`products.${index}.uom`, '');
+                                        }
+                                    }}
+                                    value={field.value}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger className="w-full h-10 bg-slate-50/50 border-slate-200">
+                                            <SelectValue placeholder="Select Head" className="truncate" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {(options?.allGroupHeads || []).map((gh, i) => (
+                                            <SelectItem key={i} value={gh}>
+                                                {gh}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name={`products.${index}.productName`}
+                        render={({ field }) => (
+                            <FormItem className="md:col-span-1">
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
+                                    Product Name <span className="text-destructive">*</span>
+                                </FormLabel>
+                                <FormControl>
+                                    <SearchableSelect
+                                        options={searchableOptions}
+                                        value={field.value}
+                                        onValueChange={(val) => {
+                                            field.onChange(val);
+                                            // Auto-fill groupHead if not already selected
+                                            const currentGh = form.getValues(`products.${index}.groupHead`);
+                                            if (!currentGh && options?.itemGroupHeadMap?.[val]) {
+                                                form.setValue(`products.${index}.groupHead`, options.itemGroupHeadMap[val]);
+                                            }
+                                            // Auto-fill UOM from itemUomMap if available
+                                            if (options?.itemUomMap?.[val]) {
+                                                form.setValue(`products.${index}.uom`, options.itemUomMap[val]);
+                                            }
+                                        }}
+                                        placeholder="Select Product"
+                                        searchPlaceholder="Search product name..."
+                                        emptyText="No matching products"
+                                        className="w-full h-10 bg-slate-50/50 border-slate-200 text-sm"
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name={`products.${index}.quantity`}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
+                                    Quantity <span className="text-destructive">*</span>
+                                </FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="number"
+                                        step="any"
+                                        className="h-10 bg-slate-50/50 border-slate-200"
+                                        {...field}
+                                        disabled={!groupHead && !productName}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name={`products.${index}.uom`}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
+                                    UOM <span className="text-destructive">*</span>
+                                </FormLabel>
+                                <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value}
+                                    disabled={!groupHead && !productName}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger className="w-full h-10 bg-slate-50/50 border-slate-200">
+                                            <SelectValue placeholder="UOM" className="truncate" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {(options?.uoms || []).map((uom, i) => (
+                                            <SelectItem key={i} value={uom}>
+                                                {uom}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )}
+                    />
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default () => {
     const { user } = useAuth();
@@ -147,6 +348,129 @@ export default () => {
     });
 
     const selectedProject = form.watch('projectName') || 'All';
+    const selectedProjectName = form.watch('projectName');
+    const selectedFirmId = form.watch('firmId');
+
+    const cascadedContractors = useMemo(() => {
+        if (!selectedProjectName) {
+            return [];
+        }
+
+        const projLower = selectedProjectName.trim().toLowerCase();
+        const matchesProject = (firmName?: string | null, firmId?: number | string | null) => {
+            if (firmName) {
+                const parts = firmName.split(',').map(s => s.trim().toLowerCase());
+                if (parts.includes(projLower)) return true;
+            }
+            if (selectedFirmId && firmId && Number(firmId) === Number(selectedFirmId)) return true;
+            return false;
+        };
+
+        const contractorSet = new Set<string>();
+
+        // 1. From options?.contractors (registry)
+        (options?.contractors || []).forEach((c: any) => {
+            const name = (c.contractorName || c.contractor_name || '').trim();
+            if (!name) return;
+
+            if (matchesProject(c.firmName, c.firmId)) {
+                contractorSet.add(name);
+            }
+        });
+
+        // 2. From historical sheetIssues for this project
+        (sheetIssues || []).forEach((is: any) => {
+            const isFirmName = is.projectName || is.firm_name || is.firmNameMatch;
+            const isFirmId = is.firm_id || is.firmId;
+            if (matchesProject(isFirmName, isFirmId)) {
+                const cName = (is.constructorName || is.constructor_name || '').trim();
+                if (cName && cName !== 'N/A' && cName !== '-') {
+                    contractorSet.add(cName);
+                }
+            }
+        });
+
+        // 3. Fallback: If no project-specific contractor found, include unassigned contractors from registry
+        if (contractorSet.size === 0) {
+            (options?.contractors || []).forEach((c: any) => {
+                const name = (c.contractorName || c.contractor_name || '').trim();
+                const hasFirm = Boolean(c.firmId || (c.firmName && c.firmName !== '--' && c.firmName.trim() !== ''));
+                if (name && !hasFirm) {
+                    contractorSet.add(name);
+                }
+            });
+        }
+
+        return Array.from(contractorSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [selectedProjectName, selectedFirmId, options?.contractors, sheetIssues]);
+
+    const cascadedSiteLocations = useMemo(() => {
+        if (!selectedProjectName) {
+            return [];
+        }
+
+        const projLower = selectedProjectName.trim().toLowerCase();
+        const matchesProject = (firmName?: string | null, firmId?: number | string | null) => {
+            if (firmName) {
+                const parts = firmName.split(',').map(s => s.trim().toLowerCase());
+                if (parts.includes(projLower)) return true;
+            }
+            if (selectedFirmId && firmId && Number(firmId) === Number(selectedFirmId)) return true;
+            return false;
+        };
+
+        const locationSet = new Set<string>();
+
+        // 1. From options?.siteLocationDetails (registry with firm metadata)
+        (options?.siteLocationDetails || []).forEach((l: any) => {
+            const loc = (l.location || '').trim();
+            if (!loc) return;
+            if (matchesProject(l.firmName, l.firmId)) {
+                locationSet.add(loc);
+            }
+        });
+
+        // 2. From historical sheetIssues for this project
+        (sheetIssues || []).forEach((is: any) => {
+            const isFirmName = is.projectName || is.firm_name || is.firmNameMatch;
+            const isFirmId = is.firm_id || is.firmId;
+            if (matchesProject(isFirmName, isFirmId)) {
+                const loc = (is.siteLocation || is.site_location || '').trim();
+                if (loc && loc !== 'N/A' && loc !== '-') {
+                    locationSet.add(loc);
+                }
+            }
+        });
+
+        // 3. From matched contractors' location property
+        (options?.contractors || []).forEach((c: any) => {
+            if (matchesProject(c.firmName, c.firmId)) {
+                const loc = (c.location || '').trim();
+                if (loc && loc !== 'N/A' && loc !== '-') {
+                    locationSet.add(loc);
+                }
+            }
+        });
+
+        // 4. Fallback: If no locations found for this project, include unassigned locations from registry
+        if (locationSet.size === 0) {
+            (options?.siteLocationDetails || []).forEach((l: any) => {
+                const loc = (l.location || '').trim();
+                const hasFirm = Boolean(l.firmId || (l.firmName && l.firmName !== '--' && l.firmName.trim() !== ''));
+                if (loc && !hasFirm) {
+                    locationSet.add(loc);
+                }
+            });
+            if (locationSet.size === 0 && (options?.siteLocations || []).length > 0) {
+                (options?.siteLocations || []).forEach((loc: string) => {
+                    const l = (loc || '').trim();
+                    if (l) locationSet.add(l);
+                });
+            }
+        }
+
+        return Array.from(locationSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [selectedProjectName, selectedFirmId, options?.siteLocationDetails, options?.siteLocations, options?.contractors, sheetIssues]);
 
     const realInventory = useMemo(() => {
         if (!inventorySheet) return [];
@@ -159,6 +483,23 @@ export default () => {
             selectedProject
         );
     }, [inventorySheet, indentSheet, storeInSheet, sheetIssues, stockTransferSheet, selectedProject]);
+
+    const allProductNames = useMemo(() => {
+        const set = new Set<string>();
+        if (options?.products) {
+            Object.values(options.products).forEach(arr => {
+                arr.forEach(p => {
+                    if (p && p.trim()) set.add(p.trim());
+                });
+            });
+        }
+        if (options?.itemUomMap) {
+            Object.keys(options.itemUomMap).forEach(p => {
+                if (p && p.trim()) set.add(p.trim());
+            });
+        }
+        return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [options?.products, options?.itemUomMap]);
 
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
@@ -290,6 +631,9 @@ export default () => {
                                                         field.onChange(val);
                                                         const firmObj = options?.firmObjects?.find(f => f.name === val);
                                                         if (firmObj) form.setValue('firmId', firmObj.id);
+                                                        // Cascade reset contractor and site location on project change
+                                                        form.setValue('constructorName', '');
+                                                        form.setValue('siteLocation', '');
                                                     }}
                                                     value={field.value}
                                                 >
@@ -317,18 +661,28 @@ export default () => {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-slate-600 font-semibold">Contractor Name <span className="text-destructive">*</span></FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                <Select
+                                                    onValueChange={field.onChange}
+                                                    value={field.value}
+                                                    disabled={!selectedProjectName}
+                                                >
                                                     <FormControl>
-                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20">
-                                                            <SelectValue placeholder="Select contractor" />
+                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50">
+                                                            <SelectValue placeholder={!selectedProjectName ? "Select project first" : "Select contractor"} />
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {(options?.contractors || []).map((c, i) => (
-                                                            <SelectItem key={i} value={c.contractorName}>
-                                                                {c.contractorName}
-                                                            </SelectItem>
-                                                        ))}
+                                                        {cascadedContractors.length > 0 ? (
+                                                            cascadedContractors.map((cName, i) => (
+                                                                <SelectItem key={i} value={cName}>
+                                                                    {cName}
+                                                                </SelectItem>
+                                                            ))
+                                                        ) : (
+                                                            <div className="py-2 px-3 text-xs text-muted-foreground italic text-center">
+                                                                No contractors for this project
+                                                            </div>
+                                                        )}
                                                     </SelectContent>
                                                 </Select>
                                             </FormItem>
@@ -340,18 +694,28 @@ export default () => {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-slate-600 font-semibold">Site Location <span className="text-destructive">*</span></FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                <Select
+                                                    onValueChange={field.onChange}
+                                                    value={field.value}
+                                                    disabled={!selectedProjectName}
+                                                >
                                                     <FormControl>
-                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20">
-                                                            <SelectValue placeholder="Select location" />
+                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50">
+                                                            <SelectValue placeholder={!selectedProjectName ? "Select project first" : "Select location"} />
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {(options?.siteLocations || []).map((loc, i) => (
-                                                            <SelectItem key={i} value={loc}>
-                                                                {loc}
-                                                            </SelectItem>
-                                                        ))}
+                                                        {cascadedSiteLocations.length > 0 ? (
+                                                            cascadedSiteLocations.map((loc, i) => (
+                                                                <SelectItem key={i} value={loc}>
+                                                                    {loc}
+                                                                </SelectItem>
+                                                            ))
+                                                        ) : (
+                                                            <div className="py-2 px-3 text-xs text-muted-foreground italic text-center">
+                                                                No site locations for this project
+                                                            </div>
+                                                        )}
                                                     </SelectContent>
                                                 </Select>
                                             </FormItem>
@@ -415,152 +779,19 @@ export default () => {
                             </div>
 
                             <div className="grid grid-cols-1 gap-4">
-                                {fields.map((field, index) => {
-                                    const groupHead = products[index]?.groupHead;
-                                    const groupHeadOptions = options?.allGroupHeads || [];
-                                    const productOptions = options?.products[groupHead] || [];
-
-                                    return (
-                                        <Card
-                                            key={field.id}
-                                            className="border-slate-200 shadow-sm hover:border-primary/30 transition-colors"
-                                        >
-                                            <CardContent className="p-4 sm:p-6">
-                                                <div className="flex justify-between items-center mb-4">
-                                                    <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                        Product Item #{index + 1}
-                                                    </div>
-                                                    {fields.length > 1 && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
-                                                            onClick={() => remove(index)}
-                                                        >
-                                                            <Trash size={16} />
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`products.${index}.groupHead`}
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
-                                                                    Group Head <span className="text-destructive">*</span>
-                                                                </FormLabel>
-                                                                <Select
-                                                                    onValueChange={field.onChange}
-                                                                    value={field.value}
-                                                                >
-                                                                    <FormControl>
-                                                                        <SelectTrigger className="w-full h-10 bg-slate-50/50 border-slate-200">
-                                                                            <SelectValue placeholder="Select Head" className="truncate" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        {groupHeadOptions.map((gh, i) => (
-                                                                            <SelectItem key={i} value={gh}>
-                                                                                {gh}
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`products.${index}.productName`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="md:col-span-1">
-                                                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
-                                                                    Product Name <span className="text-destructive">*</span>
-                                                                </FormLabel>
-                                                                <Select
-                                                                    onValueChange={field.onChange}
-                                                                    value={field.value}
-                                                                    disabled={!groupHead}
-                                                                >
-                                                                    <FormControl>
-                                                                        <SelectTrigger className="w-full h-10 bg-slate-50/50 border-slate-200">
-                                                                            <SelectValue placeholder="Select Product" className="truncate" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        {productOptions.map((p, i) => {
-                                                                            const inv = realInventory.find(item => item.itemName === p);
-                                                                            const stock = inv ? inv.current : 0;
-                                                                            return (
-                                                                                <SelectItem key={i} value={p}>
-                                                                                    {p} (Stock: {stock})
-                                                                                </SelectItem>
-                                                                            );
-                                                                        })}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`products.${index}.quantity`}
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
-                                                                    Quantity <span className="text-destructive">*</span>
-                                                                </FormLabel>
-                                                                <FormControl>
-                                                                    <Input
-                                                                        type="number"
-                                                                        step="any"
-                                                                        className="h-10 bg-slate-50/50 border-slate-200"
-                                                                        {...field}
-                                                                        disabled={!groupHead}
-                                                                    />
-                                                                </FormControl>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`products.${index}.uom`}
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
-                                                                    UOM <span className="text-destructive">*</span>
-                                                                </FormLabel>
-                                                                <Select
-                                                                    onValueChange={field.onChange}
-                                                                    value={field.value}
-                                                                    disabled={!groupHead}
-                                                                >
-                                                                    <FormControl>
-                                                                        <SelectTrigger className="w-full h-10 bg-slate-50/50 border-slate-200">
-                                                                            <SelectValue placeholder="UOM" className="truncate" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        {(options?.uoms || []).map((uom, i) => (
-                                                                            <SelectItem key={i} value={uom}>
-                                                                                {uom}
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
+                                {fields.map((field, index) => (
+                                    <ProductItemRow
+                                        key={field.id}
+                                        index={index}
+                                        fieldId={field.id}
+                                        canDelete={fields.length > 1}
+                                        onRemove={() => remove(index)}
+                                        form={form}
+                                        options={options}
+                                        allProductNames={allProductNames}
+                                        realInventory={realInventory}
+                                    />
+                                ))}
                             </div>
                         </div>
 

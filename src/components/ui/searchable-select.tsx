@@ -51,12 +51,12 @@ export function SearchableSelect({
                     )}
                 >
                     <span className="truncate">
-                        {selectedOption ? selectedOption.label : placeholder}
+                        {selectedOption ? selectedOption.label : (value || placeholder)}
                     </span>
                     <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-50 shrink-0" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 z-50 shadow-md" align="start">
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0 z-50 shadow-md" align="start">
                 <Command>
                     <CommandInput placeholder={searchPlaceholder} className="h-9 text-xs" />
                     <CommandList className="max-h-60 overflow-y-auto">
