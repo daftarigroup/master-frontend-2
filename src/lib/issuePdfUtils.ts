@@ -1,5 +1,5 @@
 import { pdf, type DocumentProps } from '@react-pdf/renderer';
-import IssuePdf from '@/components/element/IssuePdf';
+import IssuePdf, { type IssuePdfGroupProps, type Product } from '@/components/element/IssuePdf';
 import { formatDate } from '@/lib/utils';
 import { type IssueRecord } from '@/services/issueService';
 import { toast } from 'sonner';
@@ -30,10 +30,20 @@ export const getLogoBase64 = (url: string = logoUrl): Promise<string> => {
 };
 
 /**
- * Dynamically generates an Issue or Return PDF slip for an IssueRecord
- * and opens it in a new browser tab for preview without saving to DB.
+ * Dynamically generates a grouped multi-page Issue or Return PDF slip
+ * for an array of IssueRecords (e.g. filtered by date), grouping records by
+ * (contractor_name && site_location) into separate pages with Original & Duplicate copies.
  */
-export const openIssuePdfPreview = async (type: 'issue' | 'return', record: IssueRecord) => {
+export const openGroupedIssuePdfPreview = async (
+    type: 'issue' | 'return',
+    records: IssueRecord[],
+    targetDate?: string
+) => {
+    if (!records || records.length === 0) {
+        toast.error('No records found to generate slip');
+        return;
+    }
+
     // Open blank window synchronously on user click to prevent popup blockers
     const win = window.open('', '_blank');
     if (win) {
@@ -89,52 +99,113 @@ export const openIssuePdfPreview = async (type: 'issue' | 'return', record: Issu
     try {
         const logoBase64 = await getLogoBase64(logoUrl);
 
-        const issuedQty = Number(record.given_qty) > 0 ? Number(record.given_qty) : (Number(record.quantity) || 0);
-        const returnQty = Number(record.rejected_damage_qty) || Number(record.quantity) || 0;
+        // Group records by contractor_name && site_location
+        const groupsMap = new Map<string, IssueRecord[]>();
+        for (const r of records) {
+            const contractor = (r.constructor_name || '').trim();
+            const site = (r.site_location || '').trim();
+            const key = `${contractor.toLowerCase()}____${site.toLowerCase()}`;
+            if (!groupsMap.has(key)) {
+                groupsMap.set(key, []);
+            }
+            groupsMap.get(key)!.push(r);
+        }
 
-        const rawDate = record.actual1 || record.timestamp;
-        const dateStr = rawDate
-            ? new Date(rawDate).toLocaleString('en-IN', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true,
-              })
-            : new Date().toLocaleString('en-IN', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true,
-              });
+        const ITEMS_PER_PAGE = 14;
+        const pages: IssuePdfGroupProps[] = [];
+
+        for (const [, groupRecords] of groupsMap) {
+            const first = groupRecords[0];
+
+            // Resolve date representation
+            const rawDate = groupRecords.find((r) => r.actual1)?.actual1 ||
+                            groupRecords.find((r) => r.timestamp)?.timestamp ||
+                            targetDate;
+            const dateStr = rawDate
+                ? new Date(rawDate).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                  })
+                : new Date().toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                  });
+
+            const rawPlanned = groupRecords.find((r) => r.planned1)?.planned1 || targetDate;
+            const plannedDateStr = rawPlanned ? formatDate(new Date(rawPlanned)) : '';
+
+            // Collect distinct remarks
+            const distinctRemarks = Array.from(new Set(groupRecords.map((r) => r.issue_to).filter(Boolean)));
+            const remarks = distinctRemarks.join(', ') || '-';
+
+            const issuePersonName = groupRecords.find((r) => r.issue_person_name)?.issue_person_name || '';
+            const returnPersonName = groupRecords.find((r) => r.return_person_name)?.return_person_name || '';
+            const damageRemark = groupRecords.find((r) => r.damage_remark)?.damage_remark || '';
+            const totalRejectedDamage = groupRecords.reduce((sum, r) => sum + (Number(r.rejected_damage_qty) || 0), 0);
+
+            const totalPagesForGroup = Math.ceil(groupRecords.length / ITEMS_PER_PAGE);
+
+            for (let p = 0; p < totalPagesForGroup; p++) {
+                const chunk = groupRecords.slice(p * ITEMS_PER_PAGE, (p + 1) * ITEMS_PER_PAGE);
+
+                // Format issue numbers cleanly for this chunk so they never overflow
+                const chunkIssueNos = Array.from(new Set(chunk.map((r) => r.issue_no).filter(Boolean)));
+                let issueNumber = 'IS-UNKNOWN';
+                if (chunkIssueNos.length === 1) {
+                    issueNumber = chunkIssueNos[0];
+                } else if (chunkIssueNos.length <= 3) {
+                    issueNumber = chunkIssueNos.join(', ');
+                } else {
+                    issueNumber = `${chunkIssueNos[0]} - ${chunkIssueNos[chunkIssueNos.length - 1]} (${chunkIssueNos.length} items)`;
+                }
+
+                const products: Product[] = chunk.map((r) => {
+                    const issuedQty = Number(r.given_qty) > 0 ? Number(r.given_qty) : (Number(r.quantity) || 0);
+                    const returnQty = Number(r.rejected_damage_qty) || Number(r.quantity) || 0;
+                    return {
+                        productName: r.product_name || '',
+                        groupHead: r.group_head || '',
+                        quantity: type === 'issue' ? issuedQty : returnQty,
+                        uom: r.uom || '',
+                        remarks: r.issue_to || '',
+                        rejectedDamageQty: Number(r.rejected_damage_qty) || 0,
+                    };
+                });
+
+                pages.push({
+                    type,
+                    issueNumber,
+                    date: dateStr,
+                    plannedDate: plannedDateStr,
+                    constructorName: first.constructor_name || '',
+                    siteLocation: first.site_location || '',
+                    projectName: first.firm_name || '',
+                    remarks,
+                    issuePersonName,
+                    returnPersonName,
+                    damageRemark,
+                    rejectedDamageQty: totalRejectedDamage,
+                    products,
+                    logo: logoBase64,
+                    pageNumber: p + 1,
+                    totalPages: totalPagesForGroup,
+                    startSr: p * ITEMS_PER_PAGE + 1,
+                });
+            }
+        }
 
         const pdfDoc = React.createElement(IssuePdf, {
-            type,
-            issueNumber: record.issue_no || 'IS-UNKNOWN',
-            date: dateStr,
-            plannedDate: record.planned1 ? formatDate(new Date(record.planned1)) : '',
-            constructorName: record.constructor_name || '',
-            siteLocation: record.site_location || '',
-            projectName: record.firm_name || '',
-            remarks: record.issue_to || '',
-            issuePersonName: record.issue_person_name || '',
-            returnPersonName: record.return_person_name || '',
-            damageRemark: record.damage_remark || '',
-            rejectedDamageQty: record.rejected_damage_qty ? Number(record.rejected_damage_qty) : 0,
-            products: [
-                {
-                    productName: record.product_name || '',
-                    groupHead: record.group_head || '',
-                    quantity: type === 'issue' ? issuedQty : returnQty,
-                    uom: record.uom || '',
-                },
-            ],
-            logo: logoBase64,
+            pages,
         });
 
         const blob = await pdf(pdfDoc as React.ReactElement<DocumentProps>).toBlob();
@@ -152,4 +223,11 @@ export const openIssuePdfPreview = async (type: 'issue' | 'return', record: Issu
             win.close();
         }
     }
+};
+
+/**
+ * Single-record wrapper for backwards compatibility
+ */
+export const openIssuePdfPreview = async (type: 'issue' | 'return', record: IssueRecord) => {
+    return openGroupedIssuePdfPreview(type, [record]);
 };

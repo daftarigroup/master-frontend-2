@@ -22,14 +22,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { PuffLoader as Loader } from 'react-spinners';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { ClipboardCheck, Pencil, Check, X, Trash2 } from 'lucide-react';
+import { ClipboardCheck, Pencil, Check, X, Trash2, Calendar } from 'lucide-react';
 import Heading from '../element/Heading';
 import { Input } from '../ui/input';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { useProject } from '@/context/ProjectContext';
-import { openIssuePdfPreview } from '@/lib/issuePdfUtils';
+import { openIssuePdfPreview, openGroupedIssuePdfPreview } from '@/lib/issuePdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
 
@@ -49,6 +49,32 @@ const toInputDate = (s?: string) => {
     if (isNaN(d.getTime())) return '';
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const getDateOnly = (val?: string | null): string => {
+    if (!val) return '';
+    const match = String(val).match(/^(\d{4}-\d{2}-\d{2})/);
+    if (String(val).length === 10 && match) {
+        return match[1];
+    }
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+    return match ? match[1] : '';
+};
+
+const matchesRecordDate = (record: IssueRecord, selectedDate: string, tab?: string): boolean => {
+    if (!selectedDate) return true;
+    const pDate = getDateOnly(record.planned1);
+    const aDate = getDateOnly(record.actual1);
+    const tDate = getDateOnly(record.timestamp);
+
+    if (tab === 'pending') {
+        return pDate === selectedDate || (!pDate && tDate === selectedDate);
+    }
+    return aDate === selectedDate || pDate === selectedDate || tDate === selectedDate;
 };
 
 function EditablePlannedDate({
@@ -133,7 +159,8 @@ export default function IssueData() {
     const [openDialog, setOpenDialog] = useState(false);
     const [downloading, setDownloading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<IssueRecord | null>(null);
-
+    const [filterDate, setFilterDate] = useState<string>('');
+    const [activeTab, setActiveTab] = useState<string>('pending');
 
     const fetchData = async () => {
         setDataLoading(true);
@@ -183,7 +210,6 @@ export default function IssueData() {
         return filteredData;
     }, [allData, effectivePermittedFirms]);
 
-
     const damageData = useMemo(() => {
         const filteredData = filterByFirmAccess(
             allData.filter((item) => item.status === 'Damage'),
@@ -192,6 +218,75 @@ export default function IssueData() {
         );
         return filteredData;
     }, [allData, effectivePermittedFirms]);
+
+    const filteredPendingData = useMemo(() => {
+        if (!filterDate) return pendingData;
+        return pendingData.filter((item) => matchesRecordDate(item, filterDate, 'pending'));
+    }, [pendingData, filterDate]);
+
+    const filteredReturnData = useMemo(() => {
+        if (!filterDate) return returnData;
+        return returnData.filter((item) => matchesRecordDate(item, filterDate, 'return'));
+    }, [returnData, filterDate]);
+
+    const filteredHistoryData = useMemo(() => {
+        if (!filterDate) return historyData;
+        return historyData.filter((item) => matchesRecordDate(item, filterDate, 'history'));
+    }, [historyData, filterDate]);
+
+    const handleViewSlip = (type: 'issue' | 'return', clickedRecord: IssueRecord) => {
+        let targetDate = filterDate;
+        if (!targetDate) {
+            targetDate = getDateOnly(clickedRecord.planned1) ||
+                         getDateOnly(clickedRecord.actual1) ||
+                         getDateOnly(clickedRecord.timestamp);
+            if (targetDate) {
+                setFilterDate(targetDate);
+            }
+        }
+
+        let dataset: IssueRecord[];
+        if (type === 'return') {
+            dataset = returnData;
+        } else if (activeTab === 'history') {
+            dataset = historyData;
+        } else if (activeTab === 'return') {
+            dataset = returnData;
+        } else {
+            dataset = pendingData;
+        }
+
+        const matching = targetDate
+            ? dataset.filter((item) => matchesRecordDate(item, targetDate, activeTab))
+            : [clickedRecord];
+
+        const recordsToPrint = matching.length > 0 ? matching : [clickedRecord];
+
+        openGroupedIssuePdfPreview(type, recordsToPrint, targetDate);
+    };
+
+    const renderDateFilter = () => (
+        <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 shadow-xs">
+            <Calendar size={14} className="text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Filter Date:</span>
+            <Input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="h-7 w-32 sm:w-36 text-xs border-none p-0 focus-visible:ring-0 focus-visible:ring-offset-0 cursor-pointer"
+            />
+            {filterDate && (
+                <button
+                    type="button"
+                    onClick={() => setFilterDate('')}
+                    className="text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted"
+                    title="Clear date filter"
+                >
+                    <X size={13} />
+                </button>
+            )}
+        </div>
+    );
 
     const handleDownload = (data: any[]) => {
         if (!data || data.length === 0) {
@@ -272,7 +367,7 @@ export default function IssueData() {
             cell: ({ row }) => (
                 <button
                     type="button"
-                    onClick={() => openIssuePdfPreview('issue', row.original)}
+                    onClick={() => handleViewSlip('issue', row.original)}
                     className="text-primary hover:underline font-medium cursor-pointer"
                 >
                     View
@@ -310,7 +405,7 @@ export default function IssueData() {
             cell: ({ row }) => (
                 <button
                     type="button"
-                    onClick={() => openIssuePdfPreview('issue', row.original)}
+                    onClick={() => handleViewSlip('issue', row.original)}
                     className="text-primary hover:underline font-medium cursor-pointer"
                 >
                     View
@@ -368,7 +463,7 @@ export default function IssueData() {
             cell: ({ row }) => (
                 <button
                     type="button"
-                    onClick={() => openIssuePdfPreview('issue', row.original)}
+                    onClick={() => handleViewSlip('issue', row.original)}
                     className="text-primary hover:underline font-medium cursor-pointer"
                 >
                     View
@@ -381,7 +476,7 @@ export default function IssueData() {
             cell: ({ row }) => (
                 <button
                     type="button"
-                    onClick={() => openIssuePdfPreview('return', row.original)}
+                    onClick={() => handleViewSlip('return', row.original)}
                     className="text-primary hover:underline font-medium cursor-pointer"
                 >
                     View
@@ -464,80 +559,103 @@ export default function IssueData() {
     return (
         <div>
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-                <Tabs defaultValue="pending">
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
                     <Heading
                         heading="Store Data"
                         subtext="Store Data"
                         tabs
-                        pendingCount={pendingData.length}
-                        returnCount={returnData.length}
-                        historyCount={historyData.length}
+                        pendingCount={filteredPendingData.length}
+                        returnCount={filteredReturnData.length}
+                        historyCount={filteredHistoryData.length}
                         returnValue="return"
                     >
                         <ClipboardCheck size={50} className="text-primary" />
                     </Heading>
 
+                    {filterDate && (
+                        <div className="mx-3 sm:mx-5 mt-3 mb-1 flex items-center justify-between bg-blue-50/90 border border-blue-200 text-blue-800 text-xs px-3 py-2 rounded-lg shadow-xs">
+                            <span className="flex items-center gap-2 font-medium">
+                                <Calendar size={14} className="text-blue-600 shrink-0" />
+                                <span>
+                                    Filtered by Date: <strong className="font-semibold">{formatDate(new Date(filterDate))}</strong>
+                                    <span className="text-blue-600 ml-1.5 font-normal">
+                                        ({activeTab === 'pending' ? filteredPendingData.length : activeTab === 'return' ? filteredReturnData.length : filteredHistoryData.length} record{((activeTab === 'pending' ? filteredPendingData.length : activeTab === 'return' ? filteredReturnData.length : filteredHistoryData.length) === 1 ? '' : 's')} in this tab)
+                                    </span>
+                                </span>
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFilterDate('')}
+                                className="h-6 px-2 text-xs text-blue-700 hover:text-blue-900 hover:bg-blue-100"
+                            >
+                                Clear Filter
+                            </Button>
+                        </div>
+                    )}
+
                     <TabsContent value="pending">
                         <DataTable
-                            data={pendingData}
+                            data={filteredPendingData}
                             columns={columns}
                             searchFields={['product_name', 'issue_no', 'issue_to', 'constructor_name', 'site_location', 'firm_name']}
                             dataLoading={dataLoading}
                             extraActions={
-                                <Button
-                                    variant="default"
-                                    onClick={() => handleDownload(pendingData)}
-                                    style={{
-                                        background: 'linear-gradient(90deg, #4CAF50, #2E7D32)',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        padding: '0 16px',
-                                        fontWeight: 'bold',
-                                        boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                    }}
-                                >
-                                    <DownloadOutlined />
-                                    {downloading ? 'Downloading...' : 'Download'}
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    {renderDateFilter()}
+                                    <Button
+                                        variant="default"
+                                        onClick={() => handleDownload(filteredPendingData)}
+                                        style={{
+                                            background: 'linear-gradient(90deg, #4CAF50, #2E7D32)',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '0 16px',
+                                            fontWeight: 'bold',
+                                            boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                        }}
+                                    >
+                                        <DownloadOutlined />
+                                        {downloading ? 'Downloading...' : 'Download'}
+                                    </Button>
+                                </div>
                             }
                         />
                     </TabsContent>
                     <TabsContent value="return">
                         <DataTable
-                            data={returnData}
+                            data={filteredReturnData}
                             columns={returnColumns}
                             searchFields={['product_name', 'issue_no', 'issue_to', 'constructor_name', 'site_location', 'firm_name', 'return_person_name']}
                             dataLoading={dataLoading}
-                        // extraActions={
-                        //     <Button
-                        //         variant="default"
-                        //         onClick={() => handleDownload(returnData)}
-                        //         className="bg-gradient-to-r from-orange-500 to-red-600 border-none rounded-lg font-bold shadow-md flex items-center gap-2 px-4"
-                        //     >
-                        //         <DownloadOutlined />
-                        //         Download Returns
-                        //     </Button>
-                        // }
+                            extraActions={
+                                <div className="flex items-center gap-2">
+                                    {renderDateFilter()}
+                                </div>
+                            }
                         />
                     </TabsContent>
                     <TabsContent value="history">
                         <DataTable
-                            data={historyData}
+                            data={filteredHistoryData}
                             columns={historyColumns}
                             searchFields={['product_name', 'issue_no', 'issue_to', 'constructor_name', 'site_location', 'firm_name']}
                             dataLoading={dataLoading}
                             extraActions={
-                                <Button
-                                    variant="default"
-                                    onClick={() => handleDownload(historyData)}
-                                    className="bg-gradient-to-r from-blue-500 to-indigo-600 border-none rounded-lg font-bold shadow-md flex items-center gap-2 px-4"
-                                >
-                                    <DownloadOutlined />
-                                    Download History
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    {renderDateFilter()}
+                                    <Button
+                                        variant="default"
+                                        onClick={() => handleDownload(filteredHistoryData)}
+                                        className="bg-gradient-to-r from-blue-500 to-indigo-600 border-none rounded-lg font-bold shadow-md flex items-center gap-2 px-4"
+                                    >
+                                        <DownloadOutlined />
+                                        Download History
+                                    </Button>
+                                </div>
                             }
                         />
                     </TabsContent>

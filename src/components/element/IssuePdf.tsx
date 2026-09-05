@@ -175,15 +175,16 @@ const styles = StyleSheet.create({
     },
 });
 
-interface Product {
+export interface Product {
     productName: string;
     groupHead: string;
-    // department: string;
     quantity: number;
     uom: string;
+    remarks?: string;
+    rejectedDamageQty?: number;
 }
 
-export interface IssuePdfProps {
+export interface IssuePdfGroupProps {
     type: 'issue' | 'return';
     issueNumber: string;
     date: string;
@@ -198,6 +199,13 @@ export interface IssuePdfProps {
     rejectedDamageQty?: number;
     products: Product[];
     logo?: string;
+    pageNumber?: number;
+    totalPages?: number;
+    startSr?: number;
+}
+
+export interface IssuePdfProps extends Partial<IssuePdfGroupProps> {
+    pages?: IssuePdfGroupProps[];
 }
 
 const SlipPanel = ({
@@ -214,10 +222,14 @@ const SlipPanel = ({
     returnPersonName,
     damageRemark,
     rejectedDamageQty,
-    products,
-    logo
-}: IssuePdfProps & { copyTitle: string }) => {
+    products = [],
+    logo,
+    pageNumber,
+    totalPages,
+    startSr = 1,
+}: IssuePdfGroupProps & { copyTitle: string }) => {
     const isReturn = type === 'return';
+    const isCompact = (products?.length || 0) > 4;
 
     return (
         <View style={styles.slipColumn}>
@@ -227,20 +239,27 @@ const SlipPanel = ({
                     <Image src={daftariImg} style={styles.daftariLogo} />
                 </View>
                 <View style={styles.centerCopyContainer}>
-                    <Text style={styles.copyLabel}>{copyTitle}</Text>
+                    <Text style={styles.copyLabel}>
+                        {copyTitle}{totalPages && totalPages > 1 ? ` (${pageNumber}/${totalPages})` : ''}
+                    </Text>
                 </View>
                 <View style={styles.logoContainer}>
                     <Image src={logo || poojaLogoImg} style={styles.logo} />
                 </View>
             </View>
 
-            <View style={styles.header}>
-                <Text style={styles.title}>{isReturn ? 'STORE RETURN SLIP' : 'STORE ISSUE SLIP'}</Text>
-                <Text style={styles.subtitle}>{isReturn ? 'Material Return Confirmation' : 'Material Issue Note'}</Text>
+            <View style={[styles.header, isCompact ? { marginBottom: 3, paddingBottom: 2 } : {}]}>
+                <Text style={[styles.title, isCompact ? { fontSize: 11, marginBottom: 0.5 } : {}]}>
+                    {isReturn ? 'STORE RETURN SLIP' : 'STORE ISSUE SLIP'}
+                </Text>
+                <Text style={styles.subtitle}>
+                    {isReturn ? 'Material Return Confirmation' : 'Material Issue Note'}
+                    {totalPages && totalPages > 1 ? ` • PAGE ${pageNumber} OF ${totalPages}` : ''}
+                </Text>
             </View>
 
             <View style={styles.bodyContent}>
-                <View style={styles.infoGrid}>
+                <View style={[styles.infoGrid, isCompact ? { padding: 3.5, marginBottom: 3 } : {}]}>
                     <View style={styles.infoItem}>
                         <Text style={styles.label}>ISSUE NUMBER</Text>
                         <Text style={styles.value}>{issueNumber}</Text>
@@ -289,7 +308,7 @@ const SlipPanel = ({
                 </View>
 
                 <View style={styles.table}>
-                    <View style={styles.tableHeader}>
+                    <View style={[styles.tableHeader, isCompact ? { padding: 3 } : {}]}>
                         <Text style={styles.colSr}>#</Text>
                         <View style={[styles.colMain, !isReturn ? { width: '45%' } : {}]}>
                             <Text>MATERIAL / PRODUCT</Text>
@@ -301,23 +320,23 @@ const SlipPanel = ({
                     </View>
 
                     {products.map((p, i) => (
-                        <View key={i} style={styles.tableRow}>
-                            <Text style={styles.colSr}>{i + 1}</Text>
+                        <View key={i} style={[styles.tableRow, isCompact ? { padding: 2.5 } : {}]}>
+                            <Text style={styles.colSr}>{(startSr || 1) + i}</Text>
                             <View style={[styles.colMain, !isReturn ? { width: '45%' } : {}]}>
                                 <Text style={{ fontFamily: 'Helvetica-Bold' }}>{p.productName}</Text>
                                 <Text style={styles.specText}>Group: {p.groupHead}</Text>
                             </View>
                             <Text style={[styles.colQty, isReturn ? { width: '13%' } : {}]}>{p.quantity}</Text>
-                            {isReturn && <Text style={styles.colReturnQty}>{rejectedDamageQty || 0}</Text>}
+                            {isReturn && <Text style={styles.colReturnQty}>{p.rejectedDamageQty ?? (rejectedDamageQty || 0)}</Text>}
                             <Text style={styles.colUom}>{p.uom}</Text>
-                            <Text style={styles.colRemark}>{remarks || '-'}</Text>
+                            <Text style={styles.colRemark}>{p.remarks || remarks || '-'}</Text>
                         </View>
                     ))}
                 </View>
             </View>
 
-            <View style={styles.bottomSection}>
-                <View style={styles.signatureSection}>
+            <View style={[styles.bottomSection, isCompact ? { paddingTop: 4 } : {}]}>
+                <View style={[styles.signatureSection, isCompact ? { marginBottom: 3 } : {}]}>
                     <View style={styles.signatureBox}>
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureLabel}>Store incharge</Text>
@@ -330,7 +349,7 @@ const SlipPanel = ({
                 </View>
 
                 <Text style={styles.footer}>
-                    Generated by botivate.in | Transaction ID: {issueNumber}
+                    Generated by botivate.in | Transaction ID: {issueNumber}{totalPages && totalPages > 1 ? ` | Page ${pageNumber} of ${totalPages}` : ''}
                 </Text>
             </View>
         </View>
@@ -338,18 +357,24 @@ const SlipPanel = ({
 };
 
 const IssuePdf = (props: IssuePdfProps) => {
+    const pages: IssuePdfGroupProps[] = props.pages && props.pages.length > 0
+        ? props.pages
+        : [(props as IssuePdfGroupProps)];
+
     return (
         <Document>
-            <Page size="A4" orientation="landscape" style={styles.page}>
-                {/* Left Slip: Original Copy */}
-                <SlipPanel {...props} copyTitle="ORIGINAL COPY" />
+            {pages.map((groupProps, index) => (
+                <Page key={index} size="A4" orientation="landscape" style={styles.page}>
+                    {/* Left Slip: Original Copy */}
+                    <SlipPanel {...groupProps} copyTitle="ORIGINAL COPY" />
 
-                {/* Center Divider / Perforation Line */}
-                <View style={styles.divider} />
+                    {/* Center Divider / Perforation Line */}
+                    <View style={styles.divider} />
 
-                {/* Right Slip: Duplicate Copy */}
-                <SlipPanel {...props} copyTitle="DUPLICATE COPY" />
-            </Page>
+                    {/* Right Slip: Duplicate Copy */}
+                    <SlipPanel {...groupProps} copyTitle="DUPLICATE COPY" />
+                </Page>
+            ))}
         </Document>
     );
 };
