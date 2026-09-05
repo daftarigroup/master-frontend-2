@@ -68,11 +68,17 @@ export default () => {
         return globalProjectId && globalProjectId !== 'all' ? String(globalProjectId) : 'All';
     });
 
+    const [selectedParty, setSelectedParty] = useState<string>('All');
+
     useEffect(() => {
         if (globalProjectId) {
             setSelectedProjectId(globalProjectId === 'all' ? 'All' : String(globalProjectId));
         }
     }, [globalProjectId]);
+
+    useEffect(() => {
+        setSelectedParty('All');
+    }, [selectedProjectId]);
 
     const selectedFirm = useMemo(() => {
         if (selectedProjectId === 'All') return null;
@@ -127,6 +133,96 @@ export default () => {
         });
     }, [stockTransferSheet, selectedProjectId, selectedFirm?.name]);
 
+    const partyOptions = useMemo(() => {
+        const partySet = new Set<string>();
+
+        (filteredStoreIns || []).forEach((s: any) => {
+            const name = (s.vendorName || s.vendor_name || s.vendor || s.party || s.party_name || (s as any).approved_party_name || '').trim();
+            if (name && name !== 'N/A' && name !== '-' && name.toLowerCase() !== 'null' && name.toLowerCase() !== 'undefined') {
+                partySet.add(name);
+            }
+        });
+
+        (filteredIssues || []).forEach((is: any) => {
+            const cName = (is.constructorName || is.constructor_name || '').trim();
+            if (cName && cName !== 'N/A' && cName !== '-' && cName.toLowerCase() !== 'null' && cName.toLowerCase() !== 'undefined') {
+                partySet.add(cName);
+            }
+            const rName = (is.returnPersonName || is.return_person_name || '').trim();
+            if (rName && rName !== 'N/A' && rName !== '-' && rName.toLowerCase() !== 'null' && rName.toLowerCase() !== 'undefined') {
+                partySet.add(rName);
+            }
+            const pName = (is.issue_person_name || is.party || '').trim();
+            if (pName && pName !== 'N/A' && pName !== '-' && pName.toLowerCase() !== 'null' && pName.toLowerCase() !== 'undefined') {
+                partySet.add(pName);
+            }
+        });
+
+        (filteredIndents || []).forEach((i: any) => {
+            const indenter = (i.indenterName || i.indenter_name || i.party || '').trim();
+            if (indenter && indenter !== 'N/A' && indenter !== '-' && indenter.toLowerCase() !== 'null' && indenter.toLowerCase() !== 'undefined') {
+                partySet.add(indenter);
+            }
+            const vendor = (i.vendor || i.vendor_name || (i as any).approved_party_name || '').trim();
+            if (vendor && vendor !== 'N/A' && vendor !== '-' && vendor.toLowerCase() !== 'null' && vendor.toLowerCase() !== 'undefined') {
+                partySet.add(vendor);
+            }
+        });
+
+        if (selectedProjectId === 'All') {
+            (masterSheet?.vendorNames || []).forEach((v: string) => {
+                const name = (v || '').trim();
+                if (name) partySet.add(name);
+            });
+            (masterSheet?.contractors || []).forEach((c: any) => {
+                const name = (c.contractorName || c.contractor_name || '').trim();
+                if (name) partySet.add(name);
+            });
+        }
+
+        return Array.from(partySet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [filteredStoreIns, filteredIssues, filteredIndents, selectedProjectId, masterSheet?.vendorNames, masterSheet?.contractors]);
+
+    const partyFilteredIndents = useMemo(() => {
+        if (selectedParty === 'All') return filteredIndents;
+        const pLower = selectedParty.trim().toLowerCase();
+        return filteredIndents.filter((i: any) => {
+            const indenter = (i.indenterName || i.indenter_name || i.party || '').trim().toLowerCase();
+            const vendor = (i.vendor || i.vendor_name || (i as any).approved_party_name || '').trim().toLowerCase();
+            return indenter === pLower || vendor === pLower;
+        });
+    }, [filteredIndents, selectedParty]);
+
+    const partyFilteredStoreIns = useMemo(() => {
+        if (selectedParty === 'All') return filteredStoreIns;
+        const pLower = selectedParty.trim().toLowerCase();
+        return filteredStoreIns.filter((s: any) => {
+            const vendor = (s.vendorName || s.vendor_name || s.vendor || s.party || s.party_name || (s as any).approved_party_name || '').trim().toLowerCase();
+            return vendor === pLower;
+        });
+    }, [filteredStoreIns, selectedParty]);
+
+    const partyFilteredIssues = useMemo(() => {
+        if (selectedParty === 'All') return filteredIssues;
+        const pLower = selectedParty.trim().toLowerCase();
+        return filteredIssues.filter((is: any) => {
+            const cName = (is.constructorName || is.constructor_name || '').trim().toLowerCase();
+            const rName = (is.returnPersonName || is.return_person_name || '').trim().toLowerCase();
+            const pName = (is.issue_person_name || is.party || '').trim().toLowerCase();
+            return cName === pLower || rName === pLower || pName === pLower;
+        });
+    }, [filteredIssues, selectedParty]);
+
+    const partyFilteredTransfers = useMemo(() => {
+        if (selectedParty === 'All') return filteredTransfers;
+        const pLower = selectedParty.trim().toLowerCase();
+        return filteredTransfers.filter((t: any) => {
+            const fromP = (t.fromProject || t.from_project || '').trim().toLowerCase();
+            const toP = (t.toProject || t.to_project || '').trim().toLowerCase();
+            return fromP === pLower || toP === pLower;
+        });
+    }, [filteredTransfers, selectedParty]);
+
     const tableData = useMemo(() => {
         const inventoryBase = inventorySheet || [];
 
@@ -137,7 +233,7 @@ export default () => {
 
         const selectedProjectName = selectedProjectId === 'All' ? 'All' : (selectedFirm?.name || 'All');
 
-        const projectFilteredInventory = selectedProjectId === 'All'
+        let projectFilteredInventory = selectedProjectId === 'All'
             ? filteredInventory
             : filteredInventory.filter((i: any) => {
                 const selId = Number(selectedProjectId);
@@ -147,19 +243,43 @@ export default () => {
                 return false;
             });
 
+        if (selectedParty !== 'All') {
+            projectFilteredInventory = projectFilteredInventory.map(item => ({
+                ...item,
+                opening: 0
+            }));
+        }
+
         const calculated = calculateRealInventory(
             projectFilteredInventory,
-            filteredIndents,
-            filteredStoreIns,
-            filteredIssues,
-            filteredTransfers,
+            partyFilteredIndents,
+            partyFilteredStoreIns,
+            partyFilteredIssues,
+            partyFilteredTransfers,
             selectedProjectName
         ) as unknown as InventoryRecord[];
 
-        return [...calculated].sort((a, b) =>
+        let result = calculated;
+        if (selectedParty !== 'All') {
+            result = result.filter(item => {
+                return (
+                    (item.indented || 0) !== 0 ||
+                    (item.approved || 0) !== 0 ||
+                    (item.liftingQty || 0) !== 0 ||
+                    (item.inTransit || 0) !== 0 ||
+                    (item.outQuantity || 0) !== 0 ||
+                    (item.purchaseReturn || 0) !== 0 ||
+                    (item.issueReturn || 0) !== 0 ||
+                    (item.stockTransferReceiving || 0) !== 0 ||
+                    (item.stockTransferGiven || 0) !== 0
+                );
+            });
+        }
+
+        return [...result].sort((a, b) =>
             (a.itemName || '').localeCompare(b.itemName || '', undefined, { numeric: true, sensitivity: 'base' })
         );
-    }, [inventorySheet, filteredIndents, filteredStoreIns, filteredIssues, filteredTransfers, selectedProjectId, selectedFirm?.name, user?.firm_access]);
+    }, [inventorySheet, partyFilteredIndents, partyFilteredStoreIns, partyFilteredIssues, partyFilteredTransfers, selectedProjectId, selectedParty, selectedFirm?.name, user?.firm_access]);
 
     const isLoading = inventoryLoading || indentLoading || storeInLoading || issueLoading;
 
@@ -195,7 +315,9 @@ export default () => {
         if (value === 0) return;
 
         let rows: DetailRow[] = [];
-        let title = `${type} History: ${itemName}`;
+        let title = selectedParty !== 'All'
+            ? `${type} History (${selectedParty}): ${itemName}`
+            : `${type} History: ${itemName}`;
 
         // Get the current item's fallback rate / avgPrice
         const matchedItem = inventorySheet?.find(i => i.itemName === itemName);
@@ -203,10 +325,16 @@ export default () => {
 
         const normalize = (val?: string) => (val || '').trim().toLowerCase();
         const isSameProduct = (prod?: string) => normalize(prod) === normalize(itemName);
+        const isLifted = (s: any) => {
+            const raw = s.materialDate ?? s.material_date;
+            if (!raw) return false;
+            const str = String(raw).trim().toLowerCase();
+            return str !== '' && str !== 'null' && str !== 'undefined' && str !== '-' && str !== 'n/a';
+        };
 
         switch (type) {
             case 'Indented':
-                rows = filteredIndents
+                rows = partyFilteredIndents
                     .filter((i: any) => isSameProduct(i.productName || i.product))
                     .map((i: any) => {
                         const targetPo = i.poNumber || i.po_number;
@@ -238,7 +366,7 @@ export default () => {
                     });
                 break;
             case 'Approved':
-                rows = filteredIndents
+                rows = partyFilteredIndents
                     .filter((i: any) => isSameProduct(i.productName || i.product) && Number(i.approvedQuantity || 0) > 0)
                     .map((i: any) => {
                         const targetPo = i.poNumber || i.po_number;
@@ -270,11 +398,11 @@ export default () => {
                     });
                 break;
             case 'Lifting Quantity':
-                rows = filteredStoreIns
-                    .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.receivedQuantity || 0) > 0)
+                rows = partyFilteredStoreIns
+                    .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.receivedQuantity || 0) > 0 && isLifted(s))
                     .map((s: any) => {
                         // Find indent specifically for this product and indent/PO
-                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => {
+                        const matchedIndent: any = (partyFilteredIndents || []).find((ind: any) => {
                             const prodMatch = isSameProduct(ind.productName || ind.product);
                             const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
                             const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
@@ -303,7 +431,7 @@ export default () => {
                         );
                         const quantity = Number(s.receivedQuantity || 0);
                         return {
-                            date: s.materialDate || s.planned6 || s.timestamp,
+                            date: s.materialDate || s.material_date || '',
                             refNo: s.billNo || s.liftNumber,
                             quantity,
                             rate: poRate,
@@ -315,10 +443,13 @@ export default () => {
                     });
                 break;
             case 'In Transit':
-                rows = filteredStoreIns
-                    .filter((s: any) => isSameProduct(s.productName || s.product) && (Number(s.qty || 0) - Number(s.receivedQuantity || 0)) > 0)
+                rows = partyFilteredStoreIns
+                    .filter((s: any) => {
+                        const liftedQty = isLifted(s) ? Number(s.receivedQuantity || 0) : 0;
+                        return isSameProduct(s.productName || s.product) && (Number(s.qty || 0) - liftedQty) > 0;
+                    })
                     .map((s: any) => {
-                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => {
+                        const matchedIndent: any = (partyFilteredIndents || []).find((ind: any) => {
                             const prodMatch = isSameProduct(ind.productName || ind.product);
                             const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
                             const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
@@ -343,7 +474,8 @@ export default () => {
                             itemFallbackRate ||
                             0
                         );
-                        const quantity = Number(s.qty || 0) - Number(s.receivedQuantity || 0);
+                        const liftedQty = isLifted(s) ? Number(s.receivedQuantity || 0) : 0;
+                        const quantity = Number(s.qty || 0) - liftedQty;
                         return {
                             date: s.timestamp,
                             refNo: s.billNo || s.liftNumber,
@@ -357,7 +489,7 @@ export default () => {
                     });
                 break;
             case 'Issued':
-                rows = filteredIssues
+                rows = partyFilteredIssues
                     .filter((is: any) => isSameProduct(is.productName || is.product) && Number(is.givenQty || 0) > 0)
                     .map((is: any) => {
                         const quantity = Number(is.givenQty || 0);
@@ -373,7 +505,7 @@ export default () => {
                     });
                 break;
             case 'Issue Return':
-                rows = filteredIssues
+                rows = partyFilteredIssues
                     .filter((is: any) => isSameProduct(is.productName || is.product) && Number(is.rejected_damage_qty || 0) > 0)
                     .map((is: any) => {
                         const quantity = Number(is.rejected_damage_qty || 0);
@@ -390,10 +522,10 @@ export default () => {
                     });
                 break;
             case 'Purchase Return':
-                rows = filteredStoreIns
+                rows = partyFilteredStoreIns
                     .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.returnQuantity || 0) > 0)
                     .map((s: any) => {
-                        const matchedIndent: any = (filteredIndents || []).find((ind: any) => {
+                        const matchedIndent: any = (partyFilteredIndents || []).find((ind: any) => {
                             const prodMatch = isSameProduct(ind.productName || ind.product);
                             const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
                             const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
@@ -433,7 +565,7 @@ export default () => {
                 break;
             case 'Stock Transfer Receiving':
                 // Combine transfers from both dedicated table and old store_in 'Transfer' status
-                const legacyTransfers = filteredStoreIns
+                const legacyTransfers = partyFilteredStoreIns
                     .filter((s: any) => s.productName === itemName && s.receivingStatus === 'Transfer')
                     .map((s: any) => {
                         const qty = Number(s.receivedQuantity || 0);
@@ -449,7 +581,7 @@ export default () => {
                         };
                     });
 
-                const newTransfersReceiving = filteredTransfers
+                const newTransfersReceiving = partyFilteredTransfers
                     .filter((t: any) => t.productName === itemName && (selectedProjectId === 'All' || Number(t.to_firm_id || t.toFirmId) === Number(selectedProjectId)))
                     .map((t: any) => {
                         const qty = Number(t.quantity || 0);
@@ -467,7 +599,7 @@ export default () => {
                 rows = [...legacyTransfers, ...newTransfersReceiving];
                 break;
             case 'Stock Transfer Given':
-                rows = filteredTransfers
+                rows = partyFilteredTransfers
                     .filter((t: any) => t.productName === itemName && (selectedProjectId === 'All' || Number(t.from_firm_id || t.fromFirmId) === Number(selectedProjectId)))
                     .map((t: any) => {
                         const qty = Number(t.quantity || 0);
@@ -485,7 +617,7 @@ export default () => {
         }
 
         setDetailDialog({ open: true, title, rows: rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) });
-    }, [filteredIndents, filteredStoreIns, filteredIssues, filteredTransfers, inventorySheet, poMasterSheet, selectedProjectId]);
+    }, [partyFilteredIndents, partyFilteredStoreIns, partyFilteredIssues, partyFilteredTransfers, inventorySheet, poMasterSheet, selectedProjectId, selectedParty]);
 
     const ClickableCell = useMemo(() => ({ value, label, row }: { value: number; label: string; row: any }) => (
         <button
@@ -640,6 +772,23 @@ export default () => {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className="hidden sm:block h-6 w-px bg-border/60" />
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <span className="text-xs sm:text-sm font-semibold text-muted-foreground shrink-0">Party/Person:</span>
+                            <Select value={selectedParty} onValueChange={setSelectedParty}>
+                                <SelectTrigger className="w-full sm:w-[220px] h-9 text-xs sm:text-sm rounded-xl bg-background">
+                                    <SelectValue placeholder="All Parties/Persons" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                    <SelectItem value="All">All Parties/Persons</SelectItem>
+                                    {partyOptions.map((party) => (
+                                        <SelectItem key={party} value={party}>
+                                            {party}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 }
             >
@@ -771,8 +920,20 @@ export default () => {
                                                 visibleRows.map((row, idx) => (
                                                     <TableRow key={idx}>
                                                         {visibleCols.date && (
-                                                             <TableCell className="whitespace-nowrap italic">
-                                                                {row.date ? format(new Date(row.date), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                                                            <TableCell className="whitespace-nowrap italic">
+                                                                {row.date
+                                                                    ? (() => {
+                                                                        const dStr = String(row.date).trim();
+                                                                        if (dStr.includes('/')) return dStr;
+                                                                        const d = new Date(dStr);
+                                                                        return !isNaN(d.getTime())
+                                                                            ? format(
+                                                                                d,
+                                                                                detailDialog.title.includes('Lifting Quantity') ? 'dd/MM/yyyy' : 'dd/MM/yyyy HH:mm'
+                                                                            )
+                                                                            : dStr;
+                                                                    })()
+                                                                    : 'N/A'}
                                                             </TableCell>
                                                         )}
                                                         {visibleCols.refNo && <TableCell className="font-mono text-sm whitespace-nowrap">{row.refNo}</TableCell>}

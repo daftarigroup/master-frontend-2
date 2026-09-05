@@ -54,10 +54,20 @@ export function calculateRealInventory(
         const totalQty = Number(s.qty) || 0;
         const retQty = Number(s.returnQuantity) || 0;
 
+        const rawDate = s.materialDate ?? (s as any).material_date;
+        const hasMaterialDate = Boolean(rawDate) &&
+            String(rawDate).trim() !== '' &&
+            String(rawDate).trim().toLowerCase() !== 'null' &&
+            String(rawDate).trim().toLowerCase() !== 'undefined' &&
+            String(rawDate).trim() !== '-' &&
+            String(rawDate).trim().toLowerCase() !== 'n/a';
+
         if (s.receivingStatus === 'Transfer') {
             acc[key].stockTransfer += qty;
         } else {
-            acc[key].liftingQty += qty;
+            if (hasMaterialDate) {
+                acc[key].liftingQty += qty;
+            }
             acc[key].purchaseQuantity += totalQty;
             acc[key].purchaseReturn += retQty;
         }
