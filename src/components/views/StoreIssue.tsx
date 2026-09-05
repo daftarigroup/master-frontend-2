@@ -88,6 +88,7 @@ function ProductItemRow({
                     label: p,
                     sublabel,
                     stock,
+                    keywords: gh ? [gh] : undefined,
                 };
             })
             .filter((item) => item.stock > 0 || item.value === productName);
