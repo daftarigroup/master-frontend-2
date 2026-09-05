@@ -20,7 +20,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { ClipLoader as Loader } from 'react-spinners';
-import { ClipboardList, Trash, Search, RotateCcw } from 'lucide-react';
+import { ClipboardList, Trash, Search, RotateCcw, AlertTriangle } from 'lucide-react';
 import { isAllowedFirm } from '@/lib/firmAccess';
 
 import {
@@ -75,20 +75,27 @@ function ProductItemRow({
     }, [groupHead, options?.products, allProductNames]);
 
     const searchableOptions: SearchableOption[] = useMemo(() => {
-        return productOptions.map((p) => {
-            const inv = realInventory.find((item) => item.itemName === p);
-            const stock = inv ? inv.current : 0;
-            const gh = options?.itemGroupHeadMap?.[p];
-            const sublabel = !groupHead && gh
-                ? `${gh} • Stock: ${stock}`
-                : `Stock: ${stock}`;
-            return {
-                value: p,
-                label: p,
-                sublabel,
-            };
-        });
-    }, [productOptions, realInventory, options?.itemGroupHeadMap, groupHead]);
+        return productOptions
+            .map((p) => {
+                const inv = realInventory.find((item) => item.itemName === p);
+                const stock = inv ? inv.current : 0;
+                const gh = options?.itemGroupHeadMap?.[p];
+                const sublabel = !groupHead && gh
+                    ? `${gh} • Stock: ${stock}`
+                    : `Stock: ${stock}`;
+                return {
+                    value: p,
+                    label: p,
+                    sublabel,
+                    stock,
+                };
+            })
+            .filter((item) => item.stock > 0 || item.value === productName);
+    }, [productOptions, realInventory, options?.itemGroupHeadMap, groupHead, productName]);
+
+    const inv = realInventory.find((item) => item.itemName === productName);
+    const currentStock = inv ? inv.current : 0;
+    const isOutOfStock = Boolean(productName) && currentStock <= 0;
 
     return (
         <Card
@@ -97,8 +104,16 @@ function ProductItemRow({
         >
             <CardContent className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-4">
-                    <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Product Item #{index + 1}
+                    <div className="flex items-center gap-2">
+                        <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            Product Item #{index + 1}
+                        </div>
+                        {isOutOfStock && (
+                            <span className="text-[11px] font-semibold text-destructive bg-destructive/10 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                <AlertTriangle className="size-3" />
+                                Stock: {currentStock} (Cannot issue)
+                            </span>
+                        )}
                     </div>
                     {canDelete && (
                         <Button
@@ -179,7 +194,7 @@ function ProductItemRow({
                                         }}
                                         placeholder="Select Product"
                                         searchPlaceholder="Search product name..."
-                                        emptyText="No matching products"
+                                        emptyText="No products with available stock"
                                         className="w-full h-10 bg-slate-50/50 border-slate-200 text-sm"
                                     />
                                 </FormControl>
@@ -194,14 +209,21 @@ function ProductItemRow({
                             <FormItem>
                                 <FormLabel className="text-xs font-semibold text-slate-500 uppercase">
                                     Quantity <span className="text-destructive">*</span>
+                                    {productName && currentStock > 0 && (
+                                        <span className="ml-1 text-[11px] text-slate-400 font-normal lowercase">
+                                            (max: {currentStock})
+                                        </span>
+                                    )}
                                 </FormLabel>
                                 <FormControl>
                                     <Input
                                         type="number"
                                         step="any"
+                                        min="0.01"
+                                        max={currentStock > 0 ? currentStock : 0}
                                         className="h-10 bg-slate-50/50 border-slate-200"
                                         {...field}
-                                        disabled={!groupHead && !productName}
+                                        disabled={(!groupHead && !productName) || isOutOfStock}
                                     />
                                 </FormControl>
                             </FormItem>
@@ -274,7 +296,13 @@ export default () => {
         }
     };
 
-    const { effectivePermittedFirms } = useProject();
+    const {
+        effectivePermittedFirms,
+        selectedProject: globalSelectedProject,
+        isAllProjects,
+    } = useProject();
+
+    const isSpecificProjectSelected = !isAllProjects && Boolean(globalSelectedProject) && globalSelectedProject?.id !== 'all';
 
     useEffect(() => {
         if (user?.username) {
@@ -320,8 +348,8 @@ export default () => {
         defaultValues: {
             constructorName: '',
             siteLocation: '',
-            projectName: '',
-            firmId: undefined,
+            projectName: (isSpecificProjectSelected && globalSelectedProject) ? globalSelectedProject.name : '',
+            firmId: (isSpecificProjectSelected && typeof globalSelectedProject?.id === 'number') ? globalSelectedProject.id : undefined,
             issueDate: new Date().toLocaleDateString('en-CA'),
             remarks: '',
 
@@ -340,6 +368,45 @@ export default () => {
             ],
         },
     });
+
+    // Automatically set project name when a specific project is selected globally
+    useEffect(() => {
+        if (isSpecificProjectSelected && globalSelectedProject) {
+            const targetName = globalSelectedProject.name;
+            const currentName = form.getValues('projectName');
+            if (currentName !== targetName) {
+                form.setValue('projectName', targetName);
+                const firmObj = options?.firmObjects?.find(
+                    f => (typeof globalSelectedProject.id === 'number' && f.id === globalSelectedProject.id) ||
+                         f.name.trim().toLowerCase() === targetName.trim().toLowerCase()
+                );
+                if (firmObj) {
+                    form.setValue('firmId', firmObj.id);
+                }
+                // Clear contractor and site location on project change so new cascaded options are picked
+                form.setValue('constructorName', '');
+                form.setValue('siteLocation', '');
+            }
+        }
+    }, [isSpecificProjectSelected, globalSelectedProject, options?.firmObjects, form]);
+
+    const projectOptions = useMemo(() => {
+        const allFirms = (options?.firmObjects || []).filter(f =>
+            isAllowedFirm({ id: f.id, name: f.name }, user?.firm_access || [])
+        );
+
+        if (isSpecificProjectSelected && globalSelectedProject) {
+            const targetName = (globalSelectedProject.name || '').trim().toLowerCase();
+            const targetId = globalSelectedProject.id;
+            const matched = allFirms.filter(f =>
+                (typeof targetId === 'number' && f.id === targetId) ||
+                (f.name && f.name.trim().toLowerCase() === targetName)
+            );
+            return matched.length > 0 ? matched : allFirms;
+        }
+
+        return allFirms;
+    }, [options?.firmObjects, user?.firm_access, isSpecificProjectSelected, globalSelectedProject]);
 
     const products = form.watch('products');
     const { fields, append, remove } = useFieldArray({
@@ -501,8 +568,34 @@ export default () => {
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     }, [options?.products, options?.itemUomMap]);
 
+    const hasOutOfStockItems = useMemo(() => {
+        if (!products || products.length === 0) return false;
+        return products.some((p: any) => {
+            if (!p.productName) return false;
+            const inv = realInventory.find((item) => item.itemName === p.productName);
+            const stock = inv ? inv.current : 0;
+            return stock <= 0;
+        });
+    }, [products, realInventory]);
+
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
+            if (!data.id) {
+                // Prevent issuing any item with stock <= 0 or quantity > available stock
+                for (const product of data.products) {
+                    const inv = realInventory.find(item => item.itemName === product.productName);
+                    const availableStock = inv ? inv.current : 0;
+                    if (availableStock <= 0) {
+                        toast.error(`Cannot issue "${product.productName}". Available stock is 0 or less (${availableStock}).`);
+                        return;
+                    }
+                    if (Number(product.quantity) > availableStock) {
+                        toast.error(`Cannot issue ${product.quantity} of "${product.productName}". Available stock is only ${availableStock}.`);
+                        return;
+                    }
+                }
+            }
+
             const firmObj = options?.firmObjects?.find(f => f.name === data.projectName);
             const firmId = data.firmId || firmObj?.id;
 
@@ -643,13 +736,11 @@ export default () => {
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {(options?.firmObjects || [])
-                                                            .filter(f => isAllowedFirm({ id: f.id, name: f.name }, user?.firm_access || []))
-                                                            .map((firm) => (
-                                                                <SelectItem key={firm.id} value={firm.name}>
-                                                                    {firm.name}
-                                                                </SelectItem>
-                                                            ))}
+                                                        {projectOptions.map((firm) => (
+                                                            <SelectItem key={firm.id} value={firm.name}>
+                                                                {firm.name}
+                                                            </SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </FormItem>
@@ -795,11 +886,17 @@ export default () => {
                             </div>
                         </div>
 
-                        <div className="pt-4 pb-10">
+                        <div className="pt-4 pb-10 space-y-3">
+                            {hasOutOfStockItems && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs font-semibold flex items-center gap-2">
+                                    <AlertTriangle className="size-4 shrink-0 text-red-600" />
+                                    One or more selected products have 0 or less stock. Items with zero stock cannot be issued.
+                                </div>
+                            )}
                             <Button
                                 className="w-full h-11 font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-200/50 transition-all active:scale-[0.98]"
                                 type="submit"
-                                disabled={form.formState.isSubmitting}
+                                disabled={form.formState.isSubmitting || hasOutOfStockItems}
                             >
                                 {form.formState.isSubmitting ? (
                                     <Loader size={20} color="white" />
