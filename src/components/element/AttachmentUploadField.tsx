@@ -9,6 +9,7 @@ interface AttachmentUploadFieldProps {
     fileName: string;
     error?: string;
     onSelect: (file: File) => void;
+    
     onRemove: () => void;
     accept?: string;
     /** Unique id for the underlying <input>/<label> pair on the page. */
