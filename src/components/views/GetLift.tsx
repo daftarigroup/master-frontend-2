@@ -674,7 +674,7 @@ export default function GetPurchase() {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<HistoryData> }) => {
-                const canDelete = canDeleteStoreStage(user as any);
+                const canDelete = canDeleteStoreStage(user as any, 'orders_view');
                 if (!canDelete) return null;
                 return (
                     <Button

@@ -372,7 +372,7 @@ export default () => {
             id: 'action',
             header: 'Action',
             cell: ({ row }: { row: Row<HistoryData> }) => {
-                const canDelete = canDeleteStoreStage(user);
+                const canDelete = canDeleteStoreStage(user, 'vendor_rates');
                 if (!canDelete) return null;
                 return (
                     <Button

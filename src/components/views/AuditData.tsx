@@ -532,7 +532,7 @@ export default function PcReportTable() {
         const rowData = row.original;
         const stageInfo = STAGES[rowData.currentStage];
         const IconComponent = stageInfo?.icon;
-        const canDelete = canDeleteStoreStage(user as any);
+        const canDelete = canDeleteStoreStage(user as any, 'audits');
 
         const currentStage = rowData.currentStage;
         const stageToReset = currentStage === 'RECTIFY' ? 'audit'
@@ -995,7 +995,7 @@ export default function PcReportTable() {
       id: 'stage_delete_action',
       header: 'Action',
       cell: ({ row }: { row: Row<ProcessedTallyData> }) => {
-        const canDelete = canDeleteStoreStage(user as any);
+        const canDelete = canDeleteStoreStage(user as any, 'audits');
         if (!canDelete) return null;
         return (
           <Button

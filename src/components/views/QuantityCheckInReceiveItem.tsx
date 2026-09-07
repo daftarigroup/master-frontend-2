@@ -512,7 +512,7 @@ export default () => {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<StoreInHistoryData> }) => {
-                const canDelete = canDeleteStoreStage(user as any);
+                const canDelete = canDeleteStoreStage(user as any, 'grn_rejection');
                 if (!canDelete) return null;
                 return (
                     <Button

@@ -478,6 +478,7 @@ export default function ManageUsers() {
         petty_cash: true,
     });
     const [pageAccessModes, setPageAccessModes] = useState<Record<string, 'VIEW' | 'EDIT'>>({});
+    const [pageDeleteModes, setPageDeleteModes] = useState<Record<string, boolean>>({});
 
     const permittedProjects = useMemo(() => {
         return [...allProjectOptions].sort((a, b) => a.name.localeCompare(b.name));
@@ -779,12 +780,19 @@ export default function ManageUsers() {
 
         const user = selectedUserRef.current;
         const initialModes: Record<string, 'VIEW' | 'EDIT'> = {};
+        const initialDeletes: Record<string, boolean> = {};
         const userPerms = user?.permissions || [];
         const isUserViewOnly = user?.modify_access === 'VIEW';
+        const userPageAccess = user?.page_access || {};
 
         SYSTEM_HIERARCHY.forEach((system) => {
             system.pages.forEach((page) => {
-                if (isUserViewOnly) {
+                const pageAcc = userPageAccess[page.id];
+                const explicitMode = typeof pageAcc === 'object' && pageAcc !== null ? pageAcc.mode : (typeof pageAcc === 'string' ? pageAcc : undefined);
+
+                if (explicitMode === 'VIEW' || explicitMode === 'EDIT') {
+                    initialModes[page.id] = explicitMode;
+                } else if (isUserViewOnly) {
                     initialModes[page.id] = 'VIEW';
                 } else if (page.editKeys.length > page.viewKeys.length) {
                     const hasAllEdit = page.editKeys.every((k) => userPerms.includes(k));
@@ -792,9 +800,14 @@ export default function ManageUsers() {
                 } else {
                     initialModes[page.id] = 'EDIT';
                 }
+
+                const explicitDelete = userPageAccess[`${page.id}_delete`] === true || 
+                    (typeof pageAcc === 'object' && pageAcc !== null && pageAcc.canDelete === true);
+                initialDeletes[page.id] = !!explicitDelete;
             });
         });
         setPageAccessModes(initialModes);
+        setPageDeleteModes(initialDeletes);
 
         if (user) {
             form.reset({
@@ -860,6 +873,9 @@ export default function ManageUsers() {
                         systemHasAccess = true;
                         const mode = pageAccessModes[page.id] || 'EDIT';
                         activePageAccess[page.id] = mode;
+                        if (value.role === 'ADMIN' && mode === 'EDIT' && pageDeleteModes[page.id]) {
+                            activePageAccess[`${page.id}_delete`] = true;
+                        }
                     }
                 });
                 if (systemHasAccess) {
@@ -924,7 +940,20 @@ export default function ManageUsers() {
         return pageAccessModes[page.id] || 'EDIT';
     };
 
+    const isPageDeleteEnabled = (page: SystemPageConfig) => {
+        if (currentRole === 'SUPER_ADMIN') return true;
+        if (currentRole !== 'ADMIN') return false;
+        return !!pageDeleteModes[page.id];
+    };
+
+    const handleTogglePageDelete = (page: SystemPageConfig, checked: boolean) => {
+        setPageDeleteModes((prev) => ({ ...prev, [page.id]: checked }));
+    };
+
     const handleTogglePageAccess = (page: SystemPageConfig, checked: boolean) => {
+        if (!checked) {
+            setPageDeleteModes((prev) => ({ ...prev, [page.id]: false }));
+        }
         const nextPermsSet = new Set(currentPermissions);
         if (checked) {
             const mode = pageAccessModes[page.id] || 'EDIT';
@@ -944,6 +973,9 @@ export default function ManageUsers() {
 
     const handleSetPageAccessMode = (page: SystemPageConfig, mode: 'VIEW' | 'EDIT') => {
         setPageAccessModes((prev) => ({ ...prev, [page.id]: mode }));
+        if (mode === 'VIEW') {
+            setPageDeleteModes((prev) => ({ ...prev, [page.id]: false }));
+        }
 
         const nextPermsSet = new Set(currentPermissions);
         page.viewKeys.forEach((k) => nextPermsSet.add(k));
@@ -957,6 +989,13 @@ export default function ManageUsers() {
     };
 
     const handleToggleSystemAllPages = (system: SystemConfig, checked: boolean) => {
+        if (!checked) {
+            setPageDeleteModes((prev) => {
+                const next = { ...prev };
+                system.pages.forEach((p) => delete next[p.id]);
+                return next;
+            });
+        }
         const nextPermsSet = new Set(currentPermissions);
 
         system.pages.forEach((page) => {
@@ -1119,6 +1158,8 @@ export default function ManageUsers() {
                                                     field.onChange(val);
                                                     if (val === 'SUPER_ADMIN') {
                                                         form.setValue('permissions', [...allPermissionKeys]);
+                                                    } else if (val === 'USER') {
+                                                        setPageDeleteModes({});
                                                     }
                                                 }}>
                                                     <FormControl>
@@ -1350,32 +1391,61 @@ export default function ManageUsers() {
                                                                                     </div>
 
                                                                                     {enabled && (
-                                                                                        <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-center bg-background p-1 rounded-lg border border-border/60 shrink-0">
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                className={cn(
-                                                                                                    "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
-                                                                                                    accessMode === 'VIEW'
-                                                                                                        ? "bg-blue-600 text-white shadow-2xs font-bold"
-                                                                                                        : "text-muted-foreground hover:bg-muted"
-                                                                                                )}
-                                                                                                onClick={() => handleSetPageAccessMode(page, 'VIEW')}
-                                                                                            >
-                                                                                                <Eye size={12} className="shrink-0" /> View Only
-                                                                                            </button>
+                                                                                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+                                                                                            <div className="flex flex-wrap items-center gap-1.5 bg-background p-1 rounded-lg border border-border/60 shrink-0">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    className={cn(
+                                                                                                        "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer",
+                                                                                                        accessMode === 'VIEW'
+                                                                                                            ? "bg-blue-600 text-white shadow-2xs font-bold"
+                                                                                                            : "text-muted-foreground hover:bg-muted"
+                                                                                                    )}
+                                                                                                    onClick={() => handleSetPageAccessMode(page, 'VIEW')}
+                                                                                                >
+                                                                                                    <Eye size={12} className="shrink-0" /> View Only
+                                                                                                </button>
 
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                className={cn(
-                                                                                                    "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1",
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    className={cn(
+                                                                                                        "px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer",
+                                                                                                        accessMode === 'EDIT'
+                                                                                                            ? "bg-purple-600 text-white shadow-2xs"
+                                                                                                            : "text-muted-foreground hover:bg-muted"
+                                                                                                    )}
+                                                                                                    onClick={() => handleSetPageAccessMode(page, 'EDIT')}
+                                                                                                >
+                                                                                                    <Edit3 size={12} className="shrink-0" /> Edit (View & Edit)
+                                                                                                </button>
+                                                                                            </div>
+
+                                                                                            {/* Delete Checkbox: shown for ADMIN role only, placed at right of the toggle switching button */}
+                                                                                            {currentRole === 'ADMIN' && (
+                                                                                                <div className={cn(
+                                                                                                    "flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all",
                                                                                                     accessMode === 'EDIT'
-                                                                                                        ? "bg-purple-600 text-white shadow-2xs"
-                                                                                                        : "text-muted-foreground hover:bg-muted"
-                                                                                                )}
-                                                                                                onClick={() => handleSetPageAccessMode(page, 'EDIT')}
-                                                                                            >
-                                                                                                <Edit3 size={12} className="shrink-0" /> Edit (View & Edit)
-                                                                                            </button>
+                                                                                                        ? (isPageDeleteEnabled(page)
+                                                                                                            ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
+                                                                                                            : "bg-background border-border/60 hover:bg-muted/50 text-foreground")
+                                                                                                        : "opacity-40 pointer-events-none bg-muted/20 border-border/40 text-muted-foreground"
+                                                                                                )}>
+                                                                                                    <Checkbox
+                                                                                                        id={`page-delete-${page.id}`}
+                                                                                                        checked={isPageDeleteEnabled(page)}
+                                                                                                        disabled={accessMode !== 'EDIT'}
+                                                                                                        onCheckedChange={(chk) => handleTogglePageDelete(page, !!chk)}
+                                                                                                        className="data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600 shrink-0 size-3.5"
+                                                                                                    />
+                                                                                                    <label
+                                                                                                        htmlFor={`page-delete-${page.id}`}
+                                                                                                        className="text-[10px] sm:text-[11px] font-bold cursor-pointer select-none flex items-center gap-1 leading-none"
+                                                                                                    >
+                                                                                                        <Trash size={11} className="shrink-0" />
+                                                                                                        Delete
+                                                                                                    </label>
+                                                                                                </div>
+                                                                                            )}
                                                                                         </div>
                                                                                     )}
                                                                                 </div>

@@ -301,7 +301,7 @@ export type UserPermissions = {
 
     role?: 'SUPER_ADMIN' | 'ADMIN' | 'USER'; // New independent role field (Checklist & Delegation module)
     system_access?: string[];
-    page_access?: Record<string, 'VIEW' | 'EDIT'>;
+    page_access?: Record<string, any>;
 
     administrate: boolean;
     manageUsers?: boolean;

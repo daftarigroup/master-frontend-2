@@ -322,7 +322,7 @@ export default () => {
             cell: ({ row }) => {
                 const indentNo = row.original.indent_number;
                 const isLoading = exportingIndentNo === indentNo;
-                const canDelete = canDeleteStoreStage(user);
+                const canDelete = canDeleteStoreStage(user, 'create_indent');
                 return (
                     <div className="flex items-center gap-1.5">
                         <Button

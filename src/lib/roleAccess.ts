@@ -19,12 +19,53 @@ export const isChecklistSuperAdmin = (user: UserPermissions | null | undefined) 
   hasChecklistRole(user, 'SUPER_ADMIN');
 
 /**
- * Role check for Store Stage Deletion & Reset:
- * Allows SUPER_ADMIN, ADMIN, or users with administrate: true.
+ * Role check for Stage Deletion & Reset:
+ * - SUPER_ADMIN: Unrestricted access (always true)
+ * - USER: Strictly denied (always false, even if modify_access is EDIT)
+ * - ADMIN: Conditionally allowed if delete access is granted for the specific stage/page in page_access
  */
-export const canDeleteStoreStage = (user: UserPermissions | null | undefined): boolean => {
+export const canDeletePage = (
+  user: UserPermissions | null | undefined,
+  pageId?: string
+): boolean => {
   if (!user) return false;
   const role = user.role?.toUpperCase();
-  return role === 'SUPER_ADMIN' || role === 'ADMIN' || user.administrate === true;
+
+  // Super admin always has full delete access
+  if (role === 'SUPER_ADMIN') return true;
+
+  // Standard users are never allowed to delete, even if modify/edit is permitted
+  if (role === 'USER') return false;
+
+  // Admin role or legacy administrate flag
+  if (role === 'ADMIN' || user.administrate === true) {
+    if (!pageId) return true;
+    if (!user.page_access || Object.keys(user.page_access).length === 0) return true;
+
+    // Check if delete access is explicitly granted
+    const pageDeleteKey = `${pageId}_delete`;
+    if (user.page_access[pageDeleteKey] === true) return true;
+    if (user.page_access[pageDeleteKey] === false) return false;
+
+    const pageAcc = user.page_access[pageId];
+    if (typeof pageAcc === 'object' && pageAcc !== null && pageAcc.canDelete !== undefined) {
+      return pageAcc.canDelete === true;
+    }
+
+    // Global admin wildcard
+    if (user.page_access['ALL'] || user.page_access['all']) return true;
+
+    // If granular page_access exists but delete was not granted for this page
+    return false;
+  }
+
+  return false;
+};
+
+export const canDeleteStoreStage = (
+  user: UserPermissions | null | undefined,
+  pageId?: string
+): boolean => {
+  return canDeletePage(user, pageId);
 };
 

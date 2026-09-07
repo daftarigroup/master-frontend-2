@@ -229,9 +229,10 @@ export function hasPageAccess(
         if (typeof user.page_access === 'object') {
             const allMode = (user.page_access as any)['ALL'] || (user.page_access as any)['all'];
             const directMode = legacyIdentifier ? (user.page_access as any)[legacyIdentifier] : undefined;
-            const mode = resolvedPageId 
+            const rawMode = resolvedPageId 
                 ? (user.page_access[resolvedPageId] || directMode || allMode) 
                 : (directMode || allMode);
+            const mode = typeof rawMode === 'object' && rawMode !== null ? rawMode.mode : rawMode;
 
             if (mode) {
                 if (requiredMode === 'VIEW') return mode === 'VIEW' || mode === 'EDIT';

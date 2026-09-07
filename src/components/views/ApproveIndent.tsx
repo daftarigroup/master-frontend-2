@@ -659,7 +659,7 @@ export default function ApproveIndent() {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<IndentRecord> }) => {
-                const canDelete = canDeleteStoreStage(user);
+                const canDelete = canDeleteStoreStage(user, 'indent_approval');
                 if (!canDelete) return null;
                 return (
                     <Button

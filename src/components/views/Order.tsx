@@ -263,7 +263,7 @@ export default function Order() {
             header: 'Actions',
             cell: ({ row }) => {
                 const po = row.original;
-                const canDelete = canDeleteStoreStage(user);
+                const canDelete = canDeleteStoreStage(user, 'orders_view');
                 if (!canDelete) return null;
 
                 return (

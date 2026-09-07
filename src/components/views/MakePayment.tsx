@@ -1019,7 +1019,7 @@ export default function MakePayment() {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<DisplayPaymentHistory> }) => {
-                const canDelete = canDeleteStoreStage(user as any);
+                const canDelete = canDeleteStoreStage(user as any, 'finance_logistics');
                 if (!canDelete) return null;
                 return (
                     <Button

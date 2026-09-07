@@ -320,7 +320,7 @@ export default function TallyEntry() {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<TallyEntryRecord> }) => {
-                const canDelete = canDeleteStoreStage(user as any);
+                const canDelete = canDeleteStoreStage(user as any, 'audits');
                 if (!canDelete) return null;
                 return (
                     <Button

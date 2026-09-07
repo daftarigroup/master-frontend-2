@@ -205,7 +205,7 @@ export default () => {
             id: 'action',
             cell: ({ row }: { row: Row<HistoryData> }) => {
                 const indent = row.original;
-                const canDelete = canDeleteStoreStage(user);
+                const canDelete = canDeleteStoreStage(user, 'technical_approval');
 
                 return (
                     <div className="flex items-center gap-1.5">
