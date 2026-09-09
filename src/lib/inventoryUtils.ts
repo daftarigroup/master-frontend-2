@@ -10,7 +10,8 @@ export function calculateRealInventory(
     storeIns: StoreInSheet[],
     issues: IssueSheet[],
     transfers: any[] = [],
-    currentProject: string = 'All'
+    currentProject: string = 'All',
+    poMaster: any[] = []
 ): InventorySheet[] {
     const curProjLower = (currentProject || 'All').trim().toLowerCase();
     const isAllProjects = curProjLower === 'all' || !currentProject;
@@ -226,8 +227,12 @@ export function calculateRealInventory(
         const purchaseQuantity = sDet.purchaseQuantity;
         const liftingQty = sDet.liftingQty || item.liftingQty || 0;
         const purchaseReturn = sDet.purchaseReturn || item.purchaseReturn || 0;
-        const outQuantity = oSum.givenQty || item.outQuantity || 0;
-        const issueReturn = oSum.rejectedDamageQty || item.issueReturn || 0;
+        // If issue data was loaded from DB, trust the live aggregated sum (even if 0).
+        // Only fall back to the master record's stale out_quantity if no issue data was fetched at all.
+        // This prevents ghost quantities appearing for items whose issue records were deleted.
+        const issueDataLoaded = issues.length > 0;
+        const outQuantity = issueDataLoaded ? oSum.givenQty : (oSum.givenQty || item.outQuantity || 0);
+        const issueReturn = issueDataLoaded ? oSum.rejectedDamageQty : (oSum.rejectedDamageQty || item.issueReturn || 0);
 
         // Stock Transfer: Old way (from storeIn) + New way (from dedicated table)
         const tSum = transferSummary[key] || { in: 0, out: 0, totalVolume: 0, sources: new Set(), destinations: new Set() };
@@ -277,27 +282,83 @@ export function calculateRealInventory(
         }
 
         // Calculate dynamic Avg Price:
-        // Priority 1: Master individualRate / avgPrice
-        // Priority 2: Weighted Average from storeIns / lifting with rates
-        // Priority 3: Latest Approved / Indent rate
-        let resolvedAvgPrice = Number((relevantMasterRecords[0] as any)?.avgPrice ?? (relevantMasterRecords[0] as any)?.avg_price ?? (relevantMasterRecords[0] as any)?.individualRate ?? item.individualRate ?? 0);
+        // Priority 1: Total Price of Lifting / Total Quantity of Lifting (Weighted average of lifted stock)
+        const normalize = (val?: string) => (val || '').trim().toLowerCase();
+        const isSameProduct = (prod?: string) => normalize(prod) === normalize(itemName);
+        const isLifted = (s: any) => {
+            const raw = s.materialDate ?? s.material_date;
+            if (!raw) return false;
+            const str = String(raw).trim().toLowerCase();
+            return str !== '' && str !== 'null' && str !== 'undefined' && str !== '-' && str !== 'n/a';
+        };
 
-        if (!resolvedAvgPrice) {
-            const matchingStoreIns = projectStoreIns.filter(s => (s.productName || '').trim() === itemName && Number(s.receivedQuantity || 0) > 0);
-            let totalVal = 0;
-            let totalValQty = 0;
-            matchingStoreIns.forEach(s => {
-                const r = Number((s as any).priceAsPerPo || (s as any).rate || 0);
-                const q = Number(s.receivedQuantity || 0);
-                if (r > 0 && q > 0) {
-                    totalVal += (r * q);
-                    totalValQty += q;
-                }
+        const matchingLiftingIns = projectStoreIns.filter(s =>
+            isSameProduct(s.productName || (s as any).product) &&
+            Number(s.receivedQuantity || 0) > 0 &&
+            isLifted(s) &&
+            s.receivingStatus !== 'Transfer'
+        );
+
+        let totalLiftingValue = 0;
+        let totalLiftingQty = 0;
+
+        matchingLiftingIns.forEach(s => {
+            const q = Number(s.receivedQuantity || 0);
+
+            // Find linked indent specifically for this product and indent/PO
+            const matchedIndent: any = projectIndents?.find((ind: any) => {
+                const prodMatch = isSameProduct(ind.productName || ind.product);
+                const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                return prodMatch && (indentMatch || poMatchNum);
             });
-            if (totalValQty > 0 && totalVal > 0) {
-                resolvedAvgPrice = Number((totalVal / totalValQty).toFixed(2));
-            } else {
-                const matchingIndents = projectIndents.filter(i => (i.productName || '').trim() === itemName);
+
+            // Find linked PO created for this indent/lift data and product
+            const targetPoNumber = s.poNumber || (s as any).po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+            const poMatch = poMaster?.find((p: any) => {
+                const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
+                const prodMatch = isSameProduct(p.product || p.productName);
+                return poNumMatch && prodMatch;
+            });
+
+            // Rate Priority strictly matching the Lifting Quantity History modal (Inventory.tsx):
+            // 1. PO Rate for this lift / indent
+            // 2. Approved Rate from indent
+            // 3. priceAsPerPo / rate from store_in
+            // 4. Base indent rate
+            const r = Number(
+                poMatch?.rate ||
+                matchedIndent?.approvedRate ||
+                matchedIndent?.approved_rate ||
+                (s as any).priceAsPerPo ||
+                (s as any).rate ||
+                matchedIndent?.rate ||
+                matchedIndent?.rate1 ||
+                0
+            );
+
+            if (r > 0 && q > 0) {
+                totalLiftingValue += Number((r * q).toFixed(2));
+                totalLiftingQty += q;
+            }
+        });
+
+        let resolvedAvgPrice = 0;
+        if (totalLiftingQty > 0 && totalLiftingValue > 0) {
+            resolvedAvgPrice = Number((totalLiftingValue / totalLiftingQty).toFixed(2));
+        } else {
+            // Priority 2 Fallback: Master individualRate / avgPrice (when no lifting occurred yet)
+            resolvedAvgPrice = Number(
+                (relevantMasterRecords[0] as any)?.avgPrice ??
+                (relevantMasterRecords[0] as any)?.avg_price ??
+                (relevantMasterRecords[0] as any)?.individualRate ??
+                item.individualRate ??
+                0
+            );
+
+            // Priority 3 Fallback: Latest Approved / Indent rate
+            if (!resolvedAvgPrice) {
+                const matchingIndents = projectIndents.filter(i => isSameProduct(i.productName || (i as any).product));
                 const indentWithRate = matchingIndents.find(i => Number((i as any).approvedRate || (i as any).approved_rate || (i as any).rate || (i as any).rate1 || 0) > 0);
                 if (indentWithRate) {
                     resolvedAvgPrice = Number((indentWithRate as any).approvedRate || (indentWithRate as any).approved_rate || (indentWithRate as any).rate || (indentWithRate as any).rate1 || 0);

@@ -138,6 +138,38 @@ export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
     maint_machines: 'maint_machines',
     maintBreakdowns: 'maint_breakdowns',
     maint_breakdowns: 'maint_breakdowns',
+
+    // Asset & Equipment Management
+    assetDash: 'asset_dash',
+    asset_dash: 'asset_dash',
+    assetProducts: 'asset_products',
+    asset_products: 'asset_products',
+
+    // HR & Facilities Management
+    hrDash: 'hr_dashboard',
+    hr_dashboard: 'hr_dashboard',
+    hrIndent: 'hr_indent',
+    hr_indent: 'hr_indent',
+    hrCandidate: 'hr_candidate',
+    hr_candidate: 'hr_candidate',
+    hrEmployee: 'hr_employee',
+    hr_employee: 'hr_employee',
+    hrAttendance: 'hr_attendance',
+    hr_attendance: 'hr_attendance',
+    hrLeave: 'hr_leave',
+    hr_leave: 'hr_leave',
+    hrGatePass: 'hr_gate_pass',
+    hr_gate_pass: 'hr_gate_pass',
+    hrAdvance: 'hr_advance',
+    hr_advance: 'hr_advance',
+    hrSalary: 'hr_salary',
+    hr_salary: 'hr_salary',
+    hrLetter: 'hr_letter',
+    hr_letter: 'hr_letter',
+    hrCalendar: 'hr_calendar',
+    hr_calendar: 'hr_calendar',
+    hrReports: 'hr_reports',
+    hr_reports: 'hr_reports',
 };
 
 /**
@@ -149,9 +181,19 @@ export function hasSystemAccess(
 ): boolean {
     if (!user) return false;
     
-    // Super admin or legacy administrate flag grants all systems
-    const isAdmin = user.role === 'SUPER_ADMIN' || user.administrate === true || (user.administrate as any) === 'true';
+    // Super admin, admin or legacy administrate flag grants all systems
+    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.administrate === true || (user.administrate as any) === 'true';
     if (isAdmin) return true;
+
+    // HR module: Accessible by default during frontend preview unless explicitly disabled
+    if (systemId === 'hr') {
+        if (user.system_access && Array.isArray(user.system_access) && user.system_access.length > 0) {
+            if (user.system_access.includes('hr') || user.system_access.includes('ALL') || user.system_access.includes('all')) {
+                return true;
+            }
+        }
+        return true;
+    }
 
     // Check system_access JSON array or string
     if (user.system_access) {
@@ -183,12 +225,15 @@ export function isSystemPermitted(
 ): boolean {
     if (!user) return false;
 
-    const isAdmin = user.role === 'SUPER_ADMIN' || user.administrate === true || (user.administrate as any) === 'true';
+    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.administrate === true || (user.administrate as any) === 'true';
     if (isAdmin) return true;
 
     if (hasSystemAccess(user, system.id)) return true;
 
     if (system.disabled) return false;
+
+    // HR module preview access
+    if (system.id === 'hr') return true;
 
     if (system.groups && Array.isArray(system.groups)) {
         for (const group of system.groups) {
@@ -216,12 +261,19 @@ export function hasPageAccess(
 ): boolean {
     if (!user) return false;
 
-    // Super admin or legacy administrate flag grants all permissions
-    const isAdmin = user.role === 'SUPER_ADMIN' || user.administrate === true || (user.administrate as any) === 'true';
+    // Super admin, admin or legacy administrate flag grants all permissions
+    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.administrate === true || (user.administrate as any) === 'true';
     if (isAdmin) return true;
 
     // Resolve target pageId using mapping if not directly passed
     const resolvedPageId = pageId || (legacyIdentifier ? (GATEKEY_TO_PAGE_ID[legacyIdentifier] || legacyIdentifier) : undefined);
+
+    // HR module pages default to accessible during preview unless explicitly disabled
+    if ((resolvedPageId && resolvedPageId.startsWith('hr_')) || (legacyIdentifier && String(legacyIdentifier).startsWith('hr'))) {
+        if (legacyIdentifier && user[legacyIdentifier] === false) return false;
+        if (resolvedPageId && user.page_access && user.page_access[resolvedPageId] === undefined) return true;
+        return true;
+    }
 
     // 1. Check page_access JSON dictionary or string if available
     if (user.page_access) {

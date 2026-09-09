@@ -135,6 +135,43 @@ const AllLoans = React.lazy(() => import('@/systems/document/pages/loan/AllLoans
 const Foreclosure = React.lazy(() => import('@/systems/document/pages/loan/Foreclosure'));
 const LoanNOC = React.lazy(() => import('@/systems/document/pages/loan/NOC'));
 
+// Asset Lazy Components
+import AssetSystemLayout from '@/systems/asset/layout/AssetSystemLayout';
+const AssetDashboard = React.lazy(() => import('@/systems/asset/pages/AssetDashboard'));
+const AllAssets = React.lazy(() => import('@/systems/asset/pages/AllAssets'));
+const AssetPublicSlip = React.lazy(() => import('@/systems/asset/pages/AssetPublicSlip'));
+
+// TanStack Query Client for HR System
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const hrQueryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            retry: 1,
+        },
+    },
+});
+
+// HR & Facilities Management System Components
+import HrSystemLayout from '@/systems/hr/layout/HrSystemLayout';
+import {
+    HrDashboardPage,
+    HrIndentPage,
+    HrFindEnquiryPage,
+    HrEmployeePage,
+    HrAttendancePage,
+    HrLeavePage,
+    HrGatePassPage,
+    HrAdvancePage,
+    HrSalaryManagementPage,
+    HrAfterJoiningPage,
+    HrAfterLeavingPage,
+    HrLetterFormatterPage,
+    HrCalendarPage,
+    HrSocialSitePage,
+    HrReportsPage,
+} from '@/systems/hr/pages';
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
     if (loading) return <Loading />;
@@ -963,13 +1000,16 @@ if (rootElement) {
         <StrictMode>
             <AuthProvider>
                 <ProjectProvider>
-                    <BrowserRouter>
-                        <React.Suspense fallback={<Loading />}>
-                            <Routes>
+                    <QueryClientProvider client={hrQueryClient}>
+                        <BrowserRouter>
+                            <React.Suspense fallback={<Loading />}>
+                                <Routes>
                                 {/* Public Routes */}
                                 <Route path="/login" element={<Login />} />
                                 <Route path="/create-account" element={<CreateAccount />} />
                                 <Route path="/bid/:token" element={<VendorBidding />} />
+                                {/* Public asset QR slip — no login, no app shell, so a scanned code opens directly */}
+                                <Route path="/product/:productId" element={<AssetPublicSlip />} />
 
                                 {/* Project Selection Guarded Route */}
                                 <Route
@@ -1105,6 +1145,33 @@ if (rootElement) {
                                     <Route path="loan/noc" element={<GatedRoute identifier="docLoanNoc"><LoanNOC /></GatedRoute>} />
                                 </Route>
 
+                                {/* Layer 2 ASSET & EQUIPMENT MANAGEMENT SYSTEM MODULE */}
+                                <Route path="asset" element={<AssetSystemLayout />}>
+                                    <Route index element={<Navigate to="/asset/dashboard" replace />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="assetDash"><AssetDashboard /></GatedRoute>} />
+                                    <Route path="products" element={<GatedRoute identifier="assetProducts"><AllAssets /></GatedRoute>} />
+                                </Route>
+
+                                {/* Layer 2 HR & FACILITIES MANAGEMENT SYSTEM MODULE */}
+                                <Route path="hr" element={<HrSystemLayout />}>
+                                    <Route index element={<Navigate to="/hr/dashboard" replace />} />
+                                    <Route path="dashboard" element={<HrDashboardPage />} />
+                                    <Route path="indent" element={<HrIndentPage />} />
+                                    <Route path="find-enquiry" element={<HrFindEnquiryPage />} />
+                                    <Route path="employee" element={<HrEmployeePage />} />
+                                    <Route path="attendance" element={<HrAttendancePage />} />
+                                    <Route path="leave" element={<HrLeavePage />} />
+                                    <Route path="gate-pass" element={<HrGatePassPage />} />
+                                    <Route path="advance" element={<HrAdvancePage />} />
+                                    <Route path="salary-management" element={<HrSalaryManagementPage />} />
+                                    <Route path="after-joining" element={<HrAfterJoiningPage />} />
+                                    <Route path="after-leaving" element={<HrAfterLeavingPage />} />
+                                    <Route path="letter-formatter" element={<HrLetterFormatterPage />} />
+                                    <Route path="calendar" element={<HrCalendarPage />} />
+                                    <Route path="social-site" element={<HrSocialSitePage />} />
+                                    <Route path="reports" element={<HrReportsPage />} />
+                                </Route>
+
                                 {/* Doc-submanager backward compatibility aliases */}
                                 <Route path="doc-submanager/*" element={<Navigate to="/document/dashboard" replace />} />
 
@@ -1142,6 +1209,7 @@ if (rootElement) {
                         </Routes>
                     </React.Suspense>
                 </BrowserRouter>
+                    </QueryClientProvider>
             </ProjectProvider>
         </AuthProvider>
     </StrictMode>

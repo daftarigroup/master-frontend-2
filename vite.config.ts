@@ -6,6 +6,10 @@ import react from '@vitejs/plugin-react';
 // https://vite.dev/config/
 export default defineConfig({
 	plugins: [react(), tailwindcss()],
+	define: {
+		'process.env': {},
+		process: { env: {} }
+	},
 	server: {
 		host: true,
 		proxy: {
@@ -22,7 +26,9 @@ export default defineConfig({
 			'@app': path.resolve(__dirname, './src/app'),
 			'@core': path.resolve(__dirname, './src/core'),
 			'@shared': path.resolve(__dirname, './src/shared'),
-			'@systems': path.resolve(__dirname, './src/systems')
+			'@systems': path.resolve(__dirname, './src/systems'),
+			'next/navigation': path.resolve(__dirname, './src/lib/next-navigation-shim.ts'),
+			'next/link': path.resolve(__dirname, './src/lib/next-navigation-shim.ts')
 		}
 	}
 });

@@ -377,6 +377,24 @@ export type UserPermissions = {
     maintDash?: boolean;
     maintMachines?: boolean;
     maintBreakdowns?: boolean;
+
+    // Asset & Equipment Management System Permissions
+    assetDash?: boolean;
+    assetProducts?: boolean;
+
+    // HR & Facilities Management System Permissions
+    hrDash?: boolean;
+    hrIndent?: boolean;
+    hrCandidate?: boolean;
+    hrEmployee?: boolean;
+    hrAttendance?: boolean;
+    hrLeave?: boolean;
+    hrGatePass?: boolean;
+    hrAdvance?: boolean;
+    hrSalary?: boolean;
+    hrLetter?: boolean;
+    hrCalendar?: boolean;
+    hrReports?: boolean;
 };
 
 export interface PaymentsSheet {
@@ -477,6 +495,8 @@ export const allPermissionKeys = [
     "maintDash",
     "maintMachines",
     "maintBreakdowns",
+    "assetDash",
+    "assetProducts",
 ] as const;
 
 

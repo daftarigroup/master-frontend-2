@@ -7,7 +7,7 @@ import { filterByFirmAccess } from '@/lib/firmAccess';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useProject } from '@/context/ProjectContext';
-import { getSystemIdFromPath } from '../config/navConfig';
+import { getSystemIdFromPath, getSystemConfig } from '../config/navConfig';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 
@@ -29,6 +29,8 @@ import {
     Settings,
     Building2,
     Layers,
+    Package,
+    Users,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -141,7 +143,18 @@ export const TopBar: React.FC = () => {
             name: 'Petty Cash',
             icon: <Wallet className="size-4" />,
             path: '/petty-cash/dashboard',
-            disabled: true,
+        },
+        {
+            id: 'asset',
+            name: 'Asset Management',
+            icon: <Package className="size-4" />,
+            path: '/asset/dashboard',
+        },
+        {
+            id: 'hr',
+            name: 'HR & Facilities',
+            icon: <Users className="size-4" />,
+            path: '/hr/dashboard',
         },
     ];
 
@@ -381,7 +394,7 @@ export const TopBar: React.FC = () => {
                 >
                     <Grid className="size-4 text-primary shrink-0" />
                     <span ref={systemTitleRef} className="capitalize hidden sm:inline">
-                        {systems.find((s) => s.id === activeSystemId)?.name || 'Select System'}
+                        {systems.find((s) => s.id === activeSystemId)?.name || getSystemConfig(activeSystemId)?.name || 'Select System'}
                     </span>
                     <ChevronDown className="size-3 text-muted-foreground hidden sm:inline shrink-0" />
                 </Button>

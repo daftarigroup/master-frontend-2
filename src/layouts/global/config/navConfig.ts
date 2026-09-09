@@ -32,6 +32,7 @@ import {
   Wallet,
   Settings,
   CalendarOff,
+  Package,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -290,6 +291,83 @@ export const NAV_CONFIG: SystemNavConfig[] = [
       },
     ],
   },
+  {
+    id: 'asset',
+    name: 'Asset Management',
+    icon: Package,
+    accentClassName: 'slate',
+    dashboardPath: '/asset/dashboard',
+    groups: [
+      {
+        key: 'asset_ops',
+        title: 'Asset Operations',
+        items: [
+          { name: 'Dashboard', path: '/asset/dashboard', icon: LayoutDashboard, gateKey: 'assetDash' },
+          { name: 'All Assets', path: '/asset/products', icon: ClipboardList, gateKey: 'assetProducts' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'hr',
+    name: 'HR & Facilities',
+    icon: Users,
+    accentClassName: 'teal',
+    dashboardPath: '/hr/dashboard',
+    groups: [
+      {
+        key: 'hr_overview',
+        title: 'Overview',
+        items: [
+          { name: 'HR Dashboard', path: '/hr/dashboard', icon: LayoutDashboard, gateKey: 'hrDash' },
+        ],
+      },
+      {
+        key: 'hr_recruitment',
+        title: 'Recruitment & Hiring',
+        items: [
+          { name: 'Job Requisitions', path: '/hr/indent', icon: FilePlus, gateKey: 'hrIndent' },
+          { name: 'Candidate Pipeline', path: '/hr/find-enquiry', icon: Users, gateKey: 'hrCandidate' },
+          { name: 'Social Postings', path: '/hr/social-site', icon: Send, gateKey: 'hrCandidate' },
+        ],
+      },
+      {
+        key: 'hr_employees',
+        title: 'Employees & Operations',
+        items: [
+          { name: 'Employee Directory', path: '/hr/employee', icon: UserCheck, gateKey: 'hrEmployee' },
+          { name: 'After-Joining Work', path: '/hr/after-joining', icon: CheckCircle2, gateKey: 'hrEmployee' },
+          { name: 'After-Leaving Work', path: '/hr/after-leaving', icon: RotateCcw, gateKey: 'hrEmployee' },
+          { name: 'Gate Pass', path: '/hr/gate-pass', icon: KeyRound, gateKey: 'hrGatePass' },
+        ],
+      },
+      {
+        key: 'hr_attendance',
+        title: 'Attendance & Leaves',
+        items: [
+          { name: 'Daily Attendance', path: '/hr/attendance', icon: Clock, gateKey: 'hrAttendance' },
+          { name: 'Leave Management', path: '/hr/leave', icon: CalendarOff, gateKey: 'hrLeave' },
+          { name: 'Company Calendar', path: '/hr/calendar', icon: ClipboardCheck, gateKey: 'hrCalendar' },
+        ],
+      },
+      {
+        key: 'hr_finance',
+        title: 'Payroll & Advances',
+        items: [
+          { name: 'Salary Management', path: '/hr/salary-management', icon: Wallet, gateKey: 'hrSalary' },
+          { name: 'Advance Approval', path: '/hr/advance', icon: CreditCard, gateKey: 'hrAdvance' },
+          { name: 'MIS Reports', path: '/hr/reports', icon: BarChart, gateKey: 'hrReports' },
+        ],
+      },
+      {
+        key: 'hr_letters',
+        title: 'Documentation',
+        items: [
+          { name: 'Letter Formatter', path: '/hr/letter-formatter', icon: FileText, gateKey: 'hrLetter' },
+        ],
+      },
+    ],
+  },
 ];
 
 /**
@@ -328,6 +406,8 @@ export const getSystemIdFromPath = (pathname: string): string => {
   if (pathname.startsWith('/checklist')) return 'checklist';
   if (pathname.startsWith('/document') || pathname.startsWith('/loan')) return 'document';
   if (pathname.startsWith('/petty-cash')) return 'petty_cash';
+  if (pathname.startsWith('/asset')) return 'asset';
+  if (pathname.startsWith('/hr')) return 'hr';
 
   for (const system of NAV_CONFIG) {
     if (system.id === 'global') continue;

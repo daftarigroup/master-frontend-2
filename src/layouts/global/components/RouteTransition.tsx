@@ -21,7 +21,7 @@ export const RouteTransition: React.FC<{ children: React.ReactNode }> = ({ child
       gsap.fromTo(
         containerRef.current,
         { opacity: 0, scale: 0.99, y: 6 },
-        { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: 'power2.out' }
+        { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: 'power2.out', clearProps: 'transform' }
       );
     },
     { dependencies: [location.pathname], scope: containerRef }

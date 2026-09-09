@@ -2,7 +2,7 @@ import {
     Building, ShieldCheck, User as UserIcon, Users, Eye, EyeClosed, MoreHorizontal, Pencil, 
     ShieldUser, Trash, UserPlus, Fingerprint, Lock, Shield, Settings, CheckSquare, 
     ListTodo, ClipboardCheck, Truck, BarChart3, Box, Crown, ChevronDown, ChevronRight,
-    Wrench, Layers, AlertCircle, Edit3, ShieldAlert, Wallet, FileText, Files
+    Wrench, Layers, AlertCircle, Edit3, ShieldAlert, Wallet, FileText, Files, Package
 } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -417,6 +417,30 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
                 description: 'Configure payment modes, expense categories, and system thresholds',
                 viewKeys: ['pettyCashSettings'],
                 editKeys: ['pettyCashSettings'],
+            },
+        ]
+    },
+    {
+        id: 'asset',
+        name: 'Asset & Equipment Management System',
+        badgeBg: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800',
+        badgeText: 'Asset Module',
+        icon: <Package className="size-5 text-slate-500" />,
+        description: 'Asset & equipment registry, running-hour tracking, warranty/AMC, and QR-code identification',
+        pages: [
+            {
+                id: 'asset_dash',
+                name: 'Asset Dashboard',
+                description: 'Fleet overview, active asset counts, maintenance-due alerts, and total value summary',
+                viewKeys: ['assetDash'],
+                editKeys: ['assetDash'],
+            },
+            {
+                id: 'asset_products',
+                name: 'All Assets',
+                description: 'Asset registry with add/edit, filtering, Excel export, and single/bulk QR code generation',
+                viewKeys: ['assetProducts'],
+                editKeys: ['assetProducts'],
             },
         ]
     }

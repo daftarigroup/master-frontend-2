@@ -188,6 +188,15 @@ export const GlobalSearchDialog: React.FC = () => {
       { title: 'Checklist Submission', category: 'Checklist', path: '/checklist/submit/checklist', icon: <CheckSquare className="mr-2 h-4 w-4 text-indigo-500" /> },
       { title: 'Delegation Submission', category: 'Checklist', path: '/checklist/submit/delegation', icon: <ClipboardCheck className="mr-2 h-4 w-4 text-teal-500" /> },
       { title: 'Admin Approval', category: 'Checklist', path: '/checklist/approval', icon: <ShieldCheck className="mr-2 h-4 w-4 text-rose-500" /> },
+      { title: 'HR Dashboard', category: 'HR & Facilities', path: '/hr/dashboard', icon: <LayoutDashboard className="mr-2 h-4 w-4 text-teal-500" /> },
+      { title: 'Employee Directory', category: 'HR & Facilities', path: '/hr/employee', icon: <Users className="mr-2 h-4 w-4 text-teal-600" /> },
+      { title: 'Job Requisitions / Indents', category: 'HR & Facilities', path: '/hr/indent', icon: <FilePlus2 className="mr-2 h-4 w-4 text-blue-500" /> },
+      { title: 'Candidate Pipeline', category: 'HR & Facilities', path: '/hr/find-enquiry', icon: <Users className="mr-2 h-4 w-4 text-indigo-500" /> },
+      { title: 'Daily Attendance', category: 'HR & Facilities', path: '/hr/attendance', icon: <Clock className="mr-2 h-4 w-4 text-amber-500" /> },
+      { title: 'Leave Management', category: 'HR & Facilities', path: '/hr/leave', icon: <CalendarOff className="mr-2 h-4 w-4 text-rose-500" /> },
+      { title: 'Gate Pass', category: 'HR & Facilities', path: '/hr/gate-pass', icon: <ShieldCheck className="mr-2 h-4 w-4 text-purple-500" /> },
+      { title: 'Salary Advances & Loans', category: 'HR & Facilities', path: '/hr/advance', icon: <Boxes className="mr-2 h-4 w-4 text-emerald-500" /> },
+      { title: 'Letter Formatter', category: 'HR & Facilities', path: '/hr/letter-formatter', icon: <FileText className="mr-2 h-4 w-4 text-cyan-500" /> },
     ],
     []
   );

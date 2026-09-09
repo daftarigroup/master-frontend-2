@@ -30,7 +30,8 @@
       "@app/*": ["./src/app/*"],
       "@core/*": ["./src/core/*"],
       "@shared/*": ["./src/shared/*"],
-      "@systems/*": ["./src/systems/*"]
+      "@systems/*": ["./src/systems/*"],
+      "next/navigation": ["./src/lib/next-navigation-shim.ts"]
     }
   },
   "include": ["src"]
