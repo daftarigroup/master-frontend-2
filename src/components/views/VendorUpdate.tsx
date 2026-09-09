@@ -1856,9 +1856,13 @@ export default () => {
                 productName={deleteTarget?.product}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await resetIndentStage(deleteTarget.id, 'vendor_rate');
-                    toast.success(`Vendor rate details for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indentNo;
+                    await resetIndentStage(targetId, 'vendor_rate');
+                    toast.success(`Vendor rate details for Indent ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setHistoryData(prev => prev.filter(r => r.id !== targetId));
+                    setFilteredHistoryData(prev => prev.filter(r => r.id !== targetId));
                     await loadPendingVendorUpdates();
                     await loadCompletedVendorUpdates();
                 }}

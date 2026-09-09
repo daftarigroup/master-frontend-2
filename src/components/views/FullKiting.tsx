@@ -541,9 +541,13 @@ export default function FullKiting() {
                 productName={deleteTarget?.productName}
                 onConfirm={async () => {
                     if (!deleteTarget || !deleteTarget.id) return;
-                    await resetFullkittingStage(deleteTarget.id);
-                    toast.success(`Freight Payment for Indent ${deleteTarget.indentNumber} deleted and reset`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indentNumber;
+                    await resetFullkittingStage(targetId);
+                    toast.success(`Freight Payment for Indent ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setHistoryData(prev => prev.filter(r => r.id !== targetId));
+                    setPendingData(prev => [{ ...deleteTarget, actual: '' }, ...prev]);
                     await fetchData();
                 }}
             />

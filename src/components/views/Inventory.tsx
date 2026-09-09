@@ -137,7 +137,17 @@ export default () => {
         const partySet = new Set<string>();
 
         (filteredStoreIns || []).forEach((s: any) => {
-            const name = (s.vendorName || s.vendor_name || s.vendor || s.party || s.party_name || (s as any).approved_party_name || '').trim();
+            const name = (
+                s.vendorName ||
+                s.vendor_name ||
+                s.vendor ||
+                s.party ||
+                s.party_name ||
+                (s as any).approved_party_name ||
+                s.approvedVendorName ||
+                s.approved_vendor_name ||
+                ''
+            ).trim();
             if (name && name !== 'N/A' && name !== '-' && name.toLowerCase() !== 'null' && name.toLowerCase() !== 'undefined') {
                 partySet.add(name);
             }
@@ -152,7 +162,7 @@ export default () => {
             if (rName && rName !== 'N/A' && rName !== '-' && rName.toLowerCase() !== 'null' && rName.toLowerCase() !== 'undefined') {
                 partySet.add(rName);
             }
-            const pName = (is.issue_person_name || is.party || '').trim();
+            const pName = (is.issuePersonName || is.issue_person_name || is.issueTo || is.issue_to || is.party || '').trim();
             if (pName && pName !== 'N/A' && pName !== '-' && pName.toLowerCase() !== 'null' && pName.toLowerCase() !== 'undefined') {
                 partySet.add(pName);
             }
@@ -163,7 +173,15 @@ export default () => {
             if (indenter && indenter !== 'N/A' && indenter !== '-' && indenter.toLowerCase() !== 'null' && indenter.toLowerCase() !== 'undefined') {
                 partySet.add(indenter);
             }
-            const vendor = (i.vendor || i.vendor_name || (i as any).approved_party_name || '').trim();
+            const vendor = (
+                i.approvedVendorName ||
+                i.approved_vendor_name ||
+                i.vendorName ||
+                i.vendor_name ||
+                i.vendor ||
+                (i as any).approved_party_name ||
+                ''
+            ).trim();
             if (vendor && vendor !== 'N/A' && vendor !== '-' && vendor.toLowerCase() !== 'null' && vendor.toLowerCase() !== 'undefined') {
                 partySet.add(vendor);
             }
@@ -186,9 +204,17 @@ export default () => {
     const partyFilteredIndents = useMemo(() => {
         if (selectedParty === 'All') return filteredIndents;
         const pLower = selectedParty.trim().toLowerCase();
-        return filteredIndents.filter((i: any) => {
+        return (filteredIndents || []).filter((i: any) => {
             const indenter = (i.indenterName || i.indenter_name || i.party || '').trim().toLowerCase();
-            const vendor = (i.vendor || i.vendor_name || (i as any).approved_party_name || '').trim().toLowerCase();
+            const vendor = (
+                i.approvedVendorName ||
+                i.approved_vendor_name ||
+                i.vendorName ||
+                i.vendor_name ||
+                i.vendor ||
+                (i as any).approved_party_name ||
+                ''
+            ).trim().toLowerCase();
             return indenter === pLower || vendor === pLower;
         });
     }, [filteredIndents, selectedParty]);
@@ -196,8 +222,18 @@ export default () => {
     const partyFilteredStoreIns = useMemo(() => {
         if (selectedParty === 'All') return filteredStoreIns;
         const pLower = selectedParty.trim().toLowerCase();
-        return filteredStoreIns.filter((s: any) => {
-            const vendor = (s.vendorName || s.vendor_name || s.vendor || s.party || s.party_name || (s as any).approved_party_name || '').trim().toLowerCase();
+        return (filteredStoreIns || []).filter((s: any) => {
+            const vendor = (
+                s.vendorName ||
+                s.vendor_name ||
+                s.vendor ||
+                s.party ||
+                s.party_name ||
+                (s as any).approved_party_name ||
+                s.approvedVendorName ||
+                s.approved_vendor_name ||
+                ''
+            ).trim().toLowerCase();
             return vendor === pLower;
         });
     }, [filteredStoreIns, selectedParty]);
@@ -205,10 +241,10 @@ export default () => {
     const partyFilteredIssues = useMemo(() => {
         if (selectedParty === 'All') return filteredIssues;
         const pLower = selectedParty.trim().toLowerCase();
-        return filteredIssues.filter((is: any) => {
+        return (filteredIssues || []).filter((is: any) => {
             const cName = (is.constructorName || is.constructor_name || '').trim().toLowerCase();
             const rName = (is.returnPersonName || is.return_person_name || '').trim().toLowerCase();
-            const pName = (is.issue_person_name || is.party || '').trim().toLowerCase();
+            const pName = (is.issuePersonName || is.issue_person_name || is.issueTo || is.issue_to || is.party || '').trim().toLowerCase();
             return cName === pLower || rName === pLower || pName === pLower;
         });
     }, [filteredIssues, selectedParty]);
@@ -216,7 +252,7 @@ export default () => {
     const partyFilteredTransfers = useMemo(() => {
         if (selectedParty === 'All') return filteredTransfers;
         const pLower = selectedParty.trim().toLowerCase();
-        return filteredTransfers.filter((t: any) => {
+        return (filteredTransfers || []).filter((t: any) => {
             const fromP = (t.fromProject || t.from_project || '').trim().toLowerCase();
             const toP = (t.toProject || t.to_project || '').trim().toLowerCase();
             return fromP === pLower || toP === pLower;
@@ -243,7 +279,9 @@ export default () => {
                 return false;
             });
 
-        if (selectedParty !== 'All') {
+        const isPartyFiltered = selectedParty !== 'All';
+
+        if (isPartyFiltered) {
             projectFilteredInventory = projectFilteredInventory.map(item => ({
                 ...item,
                 opening: 0
@@ -256,11 +294,12 @@ export default () => {
             partyFilteredStoreIns,
             partyFilteredIssues,
             partyFilteredTransfers,
-            selectedProjectName
+            selectedProjectName,
+            isPartyFiltered
         ) as unknown as InventoryRecord[];
 
         let result = calculated;
-        if (selectedParty !== 'All') {
+        if (isPartyFiltered) {
             result = result.filter(item => {
                 return (
                     (item.indented || 0) !== 0 ||
@@ -354,13 +393,16 @@ export default () => {
                             0
                         );
                         const quantity = Number(i.quantity || 0);
+                        const party = (selectedParty !== 'All' && i.indenterName?.trim().toLowerCase() === selectedParty.trim().toLowerCase())
+                            ? (i.indenterName || 'N/A')
+                            : (i.approvedVendorName || i.approved_vendor_name || i.vendor || i.vendor_name || i.indenterName || 'N/A');
                         return {
                             date: i.timestamp,
                             refNo: i.indentNumber,
                             quantity,
                             rate,
                             amount: Number((quantity * rate).toFixed(2)),
-                            party: i.indenterName || 'N/A',
+                            party,
                             projectName: i.firmName || 'N/A'
                         };
                     });
@@ -386,13 +428,16 @@ export default () => {
                             0
                         );
                         const quantity = Number(i.approvedQuantity || 0);
+                        const party = (selectedParty !== 'All' && i.indenterName?.trim().toLowerCase() === selectedParty.trim().toLowerCase())
+                            ? (i.indenterName || 'N/A')
+                            : (i.approvedVendorName || i.approved_vendor_name || i.vendor || i.vendor_name || i.indenterName || 'N/A');
                         return {
                             date: i.timestamp,
                             refNo: i.indentNumber,
                             quantity,
                             rate,
                             amount: Number((quantity * rate).toFixed(2)),
-                            party: i.indenterName || 'N/A',
+                            party,
                             projectName: i.firmName || 'N/A'
                         };
                     });
@@ -436,7 +481,7 @@ export default () => {
                             quantity,
                             rate: poRate,
                             amount: Number((quantity * poRate).toFixed(2)),
-                            party: s.vendorName || 'N/A',
+                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
                             projectName: s.firmNameMatch || 'N/A',
                             siteLocation: s.location || 'N/A'
                         };
@@ -482,7 +527,7 @@ export default () => {
                             quantity,
                             rate: poRate,
                             amount: Number((quantity * poRate).toFixed(2)),
-                            party: s.vendorName || 'N/A',
+                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
                             projectName: s.firmNameMatch || 'N/A',
                             siteLocation: s.location || 'N/A'
                         };
@@ -499,7 +544,7 @@ export default () => {
                             quantity,
                             rate: itemFallbackRate,
                             amount: Number((quantity * itemFallbackRate).toFixed(2)),
-                            party: is.constructorName || 'N/A',
+                            party: is.constructorName || is.constructor_name || is.issuePersonName || is.issue_person_name || is.issueTo || is.party || 'N/A',
                             projectName: is.projectName || is.firm_name || 'N/A',
                         };
                     });
@@ -515,7 +560,7 @@ export default () => {
                             quantity,
                             rate: itemFallbackRate,
                             amount: Number((quantity * itemFallbackRate).toFixed(2)),
-                            party: is.returnPersonName || is.return_person_name || 'N/A',
+                            party: is.returnPersonName || is.return_person_name || is.constructorName || is.party || 'N/A',
                             projectName: is.projectName || is.firm_name || 'N/A',
                             siteLocation: is.siteLocation || 'N/A'
                         };
@@ -557,7 +602,7 @@ export default () => {
                             quantity,
                             rate: poRate,
                             amount: Number((quantity * poRate).toFixed(2)),
-                            party: s.vendorName || 'N/A',
+                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
                             projectName: s.firmNameMatch || 'N/A',
                             siteLocation: s.location || 'N/A'
                         };
@@ -566,7 +611,7 @@ export default () => {
             case 'Stock Transfer Receiving':
                 // Combine transfers from both dedicated table and old store_in 'Transfer' status
                 const legacyTransfers = partyFilteredStoreIns
-                    .filter((s: any) => s.productName === itemName && s.receivingStatus === 'Transfer')
+                    .filter((s: any) => isSameProduct(s.productName || s.product) && s.receivingStatus === 'Transfer')
                     .map((s: any) => {
                         const qty = Number(s.receivedQuantity || 0);
                         return {
@@ -575,14 +620,14 @@ export default () => {
                             quantity: qty,
                             rate: itemFallbackRate,
                             amount: Number((qty * itemFallbackRate).toFixed(2)),
-                            party: s.vendorName || 'N/A',
+                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
                             projectName: s.firmNameMatch || 'N/A',
                             siteLocation: s.location || 'N/A'
                         };
                     });
 
                 const newTransfersReceiving = partyFilteredTransfers
-                    .filter((t: any) => t.productName === itemName && (selectedProjectId === 'All' || Number(t.to_firm_id || t.toFirmId) === Number(selectedProjectId)))
+                    .filter((t: any) => isSameProduct(t.productName || t.product) && (selectedProjectId === 'All' || Number(t.to_firm_id || t.toFirmId) === Number(selectedProjectId)))
                     .map((t: any) => {
                         const qty = Number(t.quantity || 0);
                         return {
@@ -600,7 +645,7 @@ export default () => {
                 break;
             case 'Stock Transfer Given':
                 rows = partyFilteredTransfers
-                    .filter((t: any) => t.productName === itemName && (selectedProjectId === 'All' || Number(t.from_firm_id || t.fromFirmId) === Number(selectedProjectId)))
+                    .filter((t: any) => isSameProduct(t.productName || t.product) && (selectedProjectId === 'All' || Number(t.from_firm_id || t.fromFirmId) === Number(selectedProjectId)))
                     .map((t: any) => {
                         const qty = Number(t.quantity || 0);
                         return {

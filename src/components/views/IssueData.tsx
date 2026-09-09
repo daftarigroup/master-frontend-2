@@ -758,9 +758,12 @@ export default function IssueData() {
                 customMessage={`Are you sure you want to delete approval for Issue ${deleteTarget?.issue_no} (${deleteTarget?.product_name})? This will revert the issue back to Pending state.`}
                 onConfirm={async () => {
                     if (!deleteTarget || !deleteTarget.id) return;
-                    await resetIssueStage(deleteTarget.id);
-                    toast.success(`Issue ${deleteTarget.issue_no} approval reset to Pending`);
+                    const targetId = deleteTarget.id;
+                    const issueNum = deleteTarget.issue_no;
+                    await resetIssueStage(targetId);
+                    toast.success(`Issue ${issueNum} approval reset to Pending`);
                     setDeleteTarget(null);
+                    setAllData(prev => prev.map(r => r.id === targetId ? { ...r, status: 'Pending', planned1: '', actual1: '' } : r));
                     await fetchData();
                     updateAll(true);
                 }}

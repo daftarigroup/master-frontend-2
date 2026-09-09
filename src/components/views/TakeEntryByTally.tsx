@@ -602,9 +602,12 @@ export default function TallyEntry() {
                 customMessage={`Are you sure you want to delete and reset the Tally Entry for Indent ${deleteTarget?.indentNumber || ''}${deleteTarget?.productName ? ` (${deleteTarget.productName})` : ''}? This will return the item to Pending Tally Entry.`}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await resetTallyEntryStage(deleteTarget.id, 'tally_entry');
-                    toast.success(`Tally entry for ${deleteTarget.indentNumber} deleted and reset`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indentNumber;
+                    await resetTallyEntryStage(targetId, 'tally_entry');
+                    toast.success(`Tally entry for ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setAllData(prev => prev.map(r => r.id === targetId ? { ...r, actual4: '' } : r));
                     await fetchData();
                 }}
             />

@@ -99,6 +99,7 @@ export const AllDocuments: React.FC = () => {
           setSelectedIds(newSelected);
         }
         toast.success('Document deleted successfully');
+        setDocuments(prev => prev.filter(doc => doc.id !== id));
         loadData();
       } catch (err: any) {
         toast.error(err.message || 'Failed to delete document');

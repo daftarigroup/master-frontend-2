@@ -58,7 +58,8 @@ export const MasterListTab: React.FC<MasterListTabProps> = ({ type, title, place
     try {
       await mastersApi.delete(id);
       toast.success('Deleted!');
-      loadItems();
+      setItems(prev => prev.filter(item => item.id !== id));
+      await loadItems();
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || 'Error deleting entry');

@@ -1482,11 +1482,14 @@ export default () => {
                 productName={deleteTarget?.product_name}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await deleteIndentRecord(deleteTarget.id);
-                    toast.success(`Indent ${deleteTarget.indent_number} deleted successfully`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indent_number;
+                    await deleteIndentRecord(targetId);
+                    toast.success(`Indent ${indentNum} deleted successfully`);
                     setDeleteTarget(null);
-                    fetchHistory();
-                    updateIndentSheet();
+                    setHistoryData(prev => prev.filter(r => r.id !== targetId));
+                    await fetchHistory();
+                    updateIndentSheet(true);
                 }}
             />
 

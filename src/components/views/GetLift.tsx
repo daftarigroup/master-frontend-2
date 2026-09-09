@@ -1758,16 +1758,22 @@ export default function GetPurchase() {
                 customMessage={`Are you sure you want to delete and reset the Lifting stage for Indent ${deleteTarget?.indentNo || ''}${deleteTarget?.product ? ` (${deleteTarget.product})` : ''}? This will delete the store-in and linked transport records, restoring this item to Pending Lifting.`}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indentNo;
+                    const liftNum = deleteTarget.liftNumber;
+                    const prod = deleteTarget.product;
                     await resetLiftingStage({
-                        id: deleteTarget.id,
-                        liftNumber: deleteTarget.liftNumber,
-                        indentNo: deleteTarget.indentNo,
-                        productName: deleteTarget.product,
+                        id: targetId,
+                        liftNumber: liftNum,
+                        indentNo: indentNum,
+                        productName: prod,
                     });
-                    toast.success(`Lifting record for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    toast.success(`Lifting record for Indent ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setStoreInRecords(prev => prev.filter(r => r.id !== targetId && !(liftNum && r.liftNumber === liftNum && r.indentNo === indentNum)));
+                    setHistoryData(prev => prev.filter(r => r.id !== targetId));
                     await fetchAllData();
-                    updateAll();
+                    updateAll(true);
                 }}
             />
 

@@ -76,12 +76,14 @@ export default function WorkingCalendar() {
 
     async function confirmDelete() {
         if (!deleteTarget) return;
+        const targetId = deleteTarget.id;
         setDeleting(true);
         try {
-            await deleteWorkingDay(deleteTarget.id);
+            await deleteWorkingDay(targetId);
             toast.success('Working day deleted');
             setDeleteTarget(null);
-            load();
+            setRows(prev => prev.filter(r => r.id !== targetId));
+            await load();
         } catch (error) {
             console.error('Error deleting working day:', error);
             toast.error('Failed to delete working day');

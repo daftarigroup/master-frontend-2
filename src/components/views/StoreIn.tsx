@@ -1876,11 +1876,15 @@ export default () => {
                 productName={deleteTarget?.productName}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await resetStoreInStage(deleteTarget.id, 'store_check');
-                    toast.success(`Store Check details for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indentNo;
+                    await resetStoreInStage(targetId, 'store_check');
+                    toast.success(`Store Check details for Indent ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setStoreInRecords(prev => prev.filter(r => r.id !== targetId));
+                    setHistoryData(prev => prev.filter(r => r.id !== targetId));
                     await fetchAllData();
-                    updateAll();
+                    updateAll(true);
                 }}
             />
         </div>
