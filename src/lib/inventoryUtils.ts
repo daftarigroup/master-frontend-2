@@ -11,8 +11,12 @@ export function calculateRealInventory(
     issues: IssueSheet[],
     transfers: any[] = [],
     currentProject: string = 'All',
-    isPartyFiltered: boolean = false
+    isPartyFilteredOrPoMaster: boolean | any[] = false,
+    poMasterArg: any[] = []
 ): InventorySheet[] {
+    const isPartyFiltered = typeof isPartyFilteredOrPoMaster === 'boolean' ? isPartyFilteredOrPoMaster : false;
+    const poMaster = Array.isArray(isPartyFilteredOrPoMaster) ? isPartyFilteredOrPoMaster : (poMasterArg || []);
+
     const curProjLower = (currentProject || 'All').trim().toLowerCase();
     const isAllProjects = curProjLower === 'all' || !currentProject;
 
@@ -297,27 +301,81 @@ export function calculateRealInventory(
         }
 
         // Calculate dynamic Avg Price:
-        // Priority 1: Master individualRate / avgPrice
-        // Priority 2: Weighted Average from storeIns / lifting with rates
-        // Priority 3: Latest Approved / Indent rate
-        let resolvedAvgPrice = Number((relevantMasterRecords[0] as any)?.avgPrice ?? (relevantMasterRecords[0] as any)?.avg_price ?? (relevantMasterRecords[0] as any)?.individualRate ?? item.individualRate ?? 0);
+        // Priority 1: Total Price of Lifting / Total Quantity of Lifting (Weighted average of lifted stock)
+        const isLifted = (s: any) => {
+            const raw = s.materialDate ?? s.material_date;
+            if (!raw) return false;
+            const str = String(raw).trim().toLowerCase();
+            return str !== '' && str !== 'null' && str !== 'undefined' && str !== '-' && str !== 'n/a';
+        };
 
-        if (!resolvedAvgPrice) {
-            const matchingStoreIns = projectStoreIns.filter(s => (s.productName || '').trim() === itemName && Number(s.receivedQuantity || 0) > 0);
-            let totalVal = 0;
-            let totalValQty = 0;
-            matchingStoreIns.forEach(s => {
-                const r = Number((s as any).priceAsPerPo || (s as any).rate || 0);
-                const q = Number(s.receivedQuantity || 0);
-                if (r > 0 && q > 0) {
-                    totalVal += (r * q);
-                    totalValQty += q;
-                }
+        const matchingLiftingIns = projectStoreIns.filter(s =>
+            nameMatches(s.productName || (s as any).product) &&
+            Number(s.receivedQuantity || 0) > 0 &&
+            isLifted(s) &&
+            s.receivingStatus !== 'Transfer'
+        );
+
+        let totalLiftingValue = 0;
+        let totalLiftingQty = 0;
+
+        matchingLiftingIns.forEach(s => {
+            const q = Number(s.receivedQuantity || 0);
+
+            // Find linked indent specifically for this product and indent/PO
+            const matchedIndent: any = projectIndents?.find((ind: any) => {
+                const prodMatch = nameMatches(ind.productName || ind.product);
+                const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                return prodMatch && (indentMatch || poMatchNum);
             });
-            if (totalValQty > 0 && totalVal > 0) {
-                resolvedAvgPrice = Number((totalVal / totalValQty).toFixed(2));
-            } else {
-                const matchingIndents = projectIndents.filter(i => (i.productName || '').trim() === itemName);
+
+            // Find linked PO created for this indent/lift data and product
+            const targetPoNumber = s.poNumber || (s as any).po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+            const poMatch = poMaster?.find((p: any) => {
+                const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
+                const prodMatch = nameMatches(p.product || p.productName);
+                return poNumMatch && prodMatch;
+            });
+
+            // Rate Priority strictly matching the Lifting Quantity History modal (Inventory.tsx):
+            // 1. PO Rate for this lift / indent
+            // 2. Approved Rate from indent
+            // 3. priceAsPerPo / rate from store_in
+            // 4. Base indent rate
+            const r = Number(
+                poMatch?.rate ||
+                matchedIndent?.approvedRate ||
+                matchedIndent?.approved_rate ||
+                (s as any).priceAsPerPo ||
+                (s as any).rate ||
+                matchedIndent?.rate ||
+                matchedIndent?.rate1 ||
+                0
+            );
+
+            if (r > 0 && q > 0) {
+                totalLiftingValue += Number((r * q).toFixed(2));
+                totalLiftingQty += q;
+            }
+        });
+
+        let resolvedAvgPrice = 0;
+        if (totalLiftingQty > 0 && totalLiftingValue > 0) {
+            resolvedAvgPrice = Number((totalLiftingValue / totalLiftingQty).toFixed(2));
+        } else {
+            // Priority 2 Fallback: Master individualRate / avgPrice (when no lifting occurred yet)
+            resolvedAvgPrice = Number(
+                (relevantMasterRecords[0] as any)?.avgPrice ??
+                (relevantMasterRecords[0] as any)?.avg_price ??
+                (relevantMasterRecords[0] as any)?.individualRate ??
+                item.individualRate ??
+                0
+            );
+
+            // Priority 3 Fallback: Latest Approved / Indent rate
+            if (!resolvedAvgPrice) {
+                const matchingIndents = projectIndents.filter(i => nameMatches(i.productName || (i as any).product));
                 const indentWithRate = matchingIndents.find(i => Number((i as any).approvedRate || (i as any).approved_rate || (i as any).rate || (i as any).rate1 || 0) > 0);
                 if (indentWithRate) {
                     resolvedAvgPrice = Number((indentWithRate as any).approvedRate || (indentWithRate as any).approved_rate || (indentWithRate as any).rate || (indentWithRate as any).rate1 || 0);

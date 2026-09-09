@@ -295,7 +295,8 @@ export default () => {
             partyFilteredIssues,
             partyFilteredTransfers,
             selectedProjectName,
-            isPartyFiltered
+            isPartyFiltered,
+            poMasterSheet
         ) as unknown as InventoryRecord[];
 
         let result = calculated;
@@ -318,7 +319,7 @@ export default () => {
         return [...result].sort((a, b) =>
             (a.itemName || '').localeCompare(b.itemName || '', undefined, { numeric: true, sensitivity: 'base' })
         );
-    }, [inventorySheet, partyFilteredIndents, partyFilteredStoreIns, partyFilteredIssues, partyFilteredTransfers, selectedProjectId, selectedParty, selectedFirm?.name, user?.firm_access]);
+    }, [inventorySheet, partyFilteredIndents, partyFilteredStoreIns, partyFilteredIssues, partyFilteredTransfers, selectedProjectId, selectedParty, selectedFirm?.name, user?.firm_access, poMasterSheet]);
 
     const isLoading = inventoryLoading || indentLoading || storeInLoading || issueLoading;
 
