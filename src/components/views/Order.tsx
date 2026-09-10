@@ -321,9 +321,11 @@ export default function Order() {
                 customMessage={`Are you sure you want to delete PO ${deleteTarget?.poNumber}? This will remove the PO record and revert linked indents back to Pending PO to Make.`}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await resetPoStage(deleteTarget.poNumber);
-                    toast.success(`PO ${deleteTarget.poNumber} deleted and reset successfully`);
+                    const poNum = deleteTarget.poNumber;
+                    await resetPoStage(poNum);
+                    toast.success(`PO ${poNum} deleted and reset successfully`);
                     setDeleteTarget(null);
+                    setHistoryData(prev => prev.filter(r => r.poNumber !== poNum));
                     await fetchPOHistory();
                 }}
             />

@@ -209,6 +209,7 @@ export default function PcReportTable() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<{ item: ProcessedTallyData; stage?: string } | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
 
   // Function to toggle product expansion in dialog
   const toggleProductExpand = (id: number) => {
@@ -227,6 +228,7 @@ export default function PcReportTable() {
     const records = Array.isArray(tallyEntrySheet) ? tallyEntrySheet : [];
 
     const filteredByFirm = records.filter((item) => {
+      if (item.id && deletedIds.has(item.id)) return false;
       return isAllowedFirm(
         {
           id: (item as any).firm_id,
@@ -1401,10 +1403,12 @@ export default function PcReportTable() {
           if (!deleteTarget) return;
           const stageKey = (deleteTarget.stage || 'audit').toLowerCase();
           const items = deleteTarget.item.originalItems || [deleteTarget.item];
+          const targetIds = items.map(it => it.id).filter(Boolean);
           await Promise.all(items.map(it => resetTallyEntryStage(it.id, stageKey as any)));
           toast.success(`Stage ${stageKey} deleted and reset successfully`);
           setDeleteTarget(null);
-          updateAll();
+          setDeletedIds(prev => new Set([...prev, ...targetIds]));
+          updateAll(true);
         }}
       />
     </div>

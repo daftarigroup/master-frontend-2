@@ -68,6 +68,7 @@ interface PaymentsRecord {
 }
 
 interface PaymentHistoryRecord {
+    id?: number;
     rowIndex?: number;
     timestamp?: string;
     apPaymentNumber?: string;  // Column B (AP-Payment Number)
@@ -1215,9 +1216,12 @@ export default function MakePayment() {
                 onConfirm={async () => {
                     if (!deleteTarget) return;
                     const targetId = deleteTarget.id || deleteTarget.rowIndex;
+                    const paymentNum = deleteTarget.uniqueNumber || deleteTarget.apPaymentNumber;
                     await resetPaymentStage(targetId);
-                    toast.success(`Payment record for ${deleteTarget.uniqueNumber || deleteTarget.apPaymentNumber} deleted and reset`);
+                    toast.success(`Payment record for ${paymentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setHistoryData(prev => prev.filter(r => (r.id || r.rowIndex) !== targetId));
+                    setPaymentHistorySheet(prev => prev.filter(r => (r.id || (r as any).rowIndex) !== targetId));
                     updateAll();
                 }}
             />

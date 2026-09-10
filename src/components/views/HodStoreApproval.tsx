@@ -621,9 +621,13 @@ export default () => {
                 productName={deleteTarget?.productName}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await resetStoreInStage(deleteTarget.id, 'hod_check');
-                    toast.success(`HOD Check for Indent ${deleteTarget.indentNo} deleted and reset`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indentNo;
+                    await resetStoreInStage(targetId, 'hod_check');
+                    toast.success(`HOD Check for Indent ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
+                    setStoreInRecords(prev => prev.filter(r => r.id !== targetId));
+                    setHistoryData(prev => prev.filter(r => r.id !== targetId));
                     await fetchAllData();
                     updateTallyEntrySheet(true);
                     updatePaymentsSheet(true);

@@ -65,12 +65,14 @@ export default function Holidays() {
 
     async function confirmDelete() {
         if (!deleteTarget) return;
+        const targetId = deleteTarget.id;
         setDeleting(true);
         try {
-            await deleteHoliday(deleteTarget.id);
+            await deleteHoliday(targetId);
             toast.success('Holiday deleted');
             setDeleteTarget(null);
-            load();
+            setRows(prev => prev.filter(r => r.id !== targetId));
+            await load();
         } catch (error) {
             console.error('Error deleting holiday:', error);
             toast.error('Failed to delete holiday');

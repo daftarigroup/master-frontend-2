@@ -745,9 +745,11 @@ export default function ManageUsers() {
                                                 if (user.username === 'admin') {
                                                     throw new Error();
                                                 }
-                                                await deleteUser(user.id);
+                                                const userId = user.id;
+                                                await deleteUser(userId);
                                                 toast.success(`User deleted successfully`);
-                                                fetchUser();
+                                                setTableData(prev => prev.filter(u => u.id !== userId));
+                                                await fetchUser();
                                             } catch {
                                                 toast.error('Failed to delete user');
                                             }

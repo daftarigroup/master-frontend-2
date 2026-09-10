@@ -725,6 +725,7 @@ export default function MasterManagement() {
             const results = await Promise.all(ops);
             if (results.every(r => r.success)) {
                 toast.success('Deleted');
+                setAllRecords(prev => prev.filter(r => !allIds.includes(r.id)));
                 await loadData();
                 updateAll();
             } else {
@@ -736,9 +737,11 @@ export default function MasterManagement() {
     const handleDeleteByDept = async (deptName: string) => {
         if (confirm(`Remove department "${deptName}"?`)) {
             const targets = allRecords.filter(r => r.department === deptName);
+            const targetIds = targets.map(t => t.id);
             const ops = targets.map(t => deleteMasterData(t.id, 'department'));
             await Promise.all(ops);
             toast.success('Department removed');
+            setAllRecords(prev => prev.filter(r => !targetIds.includes(r.id) && r.department !== deptName));
             await loadData();
             updateAll();
         }
@@ -776,6 +779,17 @@ export default function MasterManagement() {
 
             if (res.success) {
                 toast.success('Deleted');
+                if (type === 'site_engineer') {
+                    setSiteEngineers(prev => prev.filter(r => !allIds.includes(r.id) && r.number !== record.number));
+                } else if (type === 'contractor') {
+                    setContractors(prev => prev.filter(r => !allIds.includes(r.id)));
+                } else if (type === 'site_location') {
+                    setSiteLocations(prev => prev.filter(r => !allIds.includes(r.id)));
+                } else if (type === 'terms_condition') {
+                    setTermsConditions(prev => prev.filter(r => !allIds.includes(r.id)));
+                } else {
+                    setAllRecords(prev => prev.filter(r => !allIds.includes(r.id)));
+                }
                 await loadData();
                 updateAll();
             } else {

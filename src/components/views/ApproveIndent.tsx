@@ -1062,11 +1062,14 @@ export default function ApproveIndent() {
                 productName={deleteTarget?.product_name}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    await resetIndentStage(deleteTarget.id, 'approval');
-                    toast.success(`Approval details for Indent ${deleteTarget.indent_number} deleted and reset`);
+                    const targetId = deleteTarget.id;
+                    const indentNum = deleteTarget.indent_number;
+                    await resetIndentStage(targetId, 'approval');
+                    toast.success(`Approval details for Indent ${indentNum} deleted and reset`);
                     setDeleteTarget(null);
-                    fetchData();
-                    updateAll();
+                    setAllData(prev => prev.map(r => r.id === targetId ? { ...r, actual1: '', status: 'Pending', vendor_type: 'Pending', approved_quantity: 0, planned2: '' } : r));
+                    await fetchData();
+                    updateAll(true);
                 }}
             />
         </div>
