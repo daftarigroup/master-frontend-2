@@ -1,4 +1,4 @@
-import { Plus, Building2, Package, FileSpreadsheet, Boxes, LayoutGrid, Building, Trash, Pencil, X, Search, MapPin, UserCog, Mail, Phone, Users, Map, Loader2, FileText, FileCode2, FolderTree } from 'lucide-react';
+import { Plus, Building2, Package, FileSpreadsheet, Boxes, LayoutGrid, Building, Trash, Pencil, X, Search, MapPin, UserCog, Mail, Phone, Users, Map, Loader2, FileText, FileCode2, FolderTree, Briefcase } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -11,6 +11,7 @@ export const ALL_REGISTRY_SECTIONS = [
     { id: 'items', label: 'Items', icon: Boxes, color: 'text-blue-500' },
     { id: 'group-heads', label: 'Group Head & UOM', icon: LayoutGrid, color: 'text-orange-500' },
     { id: 'companies', label: 'Companies', icon: Building, color: 'text-emerald-500' },
+    { id: 'departments', label: 'Departments', icon: Briefcase, color: 'text-cyan-500' },
     { id: 'contractors', label: 'Contractors', icon: Users, color: 'text-indigo-500' },
     { id: 'site_locations', label: 'Site Locations', icon: Map, color: 'text-rose-500' },
     { id: 'projects', label: 'Projects', icon: Building, color: 'text-purple-500' },
@@ -899,7 +900,7 @@ export default function MasterManagement() {
     ];
 
     const departmentColumns: ColumnDef<any>[] = [
-        { accessorKey: 'department', header: 'Dept Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><LayoutGrid size={16} className="text-orange-500" />{row.original.department}</div> },
+        { accessorKey: 'department', header: 'Department Name', cell: ({ row }) => <div className="flex items-center gap-2 font-medium"><Briefcase size={16} className="text-cyan-500" />{row.original.department}</div> },
         {
             id: 'actions', cell: ({ row }) => (
                 <div className="flex items-center gap-1 justify-end pr-4">
@@ -1372,6 +1373,7 @@ export default function MasterManagement() {
     const siteLocationsData = useMemo(() => buildGroupedData(siteLocations, (l) => (l.location || '').trim().toLowerCase()), [siteLocations]);
     const siteEngineersData = useMemo(() => buildGroupedData(siteEngineers, (se) => `${(se.name || '').trim().toLowerCase()}__${(se.number || '').trim()}`), [siteEngineers]);
     const termsData = useMemo(() => buildGroupedData(termsConditions, (tc) => `${(tc.title || '').trim().toLowerCase()}__${(tc.name || '').trim().toLowerCase()}`), [termsConditions]);
+    const departmentsData = useMemo(() => allRecords.filter((r) => r.__table === 'department'), [allRecords]);
 
     return (
         <div className="h-full space-y-4 md:space-y-6 flex flex-col px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -1491,6 +1493,14 @@ export default function MasterManagement() {
                         extraActions={<Button className="bg-emerald-600" onClick={() => { cForm.reset(); setEditingRecord(null); setOpenDialog('company'); }}><Plus size={18} /> Add Company</Button>}
                     />
                 </TabsContent>
+                <TabsContent value="departments" className="flex-1 outline-none">
+                    <DataTable
+                        data={departmentsData}
+                        columns={departmentColumns}
+                        dataLoading={dataLoading}
+                        extraActions={<Button className="bg-cyan-600 hover:bg-cyan-700" onClick={() => { dForm.reset(); setEditingRecord(null); setOpenDialog('dept'); }}><Plus size={18} /> Add Department</Button>}
+                    />
+                </TabsContent>
                 <TabsContent value="contractors" className="flex-1 outline-none">
                     <DataTable
                         data={contractorsData}
@@ -1541,15 +1551,32 @@ export default function MasterManagement() {
                     slForm.reset();
                     pForm.reset();
                     tcForm.reset();
+                    dForm.reset();
                 }
             }}>
                 <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden bg-background">
                     <div className="flex flex-col h-full overflow-hidden">
                         <div className="sticky top-0 z-20 px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex-shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/40 shadow-sm">
-                            <DialogHeader><DialogTitle className="text-lg sm:text-xl font-bold">{editingRecord ? 'Edit' : 'Add'} {openDialog === 'ghuom' ? 'Group Head & UOM' : openDialog?.toUpperCase()}</DialogTitle></DialogHeader>
+                            <DialogHeader><DialogTitle className="text-lg sm:text-xl font-bold">{editingRecord ? 'Edit' : 'Add'} {openDialog === 'ghuom' ? 'Group Head & UOM' : openDialog === 'dept' ? 'Department' : openDialog?.toUpperCase()}</DialogTitle></DialogHeader>
                         </div>
                         <ScrollArea className="flex-1 min-h-0 scroll-smooth overflow-y-auto" type="always">
                             <div className="space-y-4 sm:space-y-6 px-4 sm:px-6 pb-24 sm:pb-24">
+                                {openDialog === 'dept' && (
+                                    <Form {...dForm}>
+                                        <form className="grid gap-4 p-5" onSubmit={dForm.handleSubmit(v => onSubmit(v, 'dept'), onInvalid)}>
+                                            <FormField control={dForm.control} name="department" render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Department Name</FormLabel>
+                                                    <FormControl><Input {...field} placeholder="e.g., Civil, Mechanical, HR, Accounts" /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )} />
+                                            <Button type="submit" disabled={isSubmitting} className="w-full bg-cyan-600 hover:bg-cyan-700 text-sm sm:text-base py-2 sm:py-3 mt-2">
+                                                {isSubmitting ? <><Loader2 size={16} className="animate-spin mr-2" />Saving...</> : (editingRecord ? 'Update Department' : 'Save Department')}
+                                            </Button>
+                                        </form>
+                                    </Form>
+                                )}
                                 {openDialog === 'vendor' && (
                                     <Form {...vForm}>
                                         <form className="grid gap-4" onSubmit={vForm.handleSubmit(v => onSubmit(v, 'vendor'), onInvalid)}>
