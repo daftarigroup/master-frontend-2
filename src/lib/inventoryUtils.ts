@@ -234,8 +234,13 @@ export function calculateRealInventory(
         // Only fall back to the master record's stale out_quantity if no issue data was fetched at all.
         // This prevents ghost quantities appearing for items whose issue records were deleted.
         const issueDataLoaded = issues.length > 0;
-        const outQuantity = isPartyFiltered ? (issueDataLoaded ? oSum.givenQty : (oSum.givenQty || 0) : (oSum.givenQty || item.outQuantity || 0));
-        const issueReturn = isPartyFiltered ? (issueDataLoaded ? oSum.rejectedDamageQty : (oSum.rejected_damage_qty || 0) : (oSum.rejected_damage_qty || item.issueReturn || 0));
+        const outQuantity = isPartyFiltered
+            ? (oSum.givenQty || 0)
+            : (issueDataLoaded ? (oSum.givenQty || 0) : (oSum.givenQty || item.outQuantity || 0));
+        const issueReturnQty = oSum.rejected_damage_qty ?? (oSum as any).rejectedDamageQty ?? 0;
+        const issueReturn = isPartyFiltered
+            ? (issueReturnQty || 0)
+            : (issueDataLoaded ? (issueReturnQty || 0) : (issueReturnQty || item.issueReturn || 0));
 
         // Stock Transfer: Old way (from storeIn) + New way (from dedicated table)
         const tSum = transferSummary[key] || { in: 0, out: 0, totalVolume: 0, sources: new Set(), destinations: new Set() };

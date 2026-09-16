@@ -16,7 +16,9 @@ import {
   X,
 } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useProjectAssignments } from '@/features/hr/deployment/server/tanstackQuery/useDeploymentQueries';
 import {
   Bar,
   BarChart,
@@ -108,7 +110,23 @@ const MainDashboard = () => {
   const [salaryDept, setSalaryDept] = useState<V3HrDeptSalary | null>(null);
   const [generateEmp, setGenerateEmp] = useState<V3HrSalaryEmployee | null>(null);
   const [showAllJoinings, setShowAllJoinings] = useState(false);
+  const { data: assignments = [] } = useProjectAssignments();
   const [showAllCandidates, setShowAllCandidates] = useState(false);
+
+  const activeAssignments = useMemo(
+    () => assignments.filter((a) => a.status === 'active' || a.status === 'on_leave'),
+    [assignments]
+  );
+  const deployedCount = activeAssignments.length;
+  const benchCount = Math.max(0, (data?.kpi?.totalActiveEmployees ?? 0) - deployedCount);
+
+  const projectDistribution = useMemo(() => {
+    const counts = new Map<string, number>();
+    activeAssignments.forEach((a) => {
+      counts.set(a.projectName, (counts.get(a.projectName) || 0) + 1);
+    });
+    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
+  }, [activeAssignments]);
 
   if (isLoading && !data) {
     return (
@@ -330,6 +348,93 @@ const MainDashboard = () => {
               {k.sub && <div className="mt-1.5 text-[10px] text-muted-foreground">{k.sub}</div>}
             </button>
           ))}
+        </div>
+
+        {/* Project Manpower Deployment Section */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-blue-500/10 p-2.5 text-blue-600 dark:text-blue-400">
+                <Briefcase className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold">Project Manpower Deployment</h2>
+                <p className="text-[12px] text-muted-foreground">
+                  Dual-scoped workforce distribution across construction sites vs home bench
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/hr/deployment"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/20"
+            >
+              Open Deployment Console <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border border-border bg-muted/30 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Site Deployed
+                </p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[26px] font-bold text-blue-600 dark:text-blue-400">
+                    {deployedCount}
+                  </span>
+                  <span className="text-[12px] text-muted-foreground">personnel on sites</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/30 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Home Org Bench
+                </p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[26px] font-bold text-purple-600 dark:text-purple-400">
+                    {benchCount}
+                  </span>
+                  <span className="text-[12px] text-muted-foreground">available for allocation</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/30 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Active Projects
+                </p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[26px] font-bold text-foreground">
+                    {projectDistribution.length}
+                  </span>
+                  <span className="text-[12px] text-muted-foreground">sites receiving manpower</span>
+                </div>
+              </div>
+            </div>
+
+            {projectDistribution.length > 0 && (
+              <div className="mt-4 border-t border-border pt-4">
+                <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Deployment by Construction Project
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {projectDistribution.map((p) => (
+                    <div
+                      key={p.name}
+                      className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-3"
+                    >
+                      <div>
+                        <p className="text-[13px] font-semibold text-foreground">{p.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{p.count} deployed</p>
+                      </div>
+                      <span className="rounded-md bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary tabular-nums">
+                        {Math.round((p.count / (deployedCount || 1)) * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Recruitment Pipeline + Monthly Hiring Trend */}

@@ -2289,7 +2289,7 @@ export default function MainSalaryManagement() {
                                 fontWeight: 600,
                               }}
                             >
-                              {emp.employeeId}
+                              {emp.empCode || emp.employeeId}
                             </span>
                           </td>
 

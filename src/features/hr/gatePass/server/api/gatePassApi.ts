@@ -39,7 +39,7 @@ export const issueGatePass = async (
   actAsTenantId?: string
 ): Promise<GatePass> => {
   const attachmentUrl = attachment
-    ? await uploadFileViaPresignedUrl(attachment, 'uploads', 'gate-passes', actAsTenantId)
+    ? await uploadFileViaPresignedUrl(attachment, 'hr', 'gate-passes', actAsTenantId)
     : undefined;
   const response = await api.post(
     '/hrfms/gatepass/issue',

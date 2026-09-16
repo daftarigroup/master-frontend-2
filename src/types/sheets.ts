@@ -497,6 +497,18 @@ export const allPermissionKeys = [
     "maintBreakdowns",
     "assetDash",
     "assetProducts",
+    "hrDash",
+    "hrIndent",
+    "hrCandidate",
+    "hrEmployee",
+    "hrAttendance",
+    "hrLeave",
+    "hrGatePass",
+    "hrAdvance",
+    "hrSalary",
+    "hrLetter",
+    "hrCalendar",
+    "hrReports",
 ] as const;
 
 

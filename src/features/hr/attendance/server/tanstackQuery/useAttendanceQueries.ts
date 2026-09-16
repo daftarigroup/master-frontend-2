@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppSelector } from '@/store/hook';
 import { selectOrgViewMode } from '@/store/slice/userAccountData';
-import type { SubmitClaimPayload } from '../../types/types';
+import type { SubmitClaimPayload, SubmitPunchPayload } from '../../types/types';
 import {
   type AttendanceConfigPayload,
   approveAttendanceClaim,
@@ -9,6 +9,7 @@ import {
   fetchAllClaims,
   fetchAttendanceConfig,
   fetchAttendanceEmployees,
+  fetchAttendancePunches,
   fetchAttendanceShifts,
   fetchDailyAttendance,
   fetchEmployeeMonthlyRecords,
@@ -18,6 +19,7 @@ import {
   rejectAttendanceClaim,
   submitAttendanceClaim,
   submitAttendanceClaimAdmin,
+  submitAttendancePunch,
   type UpsertAttendancePayload,
   updateAttendance,
   updateAttendanceConfig,
@@ -152,6 +154,29 @@ export const useUpdateAttendance = () => {
   });
 };
 
+// ── Attendance Punch (kiosk) hooks ────────────────────────────────────────────
+
+export const useAttendancePunches = (filters?: { employeeId?: string; date?: string }) =>
+  useQuery({
+    queryKey: ['hr', 'attendance', 'punches', filters],
+    queryFn: () => fetchAttendancePunches(filters),
+    staleTime: 30 * 1000,
+    gcTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+export const useSubmitPunch = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SubmitPunchPayload) => submitAttendancePunch(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['hr', 'attendance', 'punches'] });
+      qc.invalidateQueries({ queryKey: ['hr', 'attendance', 'daily'] });
+      qc.invalidateQueries({ queryKey: ['hr', 'attendance', 'monthly-summary'] });
+    },
+  });
+};
+
 // ── Attendance Claim hooks ────────────────────────────────────────────────────
 
 const CLAIM_KEYS = {
@@ -160,10 +185,12 @@ const CLAIM_KEYS = {
     ['hr', 'attendance', 'claims', 'all', filters] as const,
 };
 
-export const useMyClaims = () =>
+export const useMyClaims = (enabled: boolean = true) =>
   useQuery({
     queryKey: CLAIM_KEYS.my,
     queryFn: fetchMyClaims,
+    enabled,
+    retry: false,
     staleTime: 2 * 60 * 1000,
     gcTime: 4 * 60 * 1000,
     refetchOnWindowFocus: false,

@@ -79,6 +79,7 @@ export interface SalaryBreakdown {
 export interface PayrollEmployee {
   id: number;
   employeeId: string;
+  empCode?: string | null;
   name: string;
   email: string | null;
   designation: string | null;

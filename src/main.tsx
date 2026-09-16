@@ -159,11 +159,14 @@ import {
     HrIndentPage,
     HrFindEnquiryPage,
     HrEmployeePage,
+    HrDeploymentPage,
     HrAttendancePage,
     HrLeavePage,
     HrGatePassPage,
     HrAdvancePage,
+    HrLoanTransactionPage,
     HrSalaryManagementPage,
+    HrSalaryDetailPage,
     HrAfterJoiningPage,
     HrAfterLeavingPage,
     HrLetterFormatterPage,
@@ -1159,17 +1162,20 @@ if (rootElement) {
                                     <Route path="indent" element={<HrIndentPage />} />
                                     <Route path="find-enquiry" element={<HrFindEnquiryPage />} />
                                     <Route path="employee" element={<HrEmployeePage />} />
+                                    <Route path="deployment" element={<HrDeploymentPage />} />
                                     <Route path="attendance" element={<HrAttendancePage />} />
                                     <Route path="leave" element={<HrLeavePage />} />
                                     <Route path="gate-pass" element={<HrGatePassPage />} />
                                     <Route path="advance" element={<HrAdvancePage />} />
+                                    <Route path="advance/loan/:advanceId" element={<HrLoanTransactionPage />} />
                                     <Route path="salary-management" element={<HrSalaryManagementPage />} />
+                                    <Route path="salary-management/:employeeId" element={<HrSalaryDetailPage />} />
                                     <Route path="after-joining" element={<HrAfterJoiningPage />} />
                                     <Route path="after-leaving" element={<HrAfterLeavingPage />} />
                                     <Route path="letter-formatter" element={<HrLetterFormatterPage />} />
                                     <Route path="calendar" element={<HrCalendarPage />} />
                                     <Route path="social-site" element={<HrSocialSitePage />} />
-                                    <Route path="reports" element={<HrReportsPage />} />
+                                    {/* <Route path="reports" element={<HrReportsPage />} /> */}
                                 </Route>
 
                                 {/* Doc-submanager backward compatibility aliases */}

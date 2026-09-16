@@ -8,6 +8,7 @@ import {
   IconCalendarMonth,
   IconCalendarStats,
   IconCalendarTime,
+  IconCamera,
   IconCheck,
   IconDownload,
   IconFileText,
@@ -56,6 +57,7 @@ import {
 } from '../server/tanstackQuery/useAttendanceQueries';
 import type { AttendanceClaim, AttendanceRecord, CompanyShift, EmployeeMeta, MonthlyAttendanceSummary } from '../types/types';
 import AttendanceConfigTab from './AttendanceConfigTab';
+import SubmitAttendanceTab from './SubmitAttendanceTab';
 
 type ShiftInfo = Pick<CompanyShift, 'id' | 'name' | 'startTime' | 'endTime'>;
 
@@ -82,6 +84,7 @@ const T = {
 interface PreviewAttendanceRow {
   _id: number;
   employeeId: string;
+  empCode?: string | null;
   employeeName: string;
   date: string;
   parsedDate: string;
@@ -442,7 +445,7 @@ const MonthlyModal: React.FC<MonthlyModalProps> = ({
             <div className="min-w-0">
               <p className="truncate text-[15px] font-semibold">{emp.name}</p>
               <p className="truncate text-[12px] text-muted-foreground">
-                {emp.employeeId} · {emp.designation ?? '—'} · {emp.department?.name ?? '—'}
+                {emp.empCode || emp.employeeId} · {emp.designation ?? '—'} · {emp.department?.name ?? '—'}
               </p>
             </div>
           </div>
@@ -1022,7 +1025,7 @@ const ClaimsTab: React.FC<{ employees: EmployeeMeta[] }> = ({ employees }) => {
   const { data: allClaims = [], isLoading: loadingAll } = useAllClaims(
     isAdmin ? filters : undefined
   );
-  const { data: myClaims = [], isLoading: loadingMy } = useMyClaims();
+  const { data: myClaims = [], isLoading: loadingMy } = useMyClaims(!isAdmin);
 
   const claims = isAdmin
     ? allClaims
@@ -1277,51 +1280,10 @@ export const MainEmployeeAttendance = () => {
     refetch,
   } = useAttendanceEmployees();
   const employees = useMemo(() => {
-    if (Array.isArray(rawEmployees) && rawEmployees.length > 0) {
+    if (Array.isArray(rawEmployees)) {
       return rawEmployees;
     }
-    return [
-      {
-        employeeId: 'EMP001',
-        name: 'Alex Johnson',
-        email: 'alex.johnson@example.com',
-        designation: 'Senior Software Engineer',
-        joiningDate: '2023-01-15',
-        department: { id: 1, name: 'Engineering' },
-        companyShiftId: 's1',
-        companyShift: { id: 's1', name: 'General Shift (9 AM - 6 PM)', startTime: '09:00', endTime: '18:00' },
-      },
-      {
-        employeeId: 'EMP002',
-        name: 'Sarah Williams',
-        email: 'sarah.williams@example.com',
-        designation: 'Product Designer',
-        joiningDate: '2023-03-01',
-        department: { id: 2, name: 'Design' },
-        companyShiftId: 's1',
-        companyShift: { id: 's1', name: 'General Shift (9 AM - 6 PM)', startTime: '09:00', endTime: '18:00' },
-      },
-      {
-        employeeId: 'EMP003',
-        name: 'Michael Chang',
-        email: 'michael.chang@example.com',
-        designation: 'HR Operations Lead',
-        joiningDate: '2022-11-10',
-        department: { id: 3, name: 'Human Resources' },
-        companyShiftId: 's1',
-        companyShift: { id: 's1', name: 'General Shift (9 AM - 6 PM)', startTime: '09:00', endTime: '18:00' },
-      },
-      {
-        employeeId: 'EMP004',
-        name: 'Pooja Patel',
-        email: 'pooja.patel@example.com',
-        designation: 'Finance Associate',
-        joiningDate: '2024-02-01',
-        department: { id: 4, name: 'Finance' },
-        companyShiftId: 's1',
-        companyShift: { id: 's1', name: 'General Shift (9 AM - 6 PM)', startTime: '09:00', endTime: '18:00' },
-      },
-    ] as EmployeeMeta[];
+    return [] as EmployeeMeta[];
   }, [rawEmployees]);
 
   const { data: rawShifts } = useAttendanceShifts();
@@ -1346,7 +1308,9 @@ export const MainEmployeeAttendance = () => {
     [holidayList]
   );
 
-  const [mainTab, setMainTab] = useState<'attendance' | 'claims' | 'config'>('attendance');
+  const [mainTab, setMainTab] = useState<'attendance' | 'submit' | 'claims' | 'config'>(
+    'attendance'
+  );
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [viewEmp, setViewEmp] = useState<EmployeeMeta | null>(null);
@@ -1402,14 +1366,6 @@ export const MainEmployeeAttendance = () => {
     const summaryMap = new Map((monthlyData || []).map((s) => [s.employeeId, s]));
     const term = search.toLowerCase().trim();
 
-    // Default dummy attendance summaries for visual verification
-    const dummyPresets = [
-      { regularDays: 20, holidayWorked: 1, weekendWorked: 1, totalPresent: 22, absentDays: 1, leaveDays: 1, lateDays: 1, attendancePercentage: 91 },
-      { regularDays: 21, holidayWorked: 0, weekendWorked: 1, totalPresent: 22, absentDays: 0, leaveDays: 1, lateDays: 0, attendancePercentage: 95 },
-      { regularDays: 19, holidayWorked: 1, weekendWorked: 0, totalPresent: 20, absentDays: 2, leaveDays: 1, lateDays: 2, attendancePercentage: 86 },
-      { regularDays: 22, holidayWorked: 0, weekendWorked: 2, totalPresent: 24, absentDays: 0, leaveDays: 0, lateDays: 0, attendancePercentage: 98 },
-    ];
-
     return employees
       .filter((emp) => {
         if (!isAdmin && currentUser?.employeeId) {
@@ -1418,28 +1374,29 @@ export const MainEmployeeAttendance = () => {
         const matchSearch =
           !term ||
           (emp.name ?? '').toLowerCase().includes(term) ||
+          (emp.empCode ?? '').toLowerCase().includes(term) ||
           (emp.employeeId ?? '').toLowerCase().includes(term) ||
           (emp.email ?? '').toLowerCase().includes(term);
         const matchDept = !deptFilter || emp.department?.name === deptFilter;
         return matchSearch && matchDept;
       })
-      .map((emp, idx) => {
+      .map((emp) => {
         const fromApi = summaryMap.get(emp.employeeId);
-        const preset = dummyPresets[idx % dummyPresets.length];
         const summary: MonthlyAttendanceSummary = {
           employeeId: emp.employeeId,
+          empCode: emp.empCode,
           employeeName: emp.name ?? 'Employee',
           department: emp.department?.name ?? 'General',
-          workingDays: fromApi?.workingDays ?? 22,
-          regularDays: fromApi?.regularDays ?? preset.regularDays,
-          holidayWorked: fromApi?.holidayWorked ?? preset.holidayWorked,
-          weekendWorked: fromApi?.weekendWorked ?? preset.weekendWorked,
-          totalPresent: fromApi?.totalPresent ?? preset.totalPresent,
-          absentDays: fromApi?.absentDays ?? preset.absentDays,
+          workingDays: fromApi?.workingDays ?? 0,
+          regularDays: fromApi?.regularDays ?? 0,
+          holidayWorked: fromApi?.holidayWorked ?? 0,
+          weekendWorked: fromApi?.weekendWorked ?? 0,
+          totalPresent: fromApi?.totalPresent ?? 0,
+          absentDays: fromApi?.absentDays ?? 0,
           halfDays: fromApi?.halfDays ?? 0,
-          leaveDays: fromApi?.leaveDays ?? preset.leaveDays,
-          lateDays: fromApi?.lateDays ?? preset.lateDays,
-          attendancePercentage: fromApi?.attendancePercentage ?? preset.attendancePercentage,
+          leaveDays: fromApi?.leaveDays ?? 0,
+          lateDays: fromApi?.lateDays ?? 0,
+          attendancePercentage: fromApi?.attendancePercentage ?? 0,
         };
         return { emp, summary };
       });
@@ -1503,9 +1460,14 @@ export const MainEmployeeAttendance = () => {
             continue;
           }
           const empIdStr = String(rawEmpId).trim();
-          const emp = employees.find((em) => em.employeeId === empIdStr);
+          const emp = employees.find(
+            (em) =>
+              em.employeeId === empIdStr ||
+              (em.empCode && em.empCode.toLowerCase() === empIdStr.toLowerCase()) ||
+              em.employeeId.toLowerCase() === empIdStr.toLowerCase()
+          );
           if (!emp) {
-            errors.push(`Row ${rowNum}: EmployeeID "${empIdStr}" not found`);
+            errors.push(`Row ${rowNum}: Employee ID / Code "${empIdStr}" not found`);
             continue;
           }
           const rawDate = row.Date ?? row.date;
@@ -1551,7 +1513,8 @@ export const MainEmployeeAttendance = () => {
           parsed.push({
             _id: idx,
             employeeId: emp.employeeId,
-            employeeName: emp.name ?? emp.employeeId,
+            empCode: emp.empCode,
+            employeeName: emp.name ?? emp.empCode ?? emp.employeeId,
             date: dateResult.display,
             parsedDate: dateResult.iso,
             status: normalizedStatus,
@@ -1575,8 +1538,8 @@ export const MainEmployeeAttendance = () => {
   );
 
   const downloadSampleCsv = useCallback(() => {
-    const firstEmp = employees[0]?.employeeId ?? 'EMP001';
-    const secondEmp = employees[1]?.employeeId ?? 'EMP002';
+    const firstEmp = employees[0]?.empCode ?? employees[0]?.employeeId ?? 'EMP001';
+    const secondEmp = employees[1]?.empCode ?? employees[1]?.employeeId ?? 'EMP002';
     const firstShift = allShifts[0]?.name ?? 'Morning Shift';
     const todayDate = new Date();
     const dd = String(todayDate.getDate()).padStart(2, '0');
@@ -1811,6 +1774,9 @@ export const MainEmployeeAttendance = () => {
             {(
               [
                 { key: 'attendance', label: 'Attendance', Icon: IconCalendarStats },
+                ...(isAdmin
+                  ? ([{ key: 'submit', label: 'Mark Attendance', Icon: IconCamera }] as const)
+                  : []),
                 { key: 'claims', label: 'Claim Requests', Icon: IconFileText },
                 ...(isAdmin
                   ? ([{ key: 'config', label: 'Attendance Config', Icon: IconSettings }] as const)
@@ -1834,6 +1800,8 @@ export const MainEmployeeAttendance = () => {
             ))}
           </div>
         </div>
+
+        {mainTab === 'submit' && isAdmin && <SubmitAttendanceTab employees={employees} />}
 
         {mainTab === 'claims' && <ClaimsTab employees={employees} />}
 
@@ -2051,8 +2019,8 @@ export const MainEmployeeAttendance = () => {
                                 <IconCalendarMonth className="h-3.5 w-3.5" /> View
                               </button>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-3 font-mono text-[12px] text-muted-foreground">
-                              {emp.employeeId}
+                            <td className="whitespace-nowrap px-4 py-3 font-mono text-[12px] font-semibold text-foreground">
+                              {emp.empCode || emp.employeeId}
                             </td>
                             <td className="whitespace-nowrap px-4 py-3">
                               <div className="flex items-center gap-2.5">
@@ -2726,7 +2694,7 @@ export const MainEmployeeAttendance = () => {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {r.employeeId}
+                              {r.empCode || r.employeeId}
                             </td>
                             <td
                               style={{

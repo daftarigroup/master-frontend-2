@@ -36,7 +36,7 @@ export const fetchLeaveRequests = async (): Promise<LeaveRequest[]> => {
   return response.data.data;
 };
 
-export const fetchLeaveById = async (id: string): Promise<LeaveRequest | null> => {
+export const fetchLeaveById = async (id: string | number): Promise<LeaveRequest | null> => {
   const response = await api.get(`/hrfms/leave/${id}`);
   return response.data.data;
 };
@@ -63,7 +63,7 @@ export const fetchPendingApprovals = async (): Promise<LeaveRequest[]> => {
 };
 
 export const updateLeaveStatus = async (
-  id: string,
+  id: string | number,
   status: LeaveRequest['status'],
   remarks?: string,
   leaveDays?: LeaveDayEntry[],
@@ -78,7 +78,7 @@ export const updateLeaveStatus = async (
   return response.data.data;
 };
 
-export const deleteLeave = async (id: string): Promise<void> => {
+export const deleteLeave = async (id: string | number): Promise<void> => {
   await api.delete(`/hrfms/leave/${id}`);
 };
 
@@ -88,7 +88,7 @@ export const deleteLeave = async (id: string): Promise<void> => {
 // actAsTenantId as the approval itself when the leave belongs to a
 // non-active company — this call happens first, and without it the impact
 // preview would silently run against the wrong company's tasks.
-export const fetchTaskImpact = async (id: string, actAsTenantId?: string): Promise<TaskImpact> => {
+export const fetchTaskImpact = async (id: string | number, actAsTenantId?: string): Promise<TaskImpact> => {
   const response = await api.get(
     `/hrfms/leave/${id}/task-impact`,
     actAsTenantHeaders(actAsTenantId)

@@ -1,9 +1,10 @@
 // HR Leave Management Types
 
 export interface LeaveRequest {
-  id: string;
+  id: string | number;
   employeeId: string;
   employeeName: string;
+  empCode?: string | null;
   department: string;
   leaveType?: string;
   fromDate: string;

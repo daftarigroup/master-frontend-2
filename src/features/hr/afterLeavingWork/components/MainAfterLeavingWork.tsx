@@ -397,7 +397,7 @@ const ProcessExitModal: React.FC<ProcessExitProps> = ({ emp, onClose }) => {
   const [status, setStatus] = useState(emp.status);
   const [assets, setAssets] = useState<DynAsset[]>(() => buildInitialAssets(emp));
   const [newAssetLabel, setNewAssetLabel] = useState('');
-  const [expLetter, setExpLetter] = useState(emp.experienceLetterIssued);
+  const [expLetter, setExpLetter] = useState(Boolean(emp.experienceLetterIssued));
 
   const toggleAsset = (key: string) =>
     setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, checked: !a.checked } : a)));

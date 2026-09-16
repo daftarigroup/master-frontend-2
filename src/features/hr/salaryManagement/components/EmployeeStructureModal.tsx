@@ -18,6 +18,7 @@ import {
   useEmployeeStructure,
   useUpsertEmployeeStructure,
 } from '../server/tanstackQuery/useSalaryManagementQueries';
+import { previewStructure, type StructurePreview } from '../server/api/salaryManagementApi';
 import { ModalPortal } from '../../_shared/components';
 import type { DeductionDef, EmployeeSalaryStructure } from '../types/types';
 
@@ -195,22 +196,43 @@ export function EmployeeStructureModal({
   const specPct = round2(100 - basicPct - hraPct - convPct - medPct);
   const specNegative = specPct < 0;
 
-  const P = 50000;
-  const pBasic = round2(P * (basicPct / 100));
-  const pHRA = round2(P * (hraPct / 100));
-  const pConv = round2(P * (convPct / 100));
-  const pMed = round2(P * (medPct / 100));
-  const pSpec = round2(P * (Math.max(0, specPct) / 100));
-  const pGross = round2(pBasic + pHRA + pConv + pMed + pSpec);
+  const [preview, setPreview] = useState<StructurePreview | null>(null);
 
-  let previewEmpDed = 0;
-  for (const d of form.deductions) {
-    if (!d.active) continue;
-    if (d.grossLimit !== undefined && pGross > d.grossLimit) continue;
-    const base = d.basis === 'basic' ? pBasic : pGross;
-    previewEmpDed = round2(previewEmpDed + base * (d.percent / 100));
-  }
-  const pNet = round2(pGross - previewEmpDed);
+  useEffect(() => {
+    if (specNegative) {
+      setPreview(null);
+      return;
+    }
+    const controller = new AbortController();
+    const t = setTimeout(() => {
+      previewStructure(
+        {
+          basicPercent: basicPct,
+          hraPercent: hraPct,
+          conveyancePercent: convPct,
+          medicalPercent: medPct,
+          specialAllowancePercent: specPct,
+          deductions: form.deductions,
+        },
+        controller.signal
+      )
+        .then(setPreview)
+        .catch(() => {});
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basicPct, hraPct, convPct, medPct, specPct, form.deductions, specNegative]);
+
+  const pBasic = preview?.basic ?? 0;
+  const pHRA = preview?.hra ?? 0;
+  const pConv = preview?.conveyance ?? 0;
+  const pMed = preview?.medicalAllowance ?? 0;
+  const pSpec = preview?.specialAllowance ?? 0;
+  const pGross = preview?.grossEarnings ?? 0;
+  const pNet = preview?.netPay ?? 0;
 
   const addDeduction = () =>
     setForm((p) => ({

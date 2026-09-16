@@ -144,12 +144,12 @@ export const TopBar: React.FC = () => {
             icon: <Wallet className="size-4" />,
             path: '/petty-cash/dashboard',
         },
-        {
-            id: 'asset',
-            name: 'Asset Management',
-            icon: <Package className="size-4" />,
-            path: '/asset/dashboard',
-        },
+        // {
+        //     id: 'asset',
+        //     name: 'Asset Management',
+        //     icon: <Package className="size-4" />,
+        //     path: '/asset/dashboard',
+        // },
         {
             id: 'hr',
             name: 'HR & Facilities',

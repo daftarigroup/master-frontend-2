@@ -3,16 +3,35 @@ import { api } from '@/lib/axios';
 import type {
   AttendanceClaim,
   AttendanceConfig,
+  AttendancePunch,
   AttendanceRecord,
   CompanyShift,
   EmployeeMeta,
   MonthlyAttendanceSummary,
   SubmitClaimPayload,
+  SubmitPunchPayload,
+  SubmitPunchResult,
 } from '../../types/types';
 
 export const fetchAttendanceEmployees = async (): Promise<EmployeeMeta[]> => {
   const res = await api.get('/hrfms/attendance/employees');
-  return res.data.data ?? [];
+  const items = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+  return items.map((e: any) => ({
+    employeeId: e.employee_id || e.employeeId || String(e.id),
+    empCode: e.emp_code || e.empCode || null,
+    name: e.name || null,
+    email: e.email || null,
+    designation: e.designation || null,
+    joiningDate: e.joining_date || e.joiningDate || null,
+    department: e.department
+      ? {
+          id: Number(e.department.id || e.department_id || 0),
+          name: e.department.name || String(e.department),
+        }
+      : null,
+    companyShiftId: null,
+    companyShift: null,
+  }));
 };
 
 export const fetchAttendanceShifts = async (): Promise<CompanyShift[]> => {
@@ -129,8 +148,15 @@ export const submitAttendanceClaimAdmin = async (
 };
 
 export const fetchMyClaims = async (): Promise<AttendanceClaim[]> => {
-  const res = await api.get('/hrfms/attendance/claims/my');
-  return res.data.data ?? [];
+  try {
+    const res = await api.get('/hrfms/attendance/claims/my');
+    return res.data.data ?? [];
+  } catch (err: any) {
+    if (err?.response?.status === 400 || err?.response?.status === 404) {
+      return [];
+    }
+    throw err;
+  }
 };
 
 export const fetchAllClaims = async (filters?: {
@@ -165,6 +191,52 @@ export const rejectAttendanceClaim = async (
     actAsTenantHeaders(actAsTenantId)
   );
   return res.data.data;
+};
+
+// ── Attendance Punch (kiosk) ──────────────────────────────────────────────────
+
+/**
+ * Requests a presigned S3 PUT URL (via the same authenticated /hrfms alias
+ * the rest of this feature uses — not the unauthenticated /store one) and
+ * uploads the geo-stamped photo directly to S3. Returns the public URL to
+ * hand to submitAttendancePunch.
+ */
+export const uploadPunchPhoto = async (file: Blob, employeeId: string): Promise<string> => {
+  const presignRes = await api.post('/hrfms/upload/presign', {
+    bucket: 'attendance-punches',
+    path: `${employeeId}/${Date.now()}.jpg`,
+    contentType: file.type || 'image/jpeg',
+  });
+  const { uploadUrl, publicUrl } = presignRes.data.data;
+  if (!uploadUrl || !publicUrl) {
+    throw new Error('Could not get an upload URL from the server.');
+  }
+
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'image/jpeg' },
+    body: file,
+  });
+  if (!putRes.ok) {
+    throw new Error(`Photo upload failed (status ${putRes.status}).`);
+  }
+
+  return publicUrl as string;
+};
+
+export const submitAttendancePunch = async (
+  payload: SubmitPunchPayload
+): Promise<SubmitPunchResult> => {
+  const res = await api.post('/hrfms/attendance/punch', payload);
+  return res.data.data;
+};
+
+export const fetchAttendancePunches = async (filters?: {
+  employeeId?: string;
+  date?: string;
+}): Promise<AttendancePunch[]> => {
+  const res = await api.get('/hrfms/attendance/punches', { params: filters });
+  return res.data.data ?? [];
 };
 
 export const editAttendanceClaimReview = async (

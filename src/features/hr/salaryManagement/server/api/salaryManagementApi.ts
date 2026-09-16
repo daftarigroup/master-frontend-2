@@ -5,10 +5,31 @@ import type {
   AttendanceDayRecord,
   EmployeeLoan,
   EmployeeSalaryStructure,
+  PayrollDeductionItem,
   PayrollOverview,
   SalaryEmployeeListItem,
   UpsertStructureDto,
 } from '../../types/types';
+
+export interface StructurePreview {
+  basic: number;
+  hra: number;
+  conveyance: number;
+  medicalAllowance: number;
+  specialAllowance: number;
+  grossEarnings: number;
+  deductionBreakdown: PayrollDeductionItem[];
+  totalDeductions: number;
+  netPay: number;
+}
+
+export const previewStructure = async (
+  data: UpsertStructureDto,
+  signal?: AbortSignal
+): Promise<StructurePreview> => {
+  const res = await api.post('/hrfms/salary/structure/preview', data, { signal });
+  return res.data.data;
+};
 
 export const fetchPayrollOverview = async (
   month: number,

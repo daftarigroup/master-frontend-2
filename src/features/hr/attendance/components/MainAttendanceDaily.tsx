@@ -188,7 +188,9 @@ const ViewDrawer = ({ record, onClose }: { record: DerivedRecord; onClose: () =>
             <p className="text-[14px] font-semibold">
               {record.hrEmployee?.name ?? record.employeeName ?? '—'}
             </p>
-            <p className="font-mono text-[11px] text-muted-foreground">{record.employeeId}</p>
+            <p className="font-mono text-[11px] text-muted-foreground">
+              {record.hrEmployee?.empCode || record.empCode || record.employeeId}
+            </p>
           </div>
         </div>
         <button
@@ -271,6 +273,8 @@ const MainAttendanceDaily = () => {
       const matchesSearch =
         !term ||
         name.toLowerCase().includes(term) ||
+        (record.hrEmployee?.empCode ?? '').toLowerCase().includes(term) ||
+        (record.empCode ?? '').toLowerCase().includes(term) ||
         (record.employeeId ?? '').toLowerCase().includes(term);
       const matchesDept = !departmentFilter || record.departmentName === departmentFilter;
       const matchesStatus = !statusFilter || record.effectiveStatus === statusFilter;
@@ -555,7 +559,7 @@ const MainAttendanceDaily = () => {
                               {record.hrEmployee?.name ?? record.employeeName ?? '—'}
                             </p>
                             <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
-                              {record.employeeId}
+                              {record.hrEmployee?.empCode || record.empCode || record.employeeId}
                             </p>
                           </div>
                         </div>

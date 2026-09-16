@@ -25,6 +25,7 @@ export interface AdvanceRequest {
   id: number;
   tenantId: string;
   employeeId: string;
+  empCode?: string | null;
   employeeName: string;
   departmentId?: string | null;
   department?: { id: string; name: string } | null;
@@ -63,10 +64,13 @@ export interface AdvanceRequest {
 
 export interface SubmitAdvanceRequestDto {
   employeeId: string;
+  empCode?: string;
   employeeName: string;
   departmentId?: string;
+  departmentName?: string;
   requestAmount: number;
   monthlyDeduction: number;
+  noOfMonths?: number;
   reason: string;
 }
 
@@ -76,11 +80,13 @@ export interface UpdateAdvanceStatusDto {
   startDeductionMonth?: string;
   approvedAmount?: number;
   approvedMonthlyDeduction?: number;
+  approvedNoOfMonths?: number;
 }
 
 export interface UpdateAdvanceRequestDto {
   approvedAmount?: number;
   approvedMonthlyDeduction?: number;
+  approvedNoOfMonths?: number;
   remarks?: string;
   startDeductionMonth?: string;
 }
@@ -88,6 +94,7 @@ export interface UpdateAdvanceRequestDto {
 export interface EmployeeLoanSummary {
   advanceId: number;
   employeeId: string;
+  empCode?: string | null;
   employeeName: string;
   department: string | null;
   disbursedAmount: number;

@@ -53,6 +53,7 @@ import {
   useVerifyDocuments,
 } from '../server/tanstackQuery/useCandidateQueries';
 import type { Candidate, DocEntry, DocStatus } from '../types/types';
+import { getPublicFileUrl } from '@/lib/utils';
 import { ModalPortal } from '@/features/hr/_shared/components';
 import { ActionCell } from './ActionCell';
 import type { CandidateFieldConfig } from './AddEnquiryModal';
@@ -842,7 +843,7 @@ const DocVerificationModal: React.FC<{
   docConfig: Record<string, DocSetting>;
 }> = ({ candidate, onClose, mutation, docConfig }) => {
   const user = useAppSelector(selectUser);
-  const savedDocs = (candidate.joining?.documents ?? {}) as Record<string, unknown>;
+  const savedDocs = ((candidate.documents || candidate.joining?.documents) ?? {}) as Record<string, unknown>;
   const isAlreadyVerified = candidate.joining?.status === 'docs_verified';
 
   const allDocs = isAlreadyVerified
@@ -863,6 +864,7 @@ const DocVerificationModal: React.FC<{
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const anyUploading = Object.values(docs).some((d) => d.uploading);
 
@@ -885,8 +887,8 @@ const DocVerificationModal: React.FC<{
       const ext = file.name.split('.').pop() ?? 'bin';
       const path = `hr-joining/${candidate.id}/${key}-${Date.now()}.${ext}`;
       const presigned = oldMediaId
-        ? await replaceStorageFile(oldMediaId, 'uploads', path, file.type, true)
-        : await getPresignedUrl('uploads', path, file.type, true);
+        ? await replaceStorageFile(oldMediaId, 'hr', path, file.type, true)
+        : await getPresignedUrl('hr', path, file.type, true);
       setDocs((prev) => ({ ...prev, [key]: { ...prev[key]!, uploadProgress: 10 } }));
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -967,10 +969,20 @@ const DocVerificationModal: React.FC<{
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
+    setSaveSuccess(false);
     try {
       await mutation.mutateAsync({ id: candidate.id, payload: buildPayload(false), actAsTenantId });
-    } catch (_err) {
-      setError('Failed to save. Please try again.');
+      setSaveSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 700);
+    } catch (err: any) {
+      console.error('Failed to save document verification:', err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to save. Please try again.';
+      setError(msg);
     } finally {
       setIsSaving(false);
     }
@@ -982,8 +994,13 @@ const DocVerificationModal: React.FC<{
     try {
       await mutation.mutateAsync({ id: candidate.id, payload: buildPayload(true), actAsTenantId });
       onClose();
-    } catch (_err) {
-      setError('Failed to complete verification. Please try again.');
+    } catch (err: any) {
+      console.error('Failed to complete verification:', err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to complete verification. Please try again.';
+      setError(msg);
     }
   };
 
@@ -1039,6 +1056,16 @@ const DocVerificationModal: React.FC<{
               </div>
             )}
 
+            {saveSuccess && (
+              <div
+                role="status"
+                className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-3 py-2.5 text-[12px] font-medium text-success"
+              >
+                <IconCheck className="h-4 w-4 shrink-0 text-success" />
+                <span>Documents saved successfully! Closing…</span>
+              </div>
+            )}
+
             <ul className="space-y-2.5">
               {allDocs.map((doc) => {
                 const entry = docs[doc.key] ?? ({ status: 'pending' } as LocalDocEntry);
@@ -1091,7 +1118,7 @@ const DocVerificationModal: React.FC<{
                         </span>
                         {entry.url && (
                           <a
-                            href={entry.url}
+                            href={getPublicFileUrl(entry.url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="shrink-0 text-[11px] font-semibold text-primary hover:underline"
@@ -1209,11 +1236,19 @@ const DocVerificationModal: React.FC<{
                 type="button"
                 onClick={handleSave}
                 disabled={isPending}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-transparent px-4 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-4 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
+                  saveSuccess
+                    ? 'border-success/40 bg-success/10 text-success'
+                    : 'border-border bg-transparent text-foreground hover:bg-muted'
+                }`}
               >
                 {isSaving ? (
                   <>
                     <IconLoader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                  </>
+                ) : saveSuccess ? (
+                  <>
+                    <IconCheck className="h-3.5 w-3.5 text-success" strokeWidth={2.5} /> Saved!
                   </>
                 ) : (
                   'Save'
@@ -1603,8 +1638,10 @@ const MainFindEnquiry = () => {
   }, []);
 
   const backendBase = ((import.meta.env?.VITE_API_URL as string) ?? '').replace(/\/api\/?$/, '');
-  const resolveUrl = (path: string) =>
-    path.startsWith('http') ? path : `${backendBase}/${path.replace(/^\//, '')}`;
+  const resolveUrl = (path: string) => {
+    if (!path) return '';
+    return getPublicFileUrl(path.startsWith('http') ? path : `${backendBase}/${path.replace(/^\//, '')}`);
+  };
 
   const currentFieldDef = SEARCH_FIELDS.find((f) => f.key === searchField) ?? SEARCH_FIELDS[0]!;
 
@@ -2636,6 +2673,44 @@ const MainFindEnquiry = () => {
                   </div>
                 </div>
               )}
+
+              {/* Submitted Documents */}
+              {(() => {
+                const rawDocs = viewCandidate.documents || viewCandidate.joining?.documents;
+                if (!rawDocs || typeof rawDocs !== 'object') return null;
+                const submittedList = Object.entries(rawDocs)
+                  .map(([key, raw]) => ({ key, ...normalizeSavedDoc(raw) }))
+                  .filter((d) => d.status === 'submitted' && Boolean(d.url));
+                if (submittedList.length === 0) return null;
+
+                return (
+                  <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-primary">
+                      <IconFileText className="h-3.5 w-3.5" />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.04em]">
+                        Submitted Documents
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {submittedList.map((d) => {
+                        const label = JOINING_DOCS.find((j) => j.key === d.key)?.label ?? d.key;
+                        return (
+                          <a
+                            key={d.key}
+                            href={getPublicFileUrl(d.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                          >
+                            <IconExternalLink className="h-3 w-3 text-muted-foreground" />
+                            <span>{label}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Timestamps */}
               <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">

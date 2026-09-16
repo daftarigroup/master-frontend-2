@@ -219,6 +219,10 @@ const CreateIndentModal: React.FC<CreateIndentModalProps> = ({ isOpen, onClose, 
     if (!requireCompanySelected()) return;
     setError(null);
 
+    if (!formData.title.trim()) {
+      setError('Please enter a position title.');
+      return;
+    }
     if (!formData.departmentId) {
       setError('Please select a department.');
       return;
@@ -228,9 +232,20 @@ const CreateIndentModal: React.FC<CreateIndentModalProps> = ({ isOpen, onClose, 
       return;
     }
 
+    let isoCompletionDate = '';
+    if (formData.completionDate) {
+      const parsed = new Date(formData.completionDate);
+      if (!isNaN(parsed.getTime())) {
+        isoCompletionDate = parsed.toISOString();
+      }
+    }
+    if (!isoCompletionDate) {
+      isoCompletionDate = new Date(Date.now() + 30 * 86400000).toISOString();
+    }
+
     try {
       await createIndentMutation.mutateAsync({
-        title: formData.title,
+        title: formData.title.trim(),
         gender: formData.gender,
         departmentId: formData.departmentId,
         prefer: formData.prefer,
@@ -240,12 +255,13 @@ const CreateIndentModal: React.FC<CreateIndentModalProps> = ({ isOpen, onClose, 
         jobType: formData.jobType,
         budget: formData.budget ? Number(formData.budget) : null,
         priority: formData.priority,
-        completionDate: new Date(formData.completionDate).toISOString(),
+        completionDate: isoCompletionDate,
       });
       reset();
       onClose();
-    } catch (_err) {
-      setError('Failed to create indent. Please try again.');
+    } catch (err: any) {
+      console.error('Failed to create indent:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to create indent. Please try again.');
     }
   };
 

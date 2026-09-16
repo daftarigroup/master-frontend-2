@@ -2,7 +2,7 @@ import {
     Building, ShieldCheck, User as UserIcon, Users, Eye, EyeClosed, MoreHorizontal, Pencil, 
     ShieldUser, Trash, UserPlus, Fingerprint, Lock, Shield, Settings, CheckSquare, 
     ListTodo, ClipboardCheck, Truck, BarChart3, Box, Crown, ChevronDown, ChevronRight,
-    Wrench, Layers, AlertCircle, Edit3, ShieldAlert, Wallet, FileText, Files, Package
+    Wrench, Layers, AlertCircle, Edit3, ShieldAlert, Wallet, FileText, Files, Package, UserCog
 } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -420,6 +420,7 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
             },
         ]
     },
+    /*
     {
         id: 'asset',
         name: 'Asset & Equipment Management System',
@@ -441,6 +442,94 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
                 description: 'Asset registry with add/edit, filtering, Excel export, and single/bulk QR code generation',
                 viewKeys: ['assetProducts'],
                 editKeys: ['assetProducts'],
+            },
+        ]
+    },
+    */
+    {
+        id: 'hr',
+        name: 'HR & Facilities Management System',
+        badgeBg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800',
+        badgeText: 'HR Module',
+        icon: <UserCog className="size-5 text-teal-500" />,
+        description: 'Recruitment, employee lifecycle, attendance, leave, gate pass, payroll, and HR documentation',
+        pages: [
+            {
+                id: 'hr_dashboard',
+                name: 'HR Dashboard',
+                description: 'Overview metrics for headcount, attendance, recruitment pipeline, and HR alerts',
+                viewKeys: ['hrDash'],
+                editKeys: ['hrDash'],
+            },
+            {
+                id: 'hr_indent',
+                name: 'Job Requisitions',
+                description: 'Raise and track manpower requisitions for open positions',
+                viewKeys: ['hrIndent'],
+                editKeys: ['hrIndent'],
+            },
+            {
+                id: 'hr_candidate',
+                name: 'Candidate Pipeline & Social Postings',
+                description: 'Track candidate enquiries through the hiring pipeline and manage job postings on social platforms',
+                viewKeys: ['hrCandidate'],
+                editKeys: ['hrCandidate'],
+            },
+            {
+                id: 'hr_employee',
+                name: 'Employee Directory & Operations',
+                description: 'Employee directory, manpower deployment, and after-joining/after-leaving workflows',
+                viewKeys: ['hrEmployee'],
+                editKeys: ['hrEmployee'],
+            },
+            {
+                id: 'hr_gate_pass',
+                name: 'Gate Pass',
+                description: 'Issue and track employee gate passes for entry/exit movement',
+                viewKeys: ['hrGatePass'],
+                editKeys: ['hrGatePass'],
+            },
+            {
+                id: 'hr_attendance',
+                name: 'Daily Attendance',
+                description: 'Record and monitor daily employee attendance and shift logs',
+                viewKeys: ['hrAttendance'],
+                editKeys: ['hrAttendance'],
+            },
+            {
+                id: 'hr_leave',
+                name: 'Leave Management',
+                description: 'Review, approve, or reject employee leave requests and balances',
+                viewKeys: ['hrLeave'],
+                editKeys: ['hrLeave'],
+            },
+            {
+                id: 'hr_calendar',
+                name: 'Company Calendar',
+                description: 'Manage the shared company calendar of working days, holidays, and events',
+                viewKeys: ['hrCalendar'],
+                editKeys: ['hrCalendar'],
+            },
+            {
+                id: 'hr_salary',
+                name: 'Salary Management',
+                description: 'Configure and process employee salary and payroll records',
+                viewKeys: ['hrSalary'],
+                editKeys: ['hrSalary'],
+            },
+            {
+                id: 'hr_advance',
+                name: 'Advance Approval',
+                description: 'Review and approve employee salary advance requests',
+                viewKeys: ['hrAdvance'],
+                editKeys: ['hrAdvance'],
+            },
+            {
+                id: 'hr_letter',
+                name: 'Letter Formatter',
+                description: 'Generate and manage official HR letters and document templates',
+                viewKeys: ['hrLetter'],
+                editKeys: ['hrLetter'],
             },
         ]
     }

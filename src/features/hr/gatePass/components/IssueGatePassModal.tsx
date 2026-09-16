@@ -27,6 +27,8 @@ export interface IssueGatePassFormData {
   reason: string;
   outTime: string;
   inTime: string;
+  departureTime?: string;
+  expectedArrival?: string;
   approvedBy: string;
   whatsappNo: string;
   status: 'open' | 'out';
@@ -38,15 +40,6 @@ interface IssueGatePassModalProps {
   onSubmit: (data: IssueGatePassFormData) => Promise<void> | void;
 }
 
-const defaultEmployees = [
-  { employeeId: 'EMP-001', name: 'John Smith', empCode: 'EMP001', department: 'Engineering' },
-  { employeeId: 'EMP-002', name: 'Rahul Verma', empCode: 'EMP002', department: 'Engineering' },
-  { employeeId: 'EMP-003', name: 'Priya Sharma', empCode: 'EMP003', department: 'Quality' },
-  { employeeId: 'EMP-004', name: 'Aakash Sharma', empCode: 'EMP004', department: 'Engineering' },
-  { employeeId: 'EMP-005', name: 'Rohan Deshmukh', empCode: 'EMP005', department: 'Quality' },
-  { employeeId: 'EMP-006', name: 'Kavita Nair', empCode: 'EMP006', department: 'Finance & Accounts' },
-];
-
 export const IssueGatePassModal: React.FC<IssueGatePassModalProps> = ({
   open,
   onClose,
@@ -54,39 +47,50 @@ export const IssueGatePassModal: React.FC<IssueGatePassModalProps> = ({
 }) => {
   const { data: apiEmployees = [] } = useEmployees();
 
-  // Combine API employees or defaults
+  // Map API employees
   const employeeOptions =
     Array.isArray(apiEmployees) && apiEmployees.length > 0
       ? apiEmployees.map((e: any) => ({
-          employeeId: e.employeeId || `EMP-${e.id}`,
-          name: e.name,
-          empCode: e.empCode || e.employeeId || `EMP00${e.id}`,
+          employeeId: e.employee_id || e.employeeId || `EMP-${e.id}`,
+          name: e.name || 'Unknown',
+          empCode: e.emp_code || e.empCode || e.employee_id || e.employeeId || `EMP00${e.id}`,
           department:
             typeof e.department === 'string'
               ? e.department
               : e.department?.name || e.departmentName || 'General',
           phone: e.phone || '',
         }))
-      : defaultEmployees;
+      : [];
 
   // Form states
-  const [selectedEmpId, setSelectedEmpId] = useState(employeeOptions[0]?.employeeId || 'EMP-001');
+  const [selectedEmpId, setSelectedEmpId] = useState('');
+
+  React.useEffect(() => {
+    if (employeeOptions.length > 0 && !selectedEmpId) {
+      setSelectedEmpId(employeeOptions[0].employeeId);
+    }
+  }, [employeeOptions, selectedEmpId]);
+
   const [type, setType] = useState<'Official' | 'Personal'>('Official');
   const [placeToVisit, setPlaceToVisit] = useState('');
   const [reason, setReason] = useState('');
   const [outTime, setOutTime] = useState('11:00 AM');
   const [inTime, setInTime] = useState('02:00 PM');
-  const [approvedBy, setApprovedBy] = useState('Sarah Wilson');
+  const [approvedBy, setApprovedBy] = useState('Admin');
   const [whatsappNo, setWhatsappNo] = useState('');
   const [initialStatus, setInitialStatus] = useState<'open' | 'out'>('open');
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Selected employee metadata
-  const currentEmp = employeeOptions.find((e) => e.employeeId === selectedEmpId) || employeeOptions[0];
+  const currentEmp = employeeOptions.find((e) => e.employeeId === selectedEmpId) || employeeOptions[0] || null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentEmp) {
+      setErrorMsg('No employee selected. Please register employees first.');
+      return;
+    }
     if (!placeToVisit.trim()) {
       setErrorMsg('Please specify the destination / place to visit.');
       return;
@@ -100,6 +104,24 @@ export const IssueGatePassModal: React.FC<IssueGatePassModalProps> = ({
       setSubmitting(true);
       setErrorMsg('');
 
+      const depTime = outTime.trim() || '11:00 AM';
+      const arrTime = inTime.trim() || '02:00 PM';
+
+      const formatTimeToISO = (timeStr: string, offsetHours = 0): string => {
+        const now = new Date();
+        const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const meridiem = match[3]?.toUpperCase();
+          if (meridiem === 'PM' && hours < 12) hours += 12;
+          if (meridiem === 'AM' && hours === 12) hours = 0;
+          now.setHours(hours, minutes, 0, 0);
+          return now.toISOString();
+        }
+        return new Date(Date.now() + offsetHours * 60 * 60 * 1000).toISOString();
+      };
+
       const passData: IssueGatePassFormData = {
         employeeId: currentEmp.employeeId,
         employeeName: currentEmp.name,
@@ -108,8 +130,10 @@ export const IssueGatePassModal: React.FC<IssueGatePassModalProps> = ({
         type,
         placeToVisit: placeToVisit.trim(),
         reason: reason.trim(),
-        outTime: outTime.trim() || '11:00 AM',
+        outTime: depTime,
         inTime: inTime.trim() || '-',
+        departureTime: formatTimeToISO(depTime, 0),
+        expectedArrival: formatTimeToISO(arrTime, 3),
         approvedBy: approvedBy.trim() || 'Admin',
         whatsappNo: whatsappNo.trim(),
         status: initialStatus,
@@ -183,21 +207,25 @@ export const IssueGatePassModal: React.FC<IssueGatePassModalProps> = ({
                 }}
                 className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-medium text-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
               >
-                {employeeOptions.map((emp) => (
-                  <option key={emp.employeeId} value={emp.employeeId}>
-                    {emp.name} ({emp.empCode}) — {emp.department}
-                  </option>
-                ))}
+                {employeeOptions.length === 0 ? (
+                  <option value="">No employees available</option>
+                ) : (
+                  employeeOptions.map((emp) => (
+                    <option key={emp.employeeId} value={emp.employeeId}>
+                      {emp.name} ({emp.empCode}) — {emp.department}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
             <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
               <IconBuildingCommunity className="h-5 w-5 text-muted-foreground shrink-0" />
               <div className="text-xs min-w-0">
-                <p className="font-semibold text-foreground truncate">{currentEmp?.name}</p>
+                <p className="font-semibold text-foreground truncate">{currentEmp?.name || 'No employee selected'}</p>
                 <p className="text-[11px] text-muted-foreground truncate">
-                  Dept: <span className="font-medium text-foreground">{currentEmp?.department}</span> •{' '}
-                  Code: <span className="font-medium text-foreground">{currentEmp?.empCode}</span>
+                  Dept: <span className="font-medium text-foreground">{currentEmp?.department || '—'}</span> •{' '}
+                  Code: <span className="font-medium text-foreground">{currentEmp?.empCode || '—'}</span>
                 </p>
               </div>
             </div>

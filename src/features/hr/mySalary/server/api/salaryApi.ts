@@ -1,11 +1,24 @@
 import { actAsTenantHeaders } from '@/features/organization/utils/actAsTenant';
 import { api } from '@/lib/axios';
 import type {
+  DeductionItem,
   GeneratePayslipDto,
   Payslip,
   SalaryStructure,
   UpsertStructureDto,
 } from '../../types/types';
+
+export interface StructurePreview {
+  basic: number;
+  hra: number;
+  conveyance: number;
+  medicalAllowance: number;
+  specialAllowance: number;
+  grossEarnings: number;
+  deductionBreakdown: DeductionItem[];
+  totalDeductions: number;
+  netPay: number;
+}
 
 export const fetchStructure = async (): Promise<SalaryStructure | null> => {
   const res = await api.get('/hrfms/salary/structure');
@@ -14,6 +27,14 @@ export const fetchStructure = async (): Promise<SalaryStructure | null> => {
 
 export const upsertStructure = async (data: UpsertStructureDto): Promise<SalaryStructure> => {
   const res = await api.post('/hrfms/salary/structure', data);
+  return res.data.data;
+};
+
+export const previewStructure = async (
+  data: UpsertStructureDto,
+  signal?: AbortSignal
+): Promise<StructurePreview> => {
+  const res = await api.post('/hrfms/salary/structure/preview', data, { signal });
   return res.data.data;
 };
 

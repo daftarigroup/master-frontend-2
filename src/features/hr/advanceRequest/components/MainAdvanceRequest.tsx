@@ -6,6 +6,7 @@ import {
   IconBan,
   IconBell,
   IconCheck,
+  IconChevronDown,
   IconClock,
   IconCurrencyRupee,
   IconEye,
@@ -22,6 +23,7 @@ import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAppSelector } from '@/store/hook';
 import { selectUser } from '@/store/slice/userAccountData';
+import { useEmployees } from '@/features/hr/employee/server/tanstackQuery/useEmployeeQueries';
 import {
   useAdvanceRequestsByEmployee,
   useLoanHistory,
@@ -63,12 +65,14 @@ const StatusPill = ({ status }: { status: AdvanceRequestStatus }) => {
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat('en-IN', {
+const fmtCurrency = (n: number | null | undefined) => {
+  const val = typeof n === 'number' && !Number.isNaN(n) ? n : 0;
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(val);
+};
 
 const MONTHS = [
   '',
@@ -132,34 +136,80 @@ const INITIAL_FORM: FormState = {
 const ApplyAdvanceModal: React.FC<{
   employeeId: string;
   employeeName: string;
+  empCode?: string;
   employeeDeptId: string;
   employeeDeptName: string;
+  isAdmin?: boolean;
   hasActiveAdvance: boolean;
   onClose: () => void;
 }> = ({
   employeeId,
   employeeName,
+  empCode,
   employeeDeptId,
   employeeDeptName,
+  isAdmin = false,
   hasActiveAdvance,
   onClose,
 }) => {
   const submit = useSubmitAdvanceRequest();
+  const { data: employees = [] } = useEmployees();
+
+  const [selectedEmpId, setSelectedEmpId] = useState(employeeId);
+  const [selectedEmpName, setSelectedEmpName] = useState(employeeName);
+  const [selectedEmpCode, setSelectedEmpCode] = useState(empCode || '');
+  const [selectedDeptId, setSelectedDeptId] = useState(employeeDeptId);
+  const [selectedDeptName, setSelectedDeptName] = useState(employeeDeptName);
+
   const [form, setForm] = useState<FormState>({ ...INITIAL_FORM, departmentId: employeeDeptId });
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'employee', string>>>({});
   const [submitted, setSubmitted] = useState(false);
 
   const requestAmt = Number(form.requestAmount) || 0;
   const monthlyDed = Number(form.monthlyDeduction) || 0;
   const noOfMonths = requestAmt > 0 && monthlyDed > 0 ? Math.ceil(requestAmt / monthlyDed) : 0;
 
+  const isFormValid = Boolean(
+    (!isAdmin || Boolean(selectedEmpId)) &&
+    Boolean(isAdmin ? selectedEmpId : (employeeId || selectedEmpId)) &&
+    requestAmt > 0 &&
+    monthlyDed > 0 &&
+    monthlyDed <= requestAmt &&
+    form.reason.trim().length > 0
+  );
+
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((p) => ({ ...p, [k]: v }));
     setErrors((p) => ({ ...p, [k]: undefined }));
   };
 
+  const handleEmpSelect = (empValue: string) => {
+    const emp = employees.find((e) => e.employeeId === empValue || String(e.id) === empValue);
+    if (emp) {
+      const empId = emp.employeeId || String(emp.id);
+      setSelectedEmpId(empId);
+      setSelectedEmpName(emp.name);
+      setSelectedEmpCode(emp.empCode || '');
+      const deptId = emp.departmentId || emp.department?.id || '';
+      const deptName = emp.department?.name || '';
+      setSelectedDeptId(deptId);
+      setSelectedDeptName(deptName);
+      set('departmentId', deptId);
+      setErrors((prev) => ({ ...prev, employee: undefined }));
+    } else {
+      setSelectedEmpId('');
+      setSelectedEmpName('');
+      setSelectedEmpCode('');
+      setSelectedDeptId('');
+      setSelectedDeptName('');
+    }
+  };
+
   const validate = (): boolean => {
-    const e: Partial<Record<keyof FormState, string>> = {};
+    const e: Partial<Record<keyof FormState | 'employee', string>> = {};
+    if (isAdmin && !selectedEmpId) {
+      e.employee = 'Please select an employee';
+    }
     if (!form.requestAmount || requestAmt <= 0)
       e.requestAmount = 'Required — must be a positive amount';
     if (!form.monthlyDeduction || monthlyDed <= 0)
@@ -174,11 +224,14 @@ const ApplyAdvanceModal: React.FC<{
   const handleSubmit = async () => {
     if (!validate()) return;
     const payload: SubmitAdvanceRequestDto = {
-      employeeId,
-      employeeName,
+      employeeId: selectedEmpId,
+      empCode: selectedEmpCode || undefined,
+      employeeName: selectedEmpName,
       departmentId: form.departmentId || undefined,
+      departmentName: selectedDeptName || employeeDeptName || undefined,
       requestAmount: requestAmt,
       monthlyDeduction: monthlyDed,
+      noOfMonths: noOfMonths,
       reason: form.reason.trim(),
     };
     await submit.mutateAsync(payload);
@@ -219,7 +272,8 @@ const ApplyAdvanceModal: React.FC<{
                 Request Advance Payment
               </h2>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
-                Submitting as {employeeName}
+                Submitting as {isAdmin ? (selectedEmpName || 'Admin') : employeeName}
+                {selectedEmpCode ? ` (${selectedEmpCode})` : (selectedEmpId ? ` (${selectedEmpId})` : '')}
               </p>
             </div>
           </div>
@@ -310,25 +364,65 @@ const ApplyAdvanceModal: React.FC<{
                 </div>
               )}
 
-              {/* Auto-filled employee info */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                    Employee Name
+              {isAdmin ? (
+                <Field label="Employee" required error={errors.employee}>
+                  <div className="relative">
+                    <IconChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <select
+                      value={selectedEmpId}
+                      onChange={(e) => handleEmpSelect(e.target.value)}
+                      className={cn(
+                        inputCls(errors.employee),
+                        'cursor-pointer appearance-none pr-9'
+                      )}
+                    >
+                      <option value="">Select employee…</option>
+                      {employees
+                        .filter((e) => e.status === 'active')
+                        .map((e) => {
+                          const code = e.empCode || e.employeeId;
+                          return (
+                            <option key={e.id} value={e.employeeId || String(e.id)}>
+                              {e.name} {code ? `(${code})` : ''}
+                              {e.department?.name ? ` · ${e.department.name}` : ''}
+                            </option>
+                          );
+                        })}
+                    </select>
                   </div>
-                  <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
-                    <span className="truncate">{employeeName || '—'}</span>
+                  {selectedEmpName && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Selected: <strong className="text-foreground">{selectedEmpName}</strong>
+                      {selectedEmpCode ? ` (${selectedEmpCode})` : (selectedEmpId ? ` (${selectedEmpId})` : '')}
+                      {selectedDeptName && <> · {selectedDeptName}</>}
+                    </p>
+                  )}
+                </Field>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                      Employee Name
+                    </div>
+                    <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
+                      <span className="truncate">{selectedEmpName || employeeName || '—'}</span>
+                      {(selectedEmpCode || selectedEmpId) && (
+                        <span className="text-[11px] font-normal text-muted-foreground">
+                          {selectedEmpCode || selectedEmpId}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                      Department
+                    </div>
+                    <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
+                      <span className="truncate">{selectedDeptName || employeeDeptName || 'Not assigned'}</span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                    Department
-                  </div>
-                  <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
-                    <span className="truncate">{employeeDeptName || 'Not assigned'}</span>
-                  </div>
-                </div>
-              </div>
+              )}
 
               {/* Amount fields */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -397,9 +491,9 @@ const ApplyAdvanceModal: React.FC<{
               </button>
               <button
                 type="button"
-                disabled={submit.isPending}
+                disabled={submit.isPending || !isFormValid}
                 onClick={handleSubmit}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submit.isPending ? (
                   <>
@@ -543,7 +637,14 @@ const DetailModal: React.FC<{
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-          <StatusPill status={request.status} />
+          <div className="flex items-center justify-between gap-2">
+            <StatusPill status={request.status} />
+            {(request.employeeName || request.empCode) && (
+              <span className="text-[12px] font-medium text-muted-foreground">
+                {[request.employeeName, request.empCode].filter(Boolean).join(' · ')}
+              </span>
+            )}
+          </div>
 
           {/* Amount comparison */}
           <div className="space-y-2">
@@ -794,7 +895,14 @@ const DetailModal: React.FC<{
 
 const MainAdvanceRequest = () => {
   const user = useAppSelector(selectUser);
+  const roleUpper = String(user?.role || '').toUpperCase().replace(/[^A-Z]/g, '');
+  const isAdmin =
+    roleUpper.includes('ADMIN') ||
+    roleUpper.includes('SUPER') ||
+    roleUpper.includes('HR') ||
+    (user as any)?.administrate === true;
   const employeeId = user?.employeeId ?? '';
+  const empCode = user?.empCode || user?.emp_code || user?.employee?.emp_code || '';
   const employeeName =
     user?.fullName || (typeof user?.name === 'string' ? user.name : user?.email) || '';
   const employeeDeptId =
@@ -803,6 +911,7 @@ const MainAdvanceRequest = () => {
     '';
   const employeeDeptName =
     user?.department?.name ?? user?.userDepartments?.[0]?.department?.name ?? '';
+  const canRequest = isAdmin || !!employeeId;
 
   const { data: requests, isLoading } = useAdvanceRequestsByEmployee(employeeId);
 
@@ -898,8 +1007,8 @@ const MainAdvanceRequest = () => {
             <button
               type="button"
               onClick={() => setApplying(true)}
-              disabled={!employeeId}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto sm:shrink-0"
+              disabled={!canRequest}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto sm:shrink-0 cursor-pointer"
             >
               <IconPlus className="h-4 w-4" strokeWidth={2.5} />
               New Request
@@ -907,7 +1016,7 @@ const MainAdvanceRequest = () => {
           </div>
         </div>
 
-        {!employeeId && (
+        {!employeeId && !isAdmin && (
           <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3.5">
             <IconAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
             <div>
@@ -1109,11 +1218,11 @@ const MainAdvanceRequest = () => {
               <p className="mt-1 text-[12px] text-muted-foreground">
                 Click 'New Request' to submit your first advance payment request.
               </p>
-              {employeeId && (
+              {canRequest && (
                 <button
                   type="button"
                   onClick={() => setApplying(true)}
-                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-semibold text-primary-foreground hover:opacity-90"
+                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-semibold text-primary-foreground hover:opacity-90 cursor-pointer"
                 >
                   <IconPlus className="h-3.5 w-3.5" /> New Request
                 </button>
@@ -1127,8 +1236,10 @@ const MainAdvanceRequest = () => {
         <ApplyAdvanceModal
           employeeId={employeeId}
           employeeName={employeeName}
+          empCode={empCode}
           employeeDeptId={employeeDeptId}
           employeeDeptName={employeeDeptName}
+          isAdmin={isAdmin}
           hasActiveAdvance={hasActiveAdvance}
           onClose={() => setApplying(false)}
         />

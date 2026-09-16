@@ -39,6 +39,7 @@ import {
   ClipboardCheck,
   Clock,
   CalendarOff,
+  Briefcase,
   X,
 } from 'lucide-react';
 
@@ -190,6 +191,7 @@ export const GlobalSearchDialog: React.FC = () => {
       { title: 'Admin Approval', category: 'Checklist', path: '/checklist/approval', icon: <ShieldCheck className="mr-2 h-4 w-4 text-rose-500" /> },
       { title: 'HR Dashboard', category: 'HR & Facilities', path: '/hr/dashboard', icon: <LayoutDashboard className="mr-2 h-4 w-4 text-teal-500" /> },
       { title: 'Employee Directory', category: 'HR & Facilities', path: '/hr/employee', icon: <Users className="mr-2 h-4 w-4 text-teal-600" /> },
+      { title: 'Manpower Deployment', category: 'HR & Facilities', path: '/hr/deployment', icon: <Briefcase className="mr-2 h-4 w-4 text-blue-600" /> },
       { title: 'Job Requisitions / Indents', category: 'HR & Facilities', path: '/hr/indent', icon: <FilePlus2 className="mr-2 h-4 w-4 text-blue-500" /> },
       { title: 'Candidate Pipeline', category: 'HR & Facilities', path: '/hr/find-enquiry', icon: <Users className="mr-2 h-4 w-4 text-indigo-500" /> },
       { title: 'Daily Attendance', category: 'HR & Facilities', path: '/hr/attendance', icon: <Clock className="mr-2 h-4 w-4 text-amber-500" /> },

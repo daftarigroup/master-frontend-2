@@ -26,10 +26,10 @@ const uploadCandidateFiles = async (
 ): Promise<{ photo?: string; resume?: string }> => {
   const [photo, resume] = await Promise.all([
     files?.photo
-      ? uploadFileViaPresignedUrl(files.photo, 'uploads', 'candidates/photos', actAsTenantId)
+      ? uploadFileViaPresignedUrl(files.photo, 'hr', 'candidates/photos', actAsTenantId)
       : undefined,
     files?.resume
-      ? uploadFileViaPresignedUrl(files.resume, 'uploads', 'candidates/resumes', actAsTenantId)
+      ? uploadFileViaPresignedUrl(files.resume, 'hr', 'candidates/resumes', actAsTenantId)
       : undefined,
   ]);
   return { photo, resume };

@@ -33,6 +33,7 @@ import {
   Settings,
   CalendarOff,
   Package,
+  Briefcase,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -291,6 +292,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
       },
     ],
   },
+/*
   {
     id: 'asset',
     name: 'Asset Management',
@@ -308,6 +310,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
       },
     ],
   },
+*/
   {
     id: 'hr',
     name: 'HR & Facilities',
@@ -336,6 +339,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         title: 'Employees & Operations',
         items: [
           { name: 'Employee Directory', path: '/hr/employee', icon: UserCheck, gateKey: 'hrEmployee' },
+          { name: 'Manpower Deployment', path: '/hr/deployment', icon: Briefcase, gateKey: 'hrEmployee' },
           { name: 'After-Joining Work', path: '/hr/after-joining', icon: CheckCircle2, gateKey: 'hrEmployee' },
           { name: 'After-Leaving Work', path: '/hr/after-leaving', icon: RotateCcw, gateKey: 'hrEmployee' },
           { name: 'Gate Pass', path: '/hr/gate-pass', icon: KeyRound, gateKey: 'hrGatePass' },
@@ -356,7 +360,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         items: [
           { name: 'Salary Management', path: '/hr/salary-management', icon: Wallet, gateKey: 'hrSalary' },
           { name: 'Advance Approval', path: '/hr/advance', icon: CreditCard, gateKey: 'hrAdvance' },
-          { name: 'MIS Reports', path: '/hr/reports', icon: BarChart, gateKey: 'hrReports' },
+          // { name: 'MIS Reports', path: '/hr/reports', icon: BarChart, gateKey: 'hrReports' },
         ],
       },
       {

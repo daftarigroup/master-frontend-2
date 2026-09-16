@@ -16,6 +16,10 @@ export const HrEmployeePage = React.lazy(
   () => import('@/features/hr/employee/components/MainEmployee')
 );
 
+export const HrDeploymentPage = React.lazy(
+  () => import('@/features/hr/deployment/components/MainManpowerDeployment')
+);
+
 export const HrAttendancePage = React.lazy(
   () => import('@/features/hr/attendance/components/MainEmployeeAttendance')
 );
@@ -32,8 +36,16 @@ export const HrAdvancePage = React.lazy(
   () => import('@/features/hr/advanceApproval/components/MainAdvanceApproval')
 );
 
+export const HrLoanTransactionPage = React.lazy(
+  () => import('@/features/hr/advanceApproval/components/LoanTransactionPage')
+);
+
 export const HrSalaryManagementPage = React.lazy(
   () => import('@/features/hr/salaryManagement/components/MainSalaryManagement')
+);
+
+export const HrSalaryDetailPage = React.lazy(
+  () => import('@/features/hr/salaryManagement/components/EmployeeSalaryDetail')
 );
 
 export const HrAfterJoiningPage = React.lazy(

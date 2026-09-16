@@ -10,6 +10,7 @@ export interface CompanyShift {
 
 export interface EmployeeMeta {
   employeeId: string;
+  empCode?: string | null;
   name: string | null;
   email: string | null;
   designation: string | null;
@@ -27,6 +28,7 @@ export interface EmployeeMeta {
 export interface AttendanceRecord {
   id: number;
   employeeId: string;
+  empCode?: string | null;
   date: string;
   shiftId: string | null;
   shift: Pick<CompanyShift, 'id' | 'name' | 'startTime' | 'endTime'> | null;
@@ -51,6 +53,7 @@ export interface AttendanceRecord {
 
 export interface MonthlyAttendanceSummary {
   employeeId: string;
+  empCode?: string | null;
   employeeName: string;
   department: string;
   workingDays: number;
@@ -108,4 +111,44 @@ export interface SubmitClaimPayload {
   checkOut: string | null;
   overtimeHours: number | null;
   reason: string;
+}
+
+// ── Incharge-submitted attendance punch (kiosk) ────────────────────────────────
+// See [[hr-system-access-model]]: employees never log in themselves — a
+// logged-in incharge submits each punch on their behalf, one at a time, with a
+// mandatory geo-stamped photo as proof of presence.
+
+export type PunchType = 'in' | 'out' | 'half_day' | 'full_day';
+
+export interface SubmitPunchPayload {
+  employeeId: string;
+  punchType: PunchType;
+  time?: string; // HH:MM, defaults server-side to now
+  date?: string; // YYYY-MM-DD, defaults server-side to today
+  photoUrl: string;
+  latitude: number;
+  longitude: number;
+  notes?: string;
+}
+
+export interface AttendancePunch {
+  id: string;
+  employeeId: string;
+  employeeName: string | null;
+  empCode: string | null;
+  departmentName: string | null;
+  date: string;
+  punchType: PunchType;
+  punchTime: string;
+  photoUrl: string;
+  latitude: number;
+  longitude: number;
+  submittedBy: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface SubmitPunchResult {
+  punch: AttendancePunch;
+  attendance: AttendanceRecord;
 }

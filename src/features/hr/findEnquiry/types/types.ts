@@ -28,6 +28,7 @@ export interface Candidate {
   currentAddress: string;
   photo?: string | null;
   resume?: string | null;
+  documents?: Record<string, DocEntry | string> | null;
   status: string;
   notes?: string | null;
   nextCallDate?: string | null;

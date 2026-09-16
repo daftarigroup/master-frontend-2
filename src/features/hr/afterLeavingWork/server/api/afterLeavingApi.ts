@@ -66,7 +66,7 @@ export interface ProcessExitPayload {
 }
 
 export const fetchLeavingEmployees = async (): Promise<LeavingEmployee[]> => {
-  const res = await api.get('/hrfms/employee/leaving');
+  const res = await api.get('/hrfms/leaving');
   return res.data.data;
 };
 

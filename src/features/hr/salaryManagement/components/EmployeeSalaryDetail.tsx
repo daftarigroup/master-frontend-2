@@ -10,7 +10,7 @@ import {
   IconUser,
   IconWallet,
 } from '@tabler/icons-react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   useGlobalStructure,
   usePayslips,
@@ -121,14 +121,26 @@ interface Props {
 }
 
 export default function EmployeeSalaryDetail({
-  employeeId,
-  name,
-  department,
-  designation,
-  from,
-  tenant,
-}: Props) {
+  employeeId: propEmployeeId,
+  name: propName,
+  department: propDept,
+  designation: propDesig,
+  from: propFrom,
+  tenant: propTenant,
+}: Partial<Props> = {}) {
   const router = useRouter();
+  const routeParams = useParams<{ employeeId?: string }>();
+  const searchParams = useSearchParams();
+  const employeeId = propEmployeeId ?? routeParams?.employeeId ?? '';
+  const name = propName ?? searchParams?.get('name') ?? '';
+  const department = propDept ?? searchParams?.get('dept') ?? undefined;
+  const designation = propDesig ?? searchParams?.get('desig') ?? undefined;
+  const from = propFrom ?? searchParams?.get('from') ?? undefined;
+  const tenant =
+    propTenant ??
+    (searchParams?.get('tenantId')
+      ? { id: searchParams.get('tenantId')!, name: searchParams.get('tenantName') ?? '' }
+      : undefined);
   const user = useAppSelector(selectUser);
   const actAsTenantId = resolveActAsTenant(tenant, user?.tenantId);
 

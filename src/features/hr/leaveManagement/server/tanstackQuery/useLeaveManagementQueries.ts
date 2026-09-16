@@ -29,7 +29,7 @@ export const useLeaveRequests = (enabled = true) => {
   });
 };
 
-export const useLeaveById = (id: string) => {
+export const useLeaveById = (id: string | number) => {
   return useQuery({
     queryKey: ['hr', 'leaveManagement', 'request', id],
     queryFn: () => fetchLeaveById(id),
@@ -85,7 +85,7 @@ export const useUpdateLeaveStatus = () => {
       taskDecisions,
       actAsTenantId,
     }: {
-      id: string;
+      id: string | number;
       status: LeaveRequest['status'];
       remarks?: string;
       leaveDays?: import('../api/leaveManagementApi').LeaveDayEntry[];
@@ -102,7 +102,7 @@ export const useUpdateLeaveStatus = () => {
 
 export const useTaskImpact = () => {
   return useMutation({
-    mutationFn: ({ id, actAsTenantId }: { id: string; actAsTenantId?: string }) =>
+    mutationFn: ({ id, actAsTenantId }: { id: string | number; actAsTenantId?: string }) =>
       fetchTaskImpact(id, actAsTenantId),
   });
 };
@@ -118,6 +118,7 @@ export const useAvailableTransferUsers = (actAsTenantId?: string, enabled = true
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
     enabled,
   });
 };
@@ -125,7 +126,7 @@ export const useAvailableTransferUsers = (actAsTenantId?: string, enabled = true
 export const useDeleteLeave = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteLeave(id),
+    mutationFn: (id: string | number) => deleteLeave(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hr', 'leaveManagement'] });
     },

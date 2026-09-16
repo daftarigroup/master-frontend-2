@@ -31,6 +31,7 @@ export const HrSystemManifest: SystemManifest = {
       title: 'Employee Directory & Ops',
       items: [
         { id: 'hr-employee', name: 'Employee Directory', path: '/hr/employee' },
+        { id: 'hr-deployment', name: 'Manpower Deployment', path: '/hr/deployment' },
         { id: 'hr-after-joining', name: 'After Joining Work', path: '/hr/after-joining' },
         { id: 'hr-after-leaving', name: 'After Leaving Work', path: '/hr/after-leaving' },
         { id: 'hr-gatepass', name: 'Gate Pass', path: '/hr/gate-pass' },
@@ -51,7 +52,7 @@ export const HrSystemManifest: SystemManifest = {
       items: [
         { id: 'hr-salary', name: 'Salary Management', path: '/hr/salary-management' },
         { id: 'hr-advance', name: 'Advance & Loan Approval', path: '/hr/advance' },
-        { id: 'hr-reports', name: 'HR MIS Reports', path: '/hr/reports' },
+        // { id: 'hr-reports', name: 'HR MIS Reports', path: '/hr/reports' },
       ],
     },
     {

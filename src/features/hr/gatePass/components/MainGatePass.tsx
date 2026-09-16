@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   IconCheck,
   IconClock,
@@ -18,6 +18,7 @@ import { IssueGatePassModal, type IssueGatePassFormData } from './IssueGatePassM
 import { HrModal } from '@/features/hr/_shared/components';
 import { api } from '@/lib/axios';
 import { cn } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 export interface GatePassItem {
   id: number | string;
@@ -36,75 +37,30 @@ export interface GatePassItem {
   whatsappNo?: string;
 }
 
-const initialGatePasses: GatePassItem[] = [
-  {
-    id: 1,
-    employee: 'John Smith',
-    employeeId: 'EMP-001',
-    empCode: 'EMP001',
-    department: 'Engineering',
-    type: 'Personal',
-    placeToVisit: 'City Clinic',
-    reason: 'Medical Emergency',
-    date: '2026-09-07',
-    outTime: '11:00 AM',
-    inTime: '02:00 PM',
-    status: 'open',
-    approvedBy: 'Sarah Wilson',
-  },
-  {
-    id: 2,
-    employee: 'Rahul Verma',
-    employeeId: 'EMP-002',
-    empCode: 'EMP002',
-    department: 'Engineering',
-    type: 'Official',
-    placeToVisit: 'Navi Mumbai Municipal Corp',
-    reason: 'Client Meeting',
-    date: '2026-09-07',
-    outTime: '10:30 AM',
-    inTime: '-',
-    status: 'out',
-    approvedBy: 'Amit Patel',
-  },
-  {
-    id: 3,
-    employee: 'Priya Sharma',
-    employeeId: 'EMP-003',
-    empCode: 'EMP003',
-    department: 'Quality',
-    type: 'Personal',
-    placeToVisit: 'State Bank of India',
-    reason: 'Bank Work',
-    date: '2026-09-06',
-    outTime: '03:00 PM',
-    inTime: '04:30 PM',
-    status: 'closed',
-    approvedBy: 'Rajesh Kumar',
-  },
-  {
-    id: 4,
-    employee: 'Aakash Sharma',
-    employeeId: 'EMP-004',
-    empCode: 'EMP004',
-    department: 'Engineering',
-    type: 'Official',
-    placeToVisit: 'Surewada Quarry & Batching Plant',
-    reason: 'Inspection of aggregate dispatch',
-    date: '2026-09-07',
-    outTime: '10:15 AM',
-    inTime: '-',
-    status: 'pending',
-    approvedBy: 'Vikram Joshi',
-  },
-];
-
 const MainGatePass = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'out' | 'open' | 'closed' | 'pending'>('all');
-  const [gatePasses, setGatePasses] = useState<GatePassItem[]>(initialGatePasses);
+  const [gatePasses, setGatePasses] = useState<GatePassItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [selectedPassForDetail, setSelectedPassForDetail] = useState<GatePassItem | null>(null);
+
+  const fetchPasses = async () => {
+    try {
+      setIsLoading(true);
+      const res = await api.get('/hrfms/gatepass');
+      const data = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+      setGatePasses(data);
+    } catch (err) {
+      console.warn('Failed to fetch gate passes from backend:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPasses();
+  }, []);
 
   // Dynamic metric calculations
   const currentlyOut = gatePasses.filter((p) => p.status === 'out').length;
@@ -112,30 +68,19 @@ const MainGatePass = () => {
   const pendingRequests = gatePasses.filter((p) => p.status === 'pending').length;
 
   const handleIssuePass = async (formData: IssueGatePassFormData) => {
-    const newPass: GatePassItem = {
-      id: Date.now(),
-      employee: formData.employeeName,
-      employeeId: formData.employeeId,
-      empCode: formData.empCode,
-      department: formData.departmentName,
-      type: formData.type,
-      placeToVisit: formData.placeToVisit,
-      reason: formData.reason,
-      outTime: formData.outTime,
-      inTime: formData.inTime,
-      status: formData.status,
-      approvedBy: formData.approvedBy,
-      whatsappNo: formData.whatsappNo,
-      date: new Date().toISOString().slice(0, 10),
-    };
-
     try {
-      await api.post('/hrfms/gatepass', formData);
-    } catch (err) {
-      console.warn('API post error, saved to local state:', err);
+      const res = await api.post('/hrfms/gatepass', formData);
+      if (res.data?.data) {
+        setGatePasses((prev) => [res.data.data, ...prev]);
+        toast.success('Gate pass issued successfully');
+        return;
+      }
+    } catch (err: any) {
+      console.warn('API post error:', err);
+      const msg = err?.response?.data?.message || 'Failed to issue gate pass';
+      toast.error(msg);
+      throw new Error(msg);
     }
-
-    setGatePasses((prev) => [newPass, ...prev]);
   };
 
   const handleUpdateStatus = async (

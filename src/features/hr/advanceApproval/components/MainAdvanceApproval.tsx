@@ -6,6 +6,7 @@ import {
   IconBan,
   IconBell,
   IconCheck,
+  IconChevronDown,
   IconCircleCheck,
   IconClock,
   IconCurrencyRupee,
@@ -49,6 +50,7 @@ import { cn } from '@/lib/utils';
 import { useAppSelector } from '@/store/hook';
 import { selectUser } from '@/store/slice/userAccountData';
 import { Role } from '@/types/permissions';
+import { useEmployees } from '@/features/hr/employee/server/tanstackQuery/useEmployeeQueries';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -150,12 +152,14 @@ function DelayBadge({ delayMinutes }: { delayMinutes: number | null | undefined 
   );
 }
 
-const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat('en-IN', {
+const fmtCurrency = (n: number | null | undefined) => {
+  const val = typeof n === 'number' && !Number.isNaN(n) ? n : 0;
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(val);
+};
 
 const inputCls = (err?: boolean) =>
   cn(
@@ -170,17 +174,28 @@ const MiniBarChart = ({
 }: {
   data: { label: string; disbursed: number; count: number }[];
 }) => {
-  const max = Math.max(...data.map((d) => d.disbursed), 1);
+  const safeData = Array.isArray(data) ? data : [];
+  const max = Math.max(...safeData.map((d) => d.disbursed || 0), 1);
+  const hasData = safeData.some((d) => (d.disbursed || 0) > 0 || (d.count || 0) > 0);
+
+  if (!hasData) {
+    return (
+      <div className="flex h-24 items-center justify-center text-[12px] text-muted-foreground">
+        No disbursements in the last 6 months
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-24 items-end gap-1.5">
-      {data.map((d) => (
+      {safeData.map((d) => (
         <div key={d.label} className="group relative flex flex-1 flex-col items-center gap-1">
           <div
             className="w-full rounded-t-md bg-primary/20 transition-all group-hover:bg-primary/40"
-            style={{ height: `${Math.max((d.disbursed / max) * 72, d.count > 0 ? 8 : 2)}px` }}
+            style={{ height: `${Math.max(((d.disbursed || 0) / max) * 72, (d.count || 0) > 0 ? 8 : 2)}px` }}
           />
           <span className="text-[9px] text-muted-foreground">{d.label}</span>
-          {d.count > 0 && (
+          {(d.count || 0) > 0 && (
             <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-1.5 py-0.5 text-[9px] text-background opacity-0 transition-opacity group-hover:opacity-100">
               {fmtCurrency(d.disbursed)} ({d.count})
             </div>
@@ -289,28 +304,71 @@ const ApplyAdvanceModal: React.FC<{
   employeeName: string;
   employeeDeptId: string;
   employeeDeptName: string;
+  isAdmin?: boolean;
   onClose: () => void;
-}> = ({ employeeId, employeeName, employeeDeptId, employeeDeptName, onClose }) => {
+}> = ({ employeeId, employeeName, employeeDeptId, employeeDeptName, isAdmin = false, onClose }) => {
   const requireCompanySelected = useRequireCompanySelected();
   const submit = useSubmitAdvanceRequest();
+  const { data: employees = [] } = useEmployees();
+
+  const [selectedEmpId, setSelectedEmpId] = useState(employeeId);
+  const [selectedEmpName, setSelectedEmpName] = useState(employeeName);
+  const [selectedEmpCode, setSelectedEmpCode] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useState(employeeDeptId);
+  const [selectedDeptName, setSelectedDeptName] = useState(employeeDeptName);
+
   const [form, setForm] = useState<EmployeeFormState>({
     ...INITIAL_EMPLOYEE_FORM,
     departmentId: employeeDeptId,
   });
-  const [errors, setErrors] = useState<Partial<Record<keyof EmployeeFormState, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof EmployeeFormState | 'employee', string>>>({});
   const [submitted, setSubmitted] = useState(false);
 
   const requestAmt = Number(form.requestAmount) || 0;
   const monthlyDed = Number(form.monthlyDeduction) || 0;
   const noOfMonths = requestAmt > 0 && monthlyDed > 0 ? Math.ceil(requestAmt / monthlyDed) : 0;
 
+  const isFormValid = Boolean(
+    (!isAdmin || Boolean(selectedEmpId)) &&
+    Boolean(isAdmin ? selectedEmpId : (employeeId || selectedEmpId)) &&
+    requestAmt > 0 &&
+    monthlyDed > 0 &&
+    monthlyDed <= requestAmt &&
+    form.reason.trim().length > 0
+  );
+
   const setF = <K extends keyof EmployeeFormState>(k: K, v: EmployeeFormState[K]) => {
     setForm((p) => ({ ...p, [k]: v }));
     setErrors((p) => ({ ...p, [k]: undefined }));
   };
 
+  const handleEmpSelect = (empValue: string) => {
+    const emp = employees.find((e) => e.employeeId === empValue || String(e.id) === empValue);
+    if (emp) {
+      const empId = emp.employeeId || String(emp.id);
+      setSelectedEmpId(empId);
+      setSelectedEmpName(emp.name);
+      setSelectedEmpCode(emp.empCode || '');
+      const deptId = emp.departmentId || emp.department?.id || '';
+      const deptName = emp.department?.name || '';
+      setSelectedDeptId(deptId);
+      setSelectedDeptName(deptName);
+      setF('departmentId', deptId);
+      setErrors((prev) => ({ ...prev, employee: undefined }));
+    } else {
+      setSelectedEmpId('');
+      setSelectedEmpName('');
+      setSelectedEmpCode('');
+      setSelectedDeptId('');
+      setSelectedDeptName('');
+    }
+  };
+
   const validate = (): boolean => {
-    const e: Partial<Record<keyof EmployeeFormState, string>> = {};
+    const e: Partial<Record<keyof EmployeeFormState | 'employee', string>> = {};
+    if (isAdmin && !selectedEmpId) {
+      e.employee = 'Please select an employee';
+    }
     if (!form.requestAmount || requestAmt <= 0)
       e.requestAmount = 'Required — must be a positive amount';
     if (!form.monthlyDeduction || monthlyDed <= 0)
@@ -325,12 +383,19 @@ const ApplyAdvanceModal: React.FC<{
   const handleSubmit = async () => {
     if (!requireCompanySelected()) return;
     if (!validate()) return;
+    const finalEmpId = (isAdmin && selectedEmpId) ? selectedEmpId : employeeId;
+    const finalEmpName = (isAdmin && selectedEmpName) ? selectedEmpName : employeeName;
+    const finalDeptId = (isAdmin && selectedDeptId) ? selectedDeptId : (form.departmentId || employeeDeptId);
+
     const payload: SubmitAdvanceRequestDto = {
-      employeeId,
-      employeeName,
-      departmentId: form.departmentId || undefined,
+      employeeId: finalEmpId,
+      empCode: selectedEmpCode || undefined,
+      employeeName: finalEmpName,
+      departmentId: finalDeptId || undefined,
+      departmentName: selectedDeptName || undefined,
       requestAmount: requestAmt,
       monthlyDeduction: monthlyDed,
+      noOfMonths: noOfMonths,
       reason: form.reason.trim(),
     };
     await submit.mutateAsync(payload);
@@ -433,24 +498,60 @@ const ApplyAdvanceModal: React.FC<{
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                    Employee Name
+              {isAdmin ? (
+                <Field label="Employee" required error={errors.employee}>
+                  <div className="relative">
+                    <IconChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <select
+                      value={selectedEmpId}
+                      onChange={(e) => handleEmpSelect(e.target.value)}
+                      className={cn(
+                        inputCls(!!errors.employee),
+                        'cursor-pointer appearance-none pr-9'
+                      )}
+                    >
+                      <option value="">Select employee…</option>
+                      {employees
+                        .filter((e) => e.status === 'active')
+                        .map((e) => {
+                          const code = e.empCode || e.employeeId;
+                          return (
+                            <option key={e.id} value={e.employeeId || String(e.id)}>
+                              {e.name} {code ? `(${code})` : ''}
+                              {e.department?.name ? ` · ${e.department.name}` : ''}
+                            </option>
+                          );
+                        })}
+                    </select>
                   </div>
-                  <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
-                    <span className="truncate">{employeeName || '—'}</span>
+                  {selectedEmpName && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Selected: <strong className="text-foreground">{selectedEmpName}</strong>
+                      {selectedEmpCode ? ` (${selectedEmpCode})` : (selectedEmpId ? ` (${selectedEmpId})` : '')}
+                      {selectedDeptName && <> · {selectedDeptName}</>}
+                    </p>
+                  )}
+                </Field>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                      Employee Name
+                    </div>
+                    <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
+                      <span className="truncate">{employeeName || '—'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                      Department
+                    </div>
+                    <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
+                      <span className="truncate">{employeeDeptName || 'Not assigned'}</span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                    Department
-                  </div>
-                  <div className="flex h-10 items-center rounded-lg border border-border bg-muted/60 px-3 text-[13px] font-medium text-foreground">
-                    <span className="truncate">{employeeDeptName || 'Not assigned'}</span>
-                  </div>
-                </div>
-              </div>
+              )}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Request Amount (₹)" required error={errors.requestAmount}>
                   <div className="relative">
@@ -512,9 +613,9 @@ const ApplyAdvanceModal: React.FC<{
               </button>
               <button
                 type="button"
-                disabled={submit.isPending}
+                disabled={submit.isPending || !isFormValid}
                 onClick={handleSubmit}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[12px] font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submit.isPending ? (
                   <>
@@ -839,6 +940,10 @@ const DetailModal: React.FC<{
         data: {
           approvedAmount: approvedAmt,
           approvedMonthlyDeduction: approvedDed,
+          approvedNoOfMonths: previewMonths || undefined,
+          startDeductionMonth: form.startDeductionMonth
+            ? (form.startDeductionMonth.length === 7 ? `${form.startDeductionMonth}-01` : form.startDeductionMonth)
+            : undefined,
           remarks: form.remarks.trim() || undefined,
         },
         actAsTenantId: resolveActAsTenant(request.tenant, user?.tenantId),
@@ -874,8 +979,15 @@ const DetailModal: React.FC<{
           status: 'approved',
           approvedAmount: approvedAmt,
           approvedMonthlyDeduction: approvedDed,
+          approvedNoOfMonths: previewMonths || undefined,
           remarks: form.remarks.trim() || undefined,
-          ...(priorOutstanding ? {} : { startDeductionMonth: `${form.startDeductionMonth}-01` }),
+          ...(priorOutstanding
+            ? {}
+            : {
+                startDeductionMonth: form.startDeductionMonth
+                  ? (form.startDeductionMonth.length === 7 ? `${form.startDeductionMonth}-01` : form.startDeductionMonth)
+                  : undefined,
+              }),
         },
         actAsTenantId: resolveActAsTenant(request.tenant, user?.tenantId),
       });
@@ -967,8 +1079,7 @@ const DetailModal: React.FC<{
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-bold">{request.employeeName}</p>
               <p className="truncate text-[12px] text-muted-foreground">
-                {request.employeeId}
-                {request.department ? ` · ${request.department.name}` : ''}
+                {[request.empCode || request.employeeId, request.department?.name].filter(Boolean).join(' · ')}
               </p>
               <div className="mt-1.5">
                 <StatusPill status={request.status} />
@@ -1592,8 +1703,7 @@ const LoanTrackerRow = ({
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold">{summary.employeeName}</p>
             <p className="text-[11px] text-muted-foreground">
-              {summary.employeeId}
-              {summary.department ? ` · ${summary.department}` : ''}
+              {[summary.empCode || summary.employeeId, summary.department].filter(Boolean).join(' · ')}
             </p>
           </div>
         </div>
@@ -1677,7 +1787,15 @@ const MainAdvanceApproval = () => {
 
   // Employee view data
   const user = useAppSelector(selectUser);
-  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPERADMIN;
+  const roleUpper = String(user?.role || '').toUpperCase().replace(/[^A-Z]/g, '');
+  const isAdmin =
+    roleUpper.includes('ADMIN') ||
+    roleUpper.includes('SUPER') ||
+    roleUpper.includes('HR') ||
+    user?.role === Role.ADMIN ||
+    user?.role === Role.SUPERADMIN ||
+    (user as any)?.administrate === true ||
+    !user?.employeeId;
 
   const employeeId = user?.employeeId ?? '';
   const employeeName =
@@ -1688,6 +1806,7 @@ const MainAdvanceApproval = () => {
     '';
   const employeeDeptName =
     user?.department?.name ?? user?.userDepartments?.[0]?.department?.name ?? '';
+  const canCreateAdvance = isAdmin || !!employeeId;
   const [applying, setApplying] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -1753,11 +1872,31 @@ const MainAdvanceApproval = () => {
   }, [requests]);
 
   const displayStats = useMemo(() => {
-    if (!dashStats) return null;
+    const defaultStats = {
+      totalDisbursed: 0,
+      totalOutstanding: 0,
+      totalCollected: 0,
+      recoveryRate: 0,
+      activeLoanCount: 0,
+      paidLoanCount: 0,
+      totalApprovedCount: 0,
+      departmentBreakdown: [] as { name: string; count: number; amount: number }[],
+      monthlyTrend: [] as { label: string; disbursed: number; count: number }[],
+      employeeSummary: [] as EmployeeLoanSummary[],
+    };
+
+    if (!dashStats) return defaultStats;
     const summary = Array.isArray(dashStats.employeeSummary) ? dashStats.employeeSummary : [];
     if (isAdmin) {
       return {
         ...dashStats,
+        totalDisbursed: Number(dashStats.totalDisbursed) || 0,
+        totalOutstanding: Number(dashStats.totalOutstanding) || 0,
+        totalCollected: Number(dashStats.totalCollected) || 0,
+        recoveryRate: Number(dashStats.recoveryRate) || 0,
+        activeLoanCount: Number(dashStats.activeLoanCount) || 0,
+        paidLoanCount: Number(dashStats.paidLoanCount) || 0,
+        totalApprovedCount: Number(dashStats.totalApprovedCount) || 0,
         departmentBreakdown: Array.isArray(dashStats.departmentBreakdown)
           ? dashStats.departmentBreakdown
           : [],
@@ -1768,13 +1907,13 @@ const MainAdvanceApproval = () => {
     const mine = summary.filter(
       (s) => s.employeeId === employeeId && s.loanStatus !== 'superseded'
     );
-    const totalDisbursed = mine.reduce((s, l) => s + (l.disbursedAmount || 0), 0);
-    const totalOutstanding = mine.reduce((s, l) => s + (l.outstandingBalance || 0), 0);
-    const totalCollected = mine.reduce((s, l) => s + (l.collected || 0), 0);
+    const totalDisbursed = mine.reduce((s, l) => s + (Number(l.disbursedAmount) || 0), 0);
+    const totalOutstanding = mine.reduce((s, l) => s + (Number(l.outstandingBalance) || 0), 0);
+    const totalCollected = mine.reduce((s, l) => s + (Number(l.collected) || 0), 0);
     const recoveryRate =
       totalDisbursed > 0 ? Math.round((totalCollected / totalDisbursed) * 1000) / 10 : 0;
     const activeLoanCount = mine.filter((l) => l.loanStatus === 'active').length;
-    const paidLoanCount = mine.filter((l) => l.loanStatus === 'paid').length;
+    const paidLoanCount = mine.filter((l) => l.loanStatus === 'paid' || l.loanStatus === 'settled').length;
     return {
       ...dashStats,
       totalDisbursed,
@@ -1891,8 +2030,9 @@ const MainAdvanceApproval = () => {
                 if (!requireCompanySelected()) return;
                 setApplying(true);
               }}
-              disabled={!employeeId}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+              disabled={!canCreateAdvance}
+              title="Request Advance"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer"
             >
               <IconPlus className="h-4 w-4" strokeWidth={2.5} />
             </button>
@@ -1930,8 +2070,8 @@ const MainAdvanceApproval = () => {
                     label: isAdmin ? 'Total Disbursed' : 'Total Borrowed',
                     value: fmtCurrency(displayStats.totalDisbursed),
                     sub: isAdmin
-                      ? `${displayStats.totalApprovedCount} approvals`
-                      : `${displayStats.totalApprovedCount} advance(s)`,
+                      ? `${displayStats.totalApprovedCount ?? 0} approval${displayStats.totalApprovedCount === 1 ? '' : 's'}`
+                      : `${displayStats.totalApprovedCount ?? 0} advance(s)`,
                     tint: 'bg-primary/10 text-primary',
                     Icon: IconCurrencyRupee,
                   },
@@ -1946,17 +2086,17 @@ const MainAdvanceApproval = () => {
                     label: isAdmin ? 'Outstanding' : 'Remaining Balance',
                     value: fmtCurrency(displayStats.totalOutstanding),
                     sub: isAdmin
-                      ? `${displayStats.activeLoanCount} active loans`
-                      : `${displayStats.activeLoanCount} active loan(s)`,
+                      ? `${displayStats.activeLoanCount ?? 0} active loan${displayStats.activeLoanCount === 1 ? '' : 's'}`
+                      : `${displayStats.activeLoanCount ?? 0} active loan(s)`,
                     tint: 'bg-warning/10 text-warning',
                     Icon: IconClock,
                   },
                   {
                     label: isAdmin ? 'Recovery Rate' : 'Repaid',
-                    value: `${displayStats.recoveryRate}%`,
+                    value: `${(displayStats.recoveryRate ?? 0).toFixed((displayStats.recoveryRate ?? 0) % 1 !== 0 ? 1 : 0)}%`,
                     sub: isAdmin
-                      ? `${displayStats.paidLoanCount} fully paid`
-                      : `${displayStats.paidLoanCount} fully repaid`,
+                      ? `${displayStats.paidLoanCount ?? 0} fully paid`
+                      : `${displayStats.paidLoanCount ?? 0} fully repaid`,
                     tint: 'bg-success/10 text-success',
                     Icon: IconTrendingUp,
                   },
@@ -1988,13 +2128,13 @@ const MainAdvanceApproval = () => {
                     {isAdmin ? 'Overall Recovery Progress' : 'Repayment Progress'}
                   </span>
                   <span className="text-[12px] font-bold tabular-nums">
-                    {displayStats.recoveryRate}%
+                    {(displayStats.recoveryRate ?? 0).toFixed((displayStats.recoveryRate ?? 0) % 1 !== 0 ? 1 : 0)}%
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-success transition-all duration-500"
-                    style={{ width: `${Math.min(displayStats.recoveryRate, 100)}%` }}
+                    style={{ width: `${Math.min(displayStats.recoveryRate ?? 0, 100)}%` }}
                   />
                 </div>
                 <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
@@ -2201,7 +2341,7 @@ const MainAdvanceApproval = () => {
                                     {req.employeeName}
                                   </p>
                                   <p className="text-[11px] text-muted-foreground">
-                                    {req.employeeId}
+                                    {[req.empCode || req.employeeId, req.department?.name].filter(Boolean).join(' · ')}
                                   </p>
                                 </div>
                               </div>
@@ -2392,6 +2532,7 @@ const MainAdvanceApproval = () => {
           employeeName={employeeName}
           employeeDeptId={employeeDeptId}
           employeeDeptName={employeeDeptName}
+          isAdmin={isAdmin}
           onClose={() => setApplying(false)}
         />
       )}

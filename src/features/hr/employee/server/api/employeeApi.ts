@@ -2,6 +2,7 @@
 import { actAsTenantHeaders } from '@/features/organization/utils/actAsTenant';
 import { uploadFileViaPresignedUrl } from '@/lib/api/storage.api';
 import { api } from '@/lib/axios';
+import { hrApiClient } from '@/lib/hrApiClient';
 import type { Employee, EmployeeStats, OnboardingEmployee } from '../../types/types';
 
 export interface EmployeePayload {
@@ -92,30 +93,40 @@ const uploadEmployeePhoto = (
   actAsTenantId?: string
 ): Promise<string | undefined> =>
   files?.photo
-    ? uploadFileViaPresignedUrl(files.photo, 'uploads', 'employees/photos', actAsTenantId)
+    ? uploadFileViaPresignedUrl(files.photo, 'hr', 'employees/photos', actAsTenantId)
     : Promise.resolve(undefined);
 
+const unwrap = <T>(res: any): T => {
+  if (res && res.data !== undefined) {
+    if (res.data && res.data.data !== undefined) {
+      return res.data.data;
+    }
+    return res.data;
+  }
+  return res;
+};
+
 export const fetchEmployees = async (): Promise<Employee[]> => {
-  const response = await api.get('/hrfms/employee');
-  return response.data.data;
+  const response = await hrApiClient.get('/employees');
+  return unwrap<Employee[]>(response) || [];
 };
 
 export const fetchLeavingEmployees = async (): Promise<Employee[]> => {
-  const response = await api.get('/hrfms/employee/leaving');
-  return response.data.data;
+  const response = await hrApiClient.get('/employees/leaving');
+  return unwrap<Employee[]>(response) || [];
 };
 
 export const fetchEmployeeStats = async (): Promise<EmployeeStats> => {
-  const response = await api.get('/hrfms/employee/stats');
-  return response.data.data;
+  const response = await hrApiClient.get('/employees/stats');
+  return unwrap<EmployeeStats>(response);
 };
 
 export const fetchEmployeeById = async (
   id: string,
   actAsTenantId?: string
 ): Promise<Employee | null> => {
-  const response = await api.get(`/hrfms/employee/${id}`, actAsTenantHeaders(actAsTenantId));
-  return response.data.data;
+  const response = await hrApiClient.get(`/employees/${id}`, actAsTenantHeaders(actAsTenantId));
+  return unwrap<Employee | null>(response) || null;
 };
 
 export const createEmployee = async (
@@ -124,12 +135,12 @@ export const createEmployee = async (
   actAsTenantId?: string
 ): Promise<Employee> => {
   const photo = await uploadEmployeePhoto(files, actAsTenantId);
-  const response = await api.post(
-    '/hrfms/employee',
+  const response = await hrApiClient.post(
+    '/employees',
     { ...data, photo },
     actAsTenantHeaders(actAsTenantId)
   );
-  return response.data.data;
+  return unwrap<Employee>(response);
 };
 
 export const updateEmployee = async (
@@ -139,12 +150,12 @@ export const updateEmployee = async (
   actAsTenantId?: string
 ): Promise<Employee> => {
   const photo = await uploadEmployeePhoto(files, actAsTenantId);
-  const response = await api.patch(
-    `/hrfms/employee/${id}`,
+  const response = await hrApiClient.patch(
+    `/employees/${id}`,
     { ...data, photo },
     actAsTenantHeaders(actAsTenantId)
   );
-  return response.data.data;
+  return unwrap<Employee>(response);
 };
 
 export const recordSeparation = async (
@@ -152,16 +163,16 @@ export const recordSeparation = async (
   data: SeparationPayload,
   actAsTenantId?: string
 ): Promise<Employee> => {
-  const response = await api.patch(
-    `/hrfms/employee/${id}/leaving`,
+  const response = await hrApiClient.patch(
+    `/employees/${id}/leaving`,
     data,
     actAsTenantHeaders(actAsTenantId)
   );
-  return response.data.data;
+  return unwrap<Employee>(response);
 };
 
 export const deleteEmployee = async (id: string, actAsTenantId?: string): Promise<void> => {
-  await api.delete(`/hrfms/employee/${id}`, actAsTenantHeaders(actAsTenantId));
+  await hrApiClient.delete(`/employees/${id}`, actAsTenantHeaders(actAsTenantId));
 };
 
 export interface BulkImportRow {

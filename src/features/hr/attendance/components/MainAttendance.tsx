@@ -55,6 +55,7 @@ const T = {
 interface PreviewAttendanceRow {
   _id: number;
   employeeId: string;
+  empCode?: string | null;
   employeeName: string;
   date: string; // display dd/mm/yyyy
   parsedDate: string; // ISO yyyy-mm-dd
@@ -112,6 +113,7 @@ const MainAttendance = () => {
       const matchesSearch =
         !term ||
         emp.employeeName.toLowerCase().includes(term) ||
+        (emp.empCode ?? '').toLowerCase().includes(term) ||
         emp.employeeId.toLowerCase().includes(term);
       const matchesDepartment = !departmentFilter || emp.department === departmentFilter;
       const matchesTier =
@@ -196,9 +198,14 @@ const MainAttendance = () => {
             continue;
           }
           const empIdStr = String(rawEmpId).trim();
-          const emp = employees.find((e) => e.employeeId === empIdStr);
+          const emp = employees.find(
+            (e) =>
+              e.employeeId === empIdStr ||
+              (e.empCode && e.empCode.toLowerCase() === empIdStr.toLowerCase()) ||
+              e.employeeId.toLowerCase() === empIdStr.toLowerCase()
+          );
           if (!emp) {
-            errors.push(`Row ${rowNum}: EmployeeID "${empIdStr}" not found`);
+            errors.push(`Row ${rowNum}: Employee ID / Code "${empIdStr}" not found`);
             continue;
           }
 
@@ -248,7 +255,8 @@ const MainAttendance = () => {
           parsed.push({
             _id: idx,
             employeeId: emp.employeeId,
-            employeeName: emp.name ?? emp.employeeId,
+            empCode: emp.empCode,
+            employeeName: emp.name ?? emp.empCode ?? emp.employeeId,
             date: dateResult.display,
             parsedDate: dateResult.iso,
             status: normalizedStatus,
@@ -272,8 +280,8 @@ const MainAttendance = () => {
   );
 
   const downloadSampleCsv = () => {
-    const firstEmp = employees[0]?.employeeId ?? 'EMP001';
-    const secondEmp = employees[1]?.employeeId ?? 'EMP002';
+    const firstEmp = employees[0]?.empCode ?? employees[0]?.employeeId ?? 'EMP001';
+    const secondEmp = employees[1]?.empCode ?? employees[1]?.employeeId ?? 'EMP002';
     const firstShift = shifts[0]?.name ?? 'Morning Shift';
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
@@ -651,7 +659,7 @@ const MainAttendance = () => {
                                 {employee.employeeName}
                               </p>
                               <p className="mt-0.5 truncate font-mono text-[10px] font-semibold text-muted-foreground">
-                                {employee.employeeId}
+                                {employee.empCode || employee.employeeId}
                               </p>
                             </div>
                           </div>
@@ -1229,7 +1237,7 @@ const MainAttendance = () => {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {r.employeeId}
+                              {r.empCode || r.employeeId}
                             </td>
                             <td
                               style={{

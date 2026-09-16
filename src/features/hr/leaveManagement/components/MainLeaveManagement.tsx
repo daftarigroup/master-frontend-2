@@ -671,7 +671,7 @@ const ApplyLeaveModal: React.FC<{
                       <option value="">Select reporting manager…</option>
                       {managers.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.name ?? m.id}
+                          {m.name ?? m.id}{m.department ? ` (${m.department})` : ''}
                         </option>
                       ))}
                     </select>
@@ -1420,7 +1420,7 @@ const DetailPanel: React.FC<{
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-bold">{request.employeeName}</p>
               <p className="truncate text-[12px] text-muted-foreground">
-                {request.employeeId} · {request.department}
+                {[request.empCode || request.employeeId, request.department].filter(Boolean).join(' · ')}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <StatusPill status={getEffectiveStatus(request)} />
@@ -1648,156 +1648,6 @@ const DetailPanel: React.FC<{
   );
 };
 
-// ─── Dummy Leave Requests for Visual Verification ─────────────────────────────
-const DUMMY_LEAVE_REQUESTS: LeaveRequest[] = [
-  // ── Pending Requests ────────────────────────────
-  {
-    id: 'lr-101',
-    employeeId: 'EMP001',
-    employeeName: 'Alex Johnson',
-    department: 'Engineering',
-    leaveType: 'Privilege Leave',
-    fromDate: '2026-09-10',
-    toDate: '2026-09-12',
-    days: 3,
-    leaveDays: [
-      { date: '2026-09-10', type: 'full', decision: 'approved' },
-      { date: '2026-09-11', type: 'full', decision: 'approved' },
-      { date: '2026-09-12', type: 'full', decision: 'approved' },
-    ],
-    reason: 'Family function in hometown',
-    status: 'pending',
-    appliedDate: '2026-09-06T10:30:00.000Z',
-    createdAt: '2026-09-06T10:30:00.000Z',
-    yourProjectedPlannedAt: '2026-09-08T18:00:00.000Z',
-  },
-  {
-    id: 'lr-102',
-    employeeId: 'EMP002',
-    employeeName: 'Sarah Williams',
-    department: 'Design',
-    leaveType: 'Casual Leave',
-    fromDate: '2026-09-14',
-    toDate: '2026-09-15',
-    days: 2,
-    leaveDays: [
-      { date: '2026-09-14', type: 'full', decision: 'approved' },
-      { date: '2026-09-15', type: 'full', decision: 'approved' },
-    ],
-    reason: 'Personal errands and documentation work',
-    status: 'pending',
-    appliedDate: '2026-09-07T09:15:00.000Z',
-    createdAt: '2026-09-07T09:15:00.000Z',
-    yourProjectedPlannedAt: '2026-09-09T18:00:00.000Z',
-  },
-  {
-    id: 'lr-103',
-    employeeId: 'EMP003',
-    employeeName: 'Michael Chang',
-    department: 'Human Resources',
-    leaveType: 'Sick Leave',
-    fromDate: '2026-09-08',
-    toDate: '2026-09-08',
-    days: 1,
-    leaveDays: [
-      { date: '2026-09-08', type: 'full', decision: 'approved' },
-    ],
-    reason: 'Routine medical checkup and consultation',
-    status: 'pending',
-    appliedDate: '2026-09-07T08:00:00.000Z',
-    createdAt: '2026-09-07T08:00:00.000Z',
-    yourProjectedPlannedAt: '2026-09-08T12:00:00.000Z',
-  },
-  {
-    id: 'lr-104',
-    employeeId: 'EMP004',
-    employeeName: 'Pooja Patel',
-    department: 'Finance',
-    leaveType: 'Casual Leave',
-    fromDate: '2026-09-18',
-    toDate: '2026-09-18',
-    days: 0.5,
-    leaveDays: [
-      { date: '2026-09-18', type: 'half', half: 'second', decision: 'approved' },
-    ],
-    reason: 'Bank visit and official financial verification in 2nd half',
-    status: 'pending',
-    appliedDate: '2026-09-06T16:45:00.000Z',
-    createdAt: '2026-09-06T16:45:00.000Z',
-    yourProjectedPlannedAt: '2026-09-08T18:00:00.000Z',
-  },
-
-  // ── Processed Requests ──────────────────────────
-  {
-    id: 'lr-201',
-    employeeId: 'EMP001',
-    employeeName: 'Alex Johnson',
-    department: 'Engineering',
-    leaveType: 'Casual Leave',
-    fromDate: '2026-09-01',
-    toDate: '2026-09-02',
-    days: 2,
-    leaveDays: [
-      { date: '2026-09-01', type: 'full', decision: 'approved' },
-      { date: '2026-09-02', type: 'full', decision: 'approved' },
-    ],
-    reason: 'Attending family wedding ceremony',
-    status: 'approved',
-    appliedDate: '2026-08-28T11:00:00.000Z',
-    createdAt: '2026-08-28T11:00:00.000Z',
-    tatPlannedAt: '2026-08-29T18:00:00.000Z',
-    processedAt: '2026-08-29T14:20:00.000Z',
-    tatDelayMinutes: -220,
-    processedBy: { id: 'admin-1', name: 'Superadmin' },
-  },
-  {
-    id: 'lr-202',
-    employeeId: 'EMP003',
-    employeeName: 'Michael Chang',
-    department: 'Human Resources',
-    leaveType: 'Sick Leave',
-    fromDate: '2026-08-25',
-    toDate: '2026-08-26',
-    days: 2,
-    leaveDays: [
-      { date: '2026-08-25', type: 'full', decision: 'approved' },
-      { date: '2026-08-26', type: 'full', decision: 'rejected' },
-    ],
-    reason: 'Seasonal viral fever',
-    status: 'partial',
-    appliedDate: '2026-08-24T14:30:00.000Z',
-    createdAt: '2026-08-24T14:30:00.000Z',
-    tatPlannedAt: '2026-08-25T18:00:00.000Z',
-    processedAt: '2026-08-25T11:00:00.000Z',
-    tatDelayMinutes: -420,
-    processedBy: { id: 'admin-1', name: 'Superadmin' },
-  },
-  {
-    id: 'lr-203',
-    employeeId: 'EMP002',
-    employeeName: 'Sarah Williams',
-    department: 'Design',
-    leaveType: 'Earned Leave',
-    fromDate: '2026-08-20',
-    toDate: '2026-08-22',
-    days: 3,
-    leaveDays: [
-      { date: '2026-08-20', type: 'full', decision: 'rejected' },
-      { date: '2026-08-21', type: 'full', decision: 'rejected' },
-      { date: '2026-08-22', type: 'full', decision: 'rejected' },
-    ],
-    reason: 'Vacation trip',
-    status: 'rejected',
-    remarks: 'Critical sprint design review scheduled on these dates',
-    appliedDate: '2026-08-18T10:00:00.000Z',
-    createdAt: '2026-08-18T10:00:00.000Z',
-    tatPlannedAt: '2026-08-19T18:00:00.000Z',
-    processedAt: '2026-08-20T09:30:00.000Z',
-    tatDelayMinutes: 930,
-    processedBy: { id: 'admin-1', name: 'Superadmin' },
-  },
-];
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MainLeaveManagement = () => {
   // Guards the "Apply Leave" button (opens ApplyLeaveModal, a create flow —
@@ -1840,10 +1690,10 @@ const MainLeaveManagement = () => {
 
   const rawRequests = isAdmin ? leaveRequests : myLeaves;
   const requests = useMemo(() => {
-    if (Array.isArray(rawRequests) && rawRequests.length > 0) {
+    if (Array.isArray(rawRequests)) {
       return rawRequests;
     }
-    return DUMMY_LEAVE_REQUESTS;
+    return [];
   }, [rawRequests]);
 
   // ── Tab state ───────────────────────────────────────────────────────────────
@@ -1857,7 +1707,7 @@ const MainLeaveManagement = () => {
   const [editFor, setEditFor] = useState<LeaveRequest | null>(null);
   const [rejectFor, setRejectFor] = useState<LeaveRequest | null>(null);
   const [pendingLeaveDays, setPendingLeaveDays] = useState<LeaveDayEntry[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
   const [isBulkAction, setIsBulkAction] = useState(false);
   const [taskTransferFor, setTaskTransferFor] = useState<{
     request: LeaveRequest;
@@ -1907,7 +1757,8 @@ const MainLeaveManagement = () => {
       const matchSearch =
         !term ||
         r.employeeName.toLowerCase().includes(term) ||
-        r.employeeId.toLowerCase().includes(term);
+        r.employeeId.toLowerCase().includes(term) ||
+        (r.empCode ? r.empCode.toLowerCase().includes(term) : false);
       return matchTab && matchSearch;
     });
   }, [requests, tab, search]);
@@ -1917,7 +1768,7 @@ const MainLeaveManagement = () => {
     setSelectedIds(new Set());
   }, []);
 
-  const toggleSelect = useCallback((id: string) => {
+  const toggleSelect = useCallback((id: string | number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1938,7 +1789,7 @@ const MainLeaveManagement = () => {
 
   const handleBulkApprove = useCallback(async () => {
     const targets = filtered.filter((r) => selectedIds.has(r.id));
-    if (targets.some((r) => r.id.startsWith('lr-'))) {
+    if (targets.some((r) => String(r.id).startsWith('lr-'))) {
       toast.success(`Approved ${targets.length} leave requests (Demo)`);
       setSelectedIds(new Set());
       return;
@@ -1986,7 +1837,7 @@ const MainLeaveManagement = () => {
   };
 
   const handleApprove = async (request: LeaveRequest) => {
-    if (request.id.startsWith('lr-')) {
+    if (String(request.id).startsWith('lr-')) {
       toast.success(`Leave approved for ${request.employeeName} (Demo)`);
       closeActivePanel();
       return;
@@ -2000,7 +1851,7 @@ const MainLeaveManagement = () => {
     status: LeaveRequest['status'],
     updatedLeaveDays: LeaveDayEntry[]
   ) => {
-    if (request.id.startsWith('lr-')) {
+    if (String(request.id).startsWith('lr-')) {
       toast.success(`Leave updated to ${status} for ${request.employeeName} (Demo)`);
       closeActivePanel();
       return;
@@ -2033,7 +1884,7 @@ const MainLeaveManagement = () => {
   };
 
   const handleReject = async (request: LeaveRequest, reason: string) => {
-    if (request.id.startsWith('lr-')) {
+    if (String(request.id).startsWith('lr-')) {
       toast.success(`Leave rejected for ${request.employeeName} (Demo)`);
       setRejectFor(null);
       closeActivePanel();
@@ -2398,7 +2249,7 @@ const MainLeaveManagement = () => {
                                       {req.employeeName}
                                     </p>
                                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                                      {req.department}
+                                      {[req.empCode, req.department].filter(Boolean).join(' · ') || '—'}
                                     </p>
                                   </div>
                                 </div>

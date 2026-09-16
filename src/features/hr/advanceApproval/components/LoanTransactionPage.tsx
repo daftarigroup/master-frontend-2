@@ -12,7 +12,7 @@ import {
   IconListDetails,
   IconLoader2,
 } from '@tabler/icons-react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   useAdvanceRequestById,
@@ -22,12 +22,14 @@ import {
 import type { AdvanceRequest } from '@/features/hr/advanceRequest/types/types';
 import { cn } from '@/lib/utils';
 
-const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat('en-IN', {
+const fmtCurrency = (n: number | null | undefined) => {
+  const val = typeof n === 'number' && !Number.isNaN(n) ? n : 0;
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(val);
+};
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -225,8 +227,11 @@ function ApprovalHistory({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function LoanTransactionPage({ advanceId }: { advanceId: number }) {
+export default function LoanTransactionPage({ advanceId: propAdvanceId }: { advanceId?: number } = {}) {
   const router = useRouter();
+  const routeParams = useParams<{ advanceId?: string }>();
+  const parsedId = routeParams?.advanceId ? parseInt(routeParams.advanceId, 10) : 0;
+  const advanceId = propAdvanceId ?? (isNaN(parsedId) ? 0 : parsedId);
   const [tab, setTab] = useState<'transactions' | 'history'>('transactions');
 
   const {
@@ -324,8 +329,7 @@ export default function LoanTransactionPage({ advanceId }: { advanceId: number }
             <div className="min-w-0 flex-1">
               <p className="truncate text-[18px] font-bold leading-tight">{request.employeeName}</p>
               <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
-                {request.employeeId}
-                {request.department ? ` · ${request.department.name}` : ''}
+                {[request.empCode || request.employeeId, request.department?.name].filter(Boolean).join(' · ')}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <span
