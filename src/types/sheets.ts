@@ -310,12 +310,15 @@ export type UserPermissions = {
     holidays?: boolean;
     createIndent: boolean;
     createPo: boolean;
+    createEnquiry: boolean;
     indentApprovalView: boolean;
     indentApprovalAction: boolean;
     updateVendorView: boolean;
     updateVendorAction: boolean;
     threePartyApprovalView: boolean;
     threePartyApprovalAction: boolean;
+    managementApprovalView: boolean;
+    managementApprovalAction: boolean;
     receiveItemView: boolean;
     receiveItemAction: boolean;
     storeOutApprovalView: boolean;
@@ -378,9 +381,6 @@ export type UserPermissions = {
     maintMachines?: boolean;
     maintBreakdowns?: boolean;
 
-    // Asset & Equipment Management System Permissions
-    assetDash?: boolean;
-    assetProducts?: boolean;
 
     // HR & Facilities Management System Permissions
     hrDash?: boolean;
@@ -436,12 +436,15 @@ export const allPermissionKeys = [
     "holidays",
     "createIndent",
     "createPo",
+    "createEnquiry",
     "indentApprovalView",
     "indentApprovalAction",
     "updateVendorView",
     "updateVendorAction",
     "threePartyApprovalView",
     "threePartyApprovalAction",
+    "managementApprovalView",
+    "managementApprovalAction",
     "receiveItemView",
     "receiveItemAction",
     "storeOutApprovalView",
@@ -495,8 +498,6 @@ export const allPermissionKeys = [
     "maintDash",
     "maintMachines",
     "maintBreakdowns",
-    "assetDash",
-    "assetProducts",
     "hrDash",
     "hrIndent",
     "hrCandidate",

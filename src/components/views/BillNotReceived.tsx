@@ -227,7 +227,7 @@ export default () => {
     };
 
 
-    const canEditBillNotReceived = hasPageAccess(user as any, 'finance_logistics', 'EDIT', 'billNotReceived');
+    const canEditBillNotReceived = hasPageAccess(user as any, 'bill_not_received', 'EDIT', 'billNotReceived');
 
     const columns: ColumnDef<RecieveItemsData>[] = [
         ...(canEditBillNotReceived
@@ -338,7 +338,7 @@ export default () => {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<RecieveItemsData> }) => {
-                const canDelete = canDeleteStoreStage(user as any, 'finance_logistics');
+                const canDelete = canDeleteStoreStage(user as any, 'bill_not_received');
                 if (!canDelete) return null;
                 return (
                     <Button

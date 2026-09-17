@@ -121,7 +121,7 @@ export default function TallyEntry() {
         return filtered;
     }, [historyData, selectedPartyName, searchTerm]);
 
-    const canEditTally = hasPageAccess(user as any, 'audits', 'EDIT', 'takeEntryByTelly');
+    const canEditTally = hasPageAccess(user as any, 'tally_entry', 'EDIT', 'takeEntryByTelly');
 
     const pendingColumns: ColumnDef<TallyEntryRecord>[] = [
         ...(canEditTally
@@ -320,7 +320,7 @@ export default function TallyEntry() {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<TallyEntryRecord> }) => {
-                const canDelete = canDeleteStoreStage(user as any, 'audits');
+                const canDelete = canDeleteStoreStage(user as any, 'tally_entry');
                 if (!canDelete) return null;
                 return (
                     <Button

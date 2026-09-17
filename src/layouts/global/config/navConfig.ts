@@ -91,7 +91,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         key: 'store_enquiry',
         title: 'Enquiry',
         items: [
-          { name: 'Enquiry / Quotation', path: '/store/procurement/enquiry', icon: FilePlus2, gateKey: 'createPo' },
+          { name: 'Enquiry / Quotation', path: '/store/procurement/enquiry', icon: FilePlus2, gateKey: 'createEnquiry' },
         ],
       },
       {
@@ -112,7 +112,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
           { name: 'Indent Approval', path: '/store/indents/approve', icon: CheckSquare, gateKey: 'indentApprovalView' },
           { name: 'Vendor Rate Update', path: '/store/indents/vendor-rates', icon: UserCog, gateKey: 'updateVendorView' },
           { name: 'Technical Approval', path: '/store/indents/technical-approval', icon: Users, gateKey: 'threePartyApprovalView' },
-          { name: 'Management Approval', path: '/store/indents/management-approval', icon: ShieldCheck, gateKey: 'threePartyApprovalView' },
+          { name: 'Management Approval', path: '/store/indents/management-approval', icon: ShieldCheck, gateKey: 'managementApprovalView' },
         ],
       },
       {
@@ -121,7 +121,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         items: [
           { name: 'Pending PO to Make', path: '/store/procurement/pending-po', icon: Clock, gateKey: 'pendingPo' },
           { name: 'Create PO', path: '/store/procurement/create-po', icon: FilePlus, gateKey: 'createPo' },
-          { name: 'PO History', path: '/store/procurement/po-history', icon: History, gateKey: 'ordersView' },
+          { name: 'PO History', path: '/store/procurement/po-history', icon: History, gateKey: 'poHistory' },
           { name: 'Lifting', path: '/store/procurement/lifting', icon: ArrowUpCircle, gateKey: 'ordersView' },
         ],
       },
@@ -292,25 +292,6 @@ export const NAV_CONFIG: SystemNavConfig[] = [
       },
     ],
   },
-/*
-  {
-    id: 'asset',
-    name: 'Asset Management',
-    icon: Package,
-    accentClassName: 'slate',
-    dashboardPath: '/asset/dashboard',
-    groups: [
-      {
-        key: 'asset_ops',
-        title: 'Asset Operations',
-        items: [
-          { name: 'Dashboard', path: '/asset/dashboard', icon: LayoutDashboard, gateKey: 'assetDash' },
-          { name: 'All Assets', path: '/asset/products', icon: ClipboardList, gateKey: 'assetProducts' },
-        ],
-      },
-    ],
-  },
-*/
   {
     id: 'hr',
     name: 'HR & Facilities',
@@ -410,7 +391,6 @@ export const getSystemIdFromPath = (pathname: string): string => {
   if (pathname.startsWith('/checklist')) return 'checklist';
   if (pathname.startsWith('/document') || pathname.startsWith('/loan')) return 'document';
   if (pathname.startsWith('/petty-cash')) return 'petty_cash';
-  if (pathname.startsWith('/asset')) return 'asset';
   if (pathname.startsWith('/hr')) return 'hr';
 
   for (const system of NAV_CONFIG) {

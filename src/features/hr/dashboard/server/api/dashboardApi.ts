@@ -116,6 +116,29 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
 
   const totalOpenSeats = openVacancies.reduce((s, v) => s + v.remainingSeats, 0);
 
+  // Indents lookup map by ID and recordId
+  const indentMap = new Map<string, any>();
+  for (const ind of indents) {
+    if (ind?.id != null) indentMap.set(String(ind.id), ind);
+    if (ind?.recordId != null) indentMap.set(String(ind.recordId), ind);
+  }
+
+  const resolveCandidateDesignation = (c: any): string => {
+    const indentId = c?.indentId ?? c?.indent_id;
+    const matchedIndent = indentId ? indentMap.get(String(indentId)) : null;
+    const raw =
+      c?.vacancyTitle ??
+      matchedIndent?.title ??
+      c?.indent?.title ??
+      c?.joining?.designationOffered ??
+      c?.joining?.designation_offered ??
+      c?.employee?.designation ??
+      c?.previousPosition ??
+      c?.previous_position ??
+      (typeof c?.indent === 'string' ? c?.indent : null);
+    return asString(raw, 'General');
+  };
+
   // ── Candidates ──────────────────────────────────────────────────────
   const totalApplications = candidates.length;
   let selectedCandidates = 0;
@@ -127,16 +150,16 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
   }
   const recentCandidates: V3HrCandidate[] = [...candidates]
     .sort((a: any, b: any) => {
-      const at = new Date(a.appliedDate ?? a.createdAt ?? 0).getTime();
-      const bt = new Date(b.appliedDate ?? b.createdAt ?? 0).getTime();
+      const at = new Date(a.appliedDate ?? a.createdAt ?? a.created_at ?? 0).getTime();
+      const bt = new Date(b.appliedDate ?? b.createdAt ?? b.created_at ?? 0).getTime();
       return bt - at;
     })
     .slice(0, 8)
     .map((c: any) => ({
       id: String(c.id ?? c._id ?? ''),
-      name: asString(c.candidateName ?? c.name, 'Unknown'),
-      vacancyTitle: asString(c.vacancyTitle ?? c.indent?.title ?? c.indent),
-      appliedDate: c.appliedDate ?? c.createdAt ?? '',
+      name: asString(c.candidateName ?? c.candidate_name ?? c.name, 'Unknown'),
+      vacancyTitle: resolveCandidateDesignation(c),
+      appliedDate: c.appliedDate ?? c.createdAt ?? c.created_at ?? '',
       status: asString(c.applicationStatus ?? c.status, 'applied'),
       finalResult: asString(c.finalResult, 'pending'),
     }));
@@ -144,26 +167,39 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
   // ── Joinings ────────────────────────────────────────────────────────
   const recentJoinings: V3HrJoining[] = [...joinings]
     .sort((a: any, b: any) => {
-      const at = new Date(a.joiningDate ?? a.createdAt ?? 0).getTime();
-      const bt = new Date(b.joiningDate ?? b.createdAt ?? 0).getTime();
+      const at = new Date(a.joiningDate ?? a.createdAt ?? a.created_at ?? 0).getTime();
+      const bt = new Date(b.joiningDate ?? b.createdAt ?? b.created_at ?? 0).getTime();
       return bt - at;
     })
     .slice(0, 8)
-    .map((j: any) => ({
-      id: String(j.id ?? j._id ?? ''),
-      employeeName: asString(
-        j.candidate?.candidateName ?? j.employeeName ?? j.candidateName ?? j.name,
-        'Unknown'
-      ),
-      department: asString(
-        j.candidate?.indent?.department?.name ?? j.department ?? j.candidate?.department
-      ),
-      designation: asString(
-        j.candidate?.indent?.title ?? j.designation ?? j.candidate?.designation
-      ),
-      joiningDate: j.joiningDate ?? j.createdAt ?? '',
-      status: asString(j.status ?? j.joiningStatus, 'pending'),
-    }));
+    .map((j: any) => {
+      const c = j.candidate;
+      const indentId = c?.indentId ?? c?.indent_id;
+      const matchedIndent = indentId ? indentMap.get(String(indentId)) : null;
+      return {
+        id: String(j.id ?? j._id ?? ''),
+        employeeName: asString(
+          c?.candidateName ?? c?.candidate_name ?? j.employeeName ?? j.candidateName ?? j.name,
+          'Unknown'
+        ),
+        department: asString(
+          matchedIndent?.department?.name ??
+            c?.indent?.department?.name ??
+            j.department ??
+            c?.department?.name ??
+            c?.department
+        ),
+        designation: asString(
+          j.designationOffered ??
+            j.designation_offered ??
+            resolveCandidateDesignation(c) ??
+            j.designation,
+          '—'
+        ),
+        joiningDate: j.joiningDate ?? j.createdAt ?? j.created_at ?? '',
+        status: asString(j.status ?? j.joiningStatus, 'pending'),
+      };
+    });
 
   // Count candidates whose joining was completed this month
   const newJoiningThisMonth = candidates.filter((c: any) => {
@@ -210,7 +246,7 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
   }).length;
 
   // ── Hiring Funnel ───────────────────────────────────────────────────
-  // Our pipeline: applied → shortlisted → selected → joining_initiated → joined
+  // Our pipeline: applied → shortlisted → interviewed → selected → joining_initiated → joined
   // Each stage is cumulative: anyone deeper also counts in earlier stages
   let shortlisted = 0;
   let interviewed = 0;
@@ -218,9 +254,31 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
   let fullyJoined = 0;
   for (const c of candidates) {
     const status = String(c.applicationStatus ?? c.status ?? '').toLowerCase();
-    if (['shortlisted', 'selected', 'joining_initiated', 'joined'].includes(status)) shortlisted++;
-    if (['selected', 'joining_initiated', 'joined'].includes(status)) interviewed++;
-    if (['joining_initiated', 'joined'].includes(status)) offerSent++;
+    if (
+      [
+        'shortlisted',
+        'interviewed',
+        'interview_scheduled',
+        'interview_completed',
+        'selected',
+        'joining_initiated',
+        'joined',
+      ].includes(status)
+    )
+      shortlisted++;
+    if (
+      [
+        'interviewed',
+        'interview_scheduled',
+        'interview_completed',
+        'selected',
+        'joining_initiated',
+        'joined',
+      ].includes(status)
+    )
+      interviewed++;
+    if (['joining_initiated', 'joined', 'offer_sent', 'offer_accepted'].includes(status))
+      offerSent++;
     if (status === 'joined') fullyJoined++;
   }
 
@@ -279,10 +337,7 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
   // ── Recruitment pipeline by designation ────────────────────────────
   const recruitmentMap = new Map<string, V3HrRecruitmentRow>();
   for (const c of candidates) {
-    const title = asString(
-      c.vacancyTitle ?? (c as Record<string, unknown>).indent ?? null,
-      'Unknown'
-    );
+    const title = resolveCandidateDesignation(c);
     if (!recruitmentMap.has(title)) {
       recruitmentMap.set(title, {
         designation: title,
@@ -299,11 +354,19 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
         (c as Record<string, unknown>).status ??
         ''
     ).toLowerCase();
-    if (['shortlisted', 'selected'].includes(st)) {
+    if (
+      [
+        'shortlisted',
+        'interviewed',
+        'interview_scheduled',
+        'interview_completed',
+        'selected',
+      ].includes(st)
+    ) {
       row.ongoing++;
-    } else if (['joining_initiated', 'joined'].includes(st)) {
+    } else if (['joining_initiated', 'joined', 'offer_sent', 'offer_accepted'].includes(st)) {
       row.joining++;
-    } else if (['rejected', 'offer_declined'].includes(st)) {
+    } else if (['rejected', 'offer_declined', 'cancelled'].includes(st)) {
       row.rejected++;
     }
   }
@@ -314,8 +377,26 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
   // ── Salary Summary ──────────────────────────────────────────────────
   const deptSalaryMap = new Map<string, V3HrDeptSalary>();
   for (const emp of hrEmployees) {
-    const salary = Number(emp.joining?.monthlySalary ?? emp.candidate?.joining?.monthlySalary ?? 0);
-    const dept = asString(emp.department?.name ?? emp.department, 'Unassigned');
+    const salary = Number(
+      emp.monthlySalary ??
+        emp.monthly_salary ??
+        emp.joining?.monthlySalary ??
+        emp.joining?.monthly_salary ??
+        emp.candidate?.joining?.monthlySalary ??
+        emp.candidate?.joining?.monthly_salary ??
+        0
+    );
+    const indentId = emp.candidate?.indentId ?? emp.candidate?.indent_id;
+    const matchedIndent = indentId ? indentMap.get(String(indentId)) : null;
+    const dept = asString(
+      emp.department?.name ??
+        emp.departmentName ??
+        emp.department ??
+        matchedIndent?.department?.name ??
+        emp.candidate?.department?.name ??
+        emp.candidate?.department,
+      'Unassigned'
+    );
     if (!deptSalaryMap.has(dept)) {
       deptSalaryMap.set(dept, { department: dept, total: 0, employees: [] });
     }
@@ -327,7 +408,7 @@ export const fetchHrDashboardV3 = async (): Promise<V3HrDashboardPayload> => {
       designation: asString(emp.designation),
       salary,
       email: asString(emp.email, ''),
-      joiningDate: emp.joiningDate ?? null,
+      joiningDate: emp.joiningDate ?? emp.joining_date ?? null,
       tenant: (emp.tenant as { id: string; name: string } | undefined) ?? null,
     });
   }

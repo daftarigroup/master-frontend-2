@@ -135,11 +135,6 @@ const AllLoans = React.lazy(() => import('@/systems/document/pages/loan/AllLoans
 const Foreclosure = React.lazy(() => import('@/systems/document/pages/loan/Foreclosure'));
 const LoanNOC = React.lazy(() => import('@/systems/document/pages/loan/NOC'));
 
-// Asset Lazy Components
-import AssetSystemLayout from '@/systems/asset/layout/AssetSystemLayout';
-const AssetDashboard = React.lazy(() => import('@/systems/asset/pages/AssetDashboard'));
-const AllAssets = React.lazy(() => import('@/systems/asset/pages/AllAssets'));
-const AssetPublicSlip = React.lazy(() => import('@/systems/asset/pages/AssetPublicSlip'));
 
 // TanStack Query Client for HR System
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1011,8 +1006,6 @@ if (rootElement) {
                                 <Route path="/login" element={<Login />} />
                                 <Route path="/create-account" element={<CreateAccount />} />
                                 <Route path="/bid/:token" element={<VendorBidding />} />
-                                {/* Public asset QR slip — no login, no app shell, so a scanned code opens directly */}
-                                <Route path="/product/:productId" element={<AssetPublicSlip />} />
 
                                 {/* Project Selection Guarded Route */}
                                 <Route
@@ -1057,13 +1050,13 @@ if (rootElement) {
                                     <Route path="indents/approve" element={<GatedRoute identifier="indentApprovalView"><ApproveIndent /></GatedRoute>} />
                                     <Route path="indents/vendor-rates" element={<GatedRoute identifier="updateVendorView"><VendorUpdate /></GatedRoute>} />
                                     <Route path="indents/technical-approval" element={<GatedRoute identifier="threePartyApprovalView"><DepartmentApproval /></GatedRoute>} />
-                                    <Route path="indents/management-approval" element={<GatedRoute identifier="threePartyApprovalView"><RateApproval /></GatedRoute>} />
+                                    <Route path="indents/management-approval" element={<GatedRoute identifier="managementApprovalView"><RateApproval /></GatedRoute>} />
 
                                     {/* Procurement Sub-Routes */}
-                                    <Route path="procurement/enquiry" element={<GatedRoute identifier="createPo"><QuotationPage /></GatedRoute>} />
+                                    <Route path="procurement/enquiry" element={<GatedRoute identifier="createEnquiry"><QuotationPage /></GatedRoute>} />
                                     <Route path="procurement/pending-po" element={<GatedRoute identifier="pendingPo"><PendingPo /></GatedRoute>} />
                                     <Route path="procurement/create-po" element={<GatedRoute identifier="createPo"><CreatePO /></GatedRoute>} />
-                                    <Route path="procurement/po-history" element={<GatedRoute identifier="ordersView"><Order /></GatedRoute>} />
+                                    <Route path="procurement/po-history" element={<GatedRoute identifier="poHistory"><Order /></GatedRoute>} />
                                     <Route path="procurement/lifting" element={<GatedRoute identifier="ordersView"><GetLift /></GatedRoute>} />
 
                                     {/* Receipts Sub-Routes */}
@@ -1148,12 +1141,6 @@ if (rootElement) {
                                     <Route path="loan/noc" element={<GatedRoute identifier="docLoanNoc"><LoanNOC /></GatedRoute>} />
                                 </Route>
 
-                                {/* Layer 2 ASSET & EQUIPMENT MANAGEMENT SYSTEM MODULE */}
-                                <Route path="asset" element={<AssetSystemLayout />}>
-                                    <Route index element={<Navigate to="/asset/dashboard" replace />} />
-                                    <Route path="dashboard" element={<GatedRoute identifier="assetDash"><AssetDashboard /></GatedRoute>} />
-                                    <Route path="products" element={<GatedRoute identifier="assetProducts"><AllAssets /></GatedRoute>} />
-                                </Route>
 
                                 {/* Layer 2 HR & FACILITIES MANAGEMENT SYSTEM MODULE */}
                                 <Route path="hr" element={<HrSystemLayout />}>

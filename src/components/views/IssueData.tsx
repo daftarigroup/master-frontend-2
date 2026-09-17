@@ -417,7 +417,7 @@ export default function IssueData() {
             header: 'Actions',
             cell: ({ row }) => {
                 const record = row.original;
-                const canDelete = canDeleteStoreStage(user, 'store_issue');
+                const canDelete = canDeleteStoreStage(user, 'store_data');
                 if (!canDelete) return null;
 
                 return (

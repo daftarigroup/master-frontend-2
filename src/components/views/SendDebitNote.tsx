@@ -296,7 +296,7 @@ export default () => {
     }
 
 
-    const canEditDebitNote = hasPageAccess(user as any, 'finance_logistics', 'EDIT', 'sendDebitNote');
+    const canEditDebitNote = hasPageAccess(user as any, 'debit_note', 'EDIT', 'sendDebitNote');
 
     const pendingColumns: ColumnDef<StoreInPendingData>[] = [
         ...(canEditDebitNote
