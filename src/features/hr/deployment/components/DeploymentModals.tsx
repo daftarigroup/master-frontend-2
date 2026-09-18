@@ -214,7 +214,7 @@ export const ShiftProjectModal: React.FC<ShiftModalProps> = ({
             Shift Project Assignment
           </DialogTitle>
           <DialogDescription>
-            Transfer <span className="font-semibold text-foreground">{assignment.employee?.name || assignment.employeeId}</span> from <span className="font-semibold text-primary">{assignment.projectName}</span> to another project.
+            Transfer <span className="font-semibold text-foreground">{assignment.employee?.name || assignment.employee?.empCode || 'Employee'}</span> from <span className="font-semibold text-primary">{assignment.projectName}</span> to another project.
           </DialogDescription>
         </DialogHeader>
 
@@ -319,7 +319,7 @@ export const RemoveFromProjectModal: React.FC<RemoveModalProps> = ({
             Remove to Bench
           </DialogTitle>
           <DialogDescription>
-            End deployment of <span className="font-semibold text-foreground">{assignment.employee?.name || assignment.employeeId}</span> from <span className="font-semibold text-foreground">{assignment.projectName}</span>. They will return to the department bench pool.
+            End deployment of <span className="font-semibold text-foreground">{assignment.employee?.name || assignment.employee?.empCode || 'Employee'}</span> from <span className="font-semibold text-foreground">{assignment.projectName}</span>. They will return to the department bench pool.
           </DialogDescription>
         </DialogHeader>
 
@@ -397,7 +397,7 @@ export const ProjectLeaveModal: React.FC<LeaveModalProps> = ({
             Place on Project Leave
           </DialogTitle>
           <DialogDescription>
-            Temporarily exclude <span className="font-semibold text-foreground">{assignment.employee?.name || assignment.employeeId}</span> from <span className="font-semibold text-foreground">{assignment.projectName}</span>'s active headcount without releasing their project link.
+            Temporarily exclude <span className="font-semibold text-foreground">{assignment.employee?.name || assignment.employee?.empCode || 'Employee'}</span> from <span className="font-semibold text-foreground">{assignment.projectName}</span>'s active headcount without releasing their project link.
           </DialogDescription>
         </DialogHeader>
 

@@ -185,11 +185,14 @@ export const MainManpowerDeployment: React.FC = () => {
 
       if (search.trim()) {
         const term = search.toLowerCase();
-        const emp = employees.find((e) => e.employeeId === evt.employeeId || e.empCode === evt.employeeId);
-        const empMatch = emp && emp.name.toLowerCase().includes(term);
+        const emp = employees.find(
+          (e) => e.employeeId === evt.employeeId || e.empCode === evt.employeeId || String(e.id) === evt.employeeId
+        );
+        const empMatch = (emp?.name || evt.employeeName || '').toLowerCase().includes(term);
+        const codeMatch = (emp?.empCode || evt.empCode || (!evt.employeeId.startsWith('cmu') ? evt.employeeId : '')).toLowerCase().includes(term);
         const notesMatch = (evt.notes || '').toLowerCase().includes(term);
         const toMatch = (evt.toProjectName || '').toLowerCase().includes(term);
-        if (!empMatch && !notesMatch && !toMatch) return false;
+        if (!empMatch && !codeMatch && !notesMatch && !toMatch) return false;
       }
 
       return true;
@@ -553,14 +556,14 @@ export const MainManpowerDeployment: React.FC = () => {
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
-                              {initials(a.employee?.name || a.employeeId)}
+                              {initials(a.employee?.name || a.employee?.empCode || 'EM')}
                             </div>
                             <div className="min-w-0">
                               <p className="truncate text-[13px] font-semibold text-foreground">
-                                {a.employee?.name || a.employeeId}
+                                {a.employee?.name || a.employee?.empCode || 'Employee'}
                               </p>
                               <p className="truncate font-mono text-[11px] text-muted-foreground">
-                                {a.employee?.empCode || a.employeeId}
+                                {a.employee?.empCode || (!a.employeeId.startsWith('cmu') ? a.employeeId : '—')}
                               </p>
                             </div>
                           </div>
@@ -687,7 +690,7 @@ export const MainManpowerDeployment: React.FC = () => {
                             <div className="min-w-0">
                               <p className="truncate text-[13px] font-semibold text-foreground">{e.name}</p>
                               <p className="truncate font-mono text-[11px] text-muted-foreground">
-                                {e.empCode || e.employeeId}
+                                {e.empCode || (!e.employeeId.startsWith('cmu') ? e.employeeId : '—')}
                               </p>
                             </div>
                           </div>
@@ -752,8 +755,10 @@ export const MainManpowerDeployment: React.FC = () => {
                 <div className="divide-y divide-border">
                   {filteredEvents.map((evt) => {
                     const emp = employees.find(
-                      (e) => e.employeeId === evt.employeeId || e.empCode === evt.employeeId
+                      (e) => e.employeeId === evt.employeeId || e.empCode === evt.employeeId || String(e.id) === evt.employeeId
                     );
+                    const displayName = emp?.name || evt.employeeName || (!evt.employeeId.startsWith('cmu') ? evt.employeeId : 'Employee');
+                    const displayCode = emp?.empCode || evt.empCode || (!evt.employeeId.startsWith('cmu') ? evt.employeeId : null);
                     const isShift = evt.eventType === 'shifted';
                     const isAssign = evt.eventType === 'assigned';
                     const isRemove = evt.eventType === 'removed';
@@ -782,10 +787,12 @@ export const MainManpowerDeployment: React.FC = () => {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-[13px] font-semibold text-foreground">
-                              {emp?.name || evt.employeeId}
-                              <span className="ml-2 font-mono text-[11px] font-normal text-muted-foreground">
-                                ({evt.employeeId})
-                              </span>
+                              {displayName}
+                              {displayCode && (
+                                <span className="ml-2 font-mono text-[11px] font-normal text-muted-foreground">
+                                  ({displayCode})
+                                </span>
+                              )}
                             </p>
                             <span className="text-[11px] text-muted-foreground tabular-nums">
                               {fmtDateTime(evt.timestamp)}

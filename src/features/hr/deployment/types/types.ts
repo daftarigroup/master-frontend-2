@@ -45,6 +45,8 @@ export interface ProjectAssignmentEvent {
   id: string;
   assignmentId: string;
   employeeId: string;
+  employeeName?: string | null;
+  empCode?: string | null;
   eventType: ProjectAssignmentEventType;
   fromProjectId: number | string | null;
   toProjectId: number | string | null;
