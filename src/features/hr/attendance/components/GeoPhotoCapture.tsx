@@ -3,6 +3,7 @@
 import { IconCamera, IconMapPin, IconRefresh, IconX } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { encodePlusCode } from '../utils/plusCode';
+import { getPreciseLocationAddress } from '../utils/reverseGeocode';
 
 export interface GeoPhoto {
   blob: Blob;
@@ -12,6 +13,7 @@ export interface GeoPhoto {
   plusCode: string | null;
   accuracy: number | null;
   capturedAt: string;
+  address?: string | null;
 }
 
 interface Props {
@@ -39,6 +41,7 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<GeolocationCoordinates | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [useFallbackInput, setUseFallbackInput] = useState(false);
 
@@ -47,6 +50,7 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const addressRef = useRef<string | null>(null);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -70,6 +74,8 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
       }
       setPreview(null);
       setLocation(null);
+      setAddress(null);
+      addressRef.current = null;
       setStage((prev) => (prev === 'captured' ? 'idle' : prev));
       setError(null);
       if (fileInputRef.current) {
@@ -108,6 +114,14 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
       const coords = await getLocation();
       setLocation(coords);
 
+      // Pre-fetch precise human-readable address in the background so it is ready on capture
+      getPreciseLocationAddress(coords.latitude, coords.longitude).then((resolvedAddr) => {
+        if (resolvedAddr) {
+          setAddress(resolvedAddr);
+          addressRef.current = resolvedAddr;
+        }
+      });
+
       if (!navigator.mediaDevices?.getUserMedia) {
         // No camera API (older browser) — fall back to the native picker.
         setUseFallbackInput(true);
@@ -144,7 +158,7 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
   }, [getLocation]);
 
   const drawStampedCanvas = useCallback(
-    (source: CanvasImageSource, width: number, height: number, coords: GeolocationCoordinates) => {
+    async (source: CanvasImageSource, width: number, height: number, coords: GeolocationCoordinates) => {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       canvas.width = width;
@@ -152,39 +166,151 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
 
+      // Draw captured photo
       ctx.drawImage(source, 0, 0, width, height);
+
+      // Resolve address: use pre-fetched address or fetch now with short timeout
+      let locAddress = addressRef.current;
+      if (!locAddress) {
+        locAddress = await getPreciseLocationAddress(coords.latitude, coords.longitude, 2500);
+        if (locAddress) {
+          addressRef.current = locAddress;
+          setAddress(locAddress);
+        }
+      }
 
       const now = new Date();
       const plusCode = encodePlusCode(coords.latitude, coords.longitude);
-      const stampLines = [
-        now.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' }),
-        `Lat ${coords.latitude.toFixed(6)}, Lng ${coords.longitude.toFixed(6)}${
-          coords.accuracy ? ` (±${Math.round(coords.accuracy)}m)` : ''
-        }`,
-        ...(plusCode ? [`Plus Code: ${plusCode}`] : []),
-      ];
 
-      const lineHeightFrac = 1 / (stampLines.length + 0.6);
-      const barHeight = Math.max(44, height * 0.07 * stampLines.length);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(0, height - barHeight, width, barHeight);
-
-      const fontSize = Math.max(12, Math.round(width * 0.024));
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `${fontSize}px sans-serif`;
-      ctx.textBaseline = 'middle';
-      stampLines.forEach((line, i) => {
-        const y = height - barHeight + barHeight * lineHeightFrac * (i + 0.8);
-        ctx.fillText(line, width * 0.02, y);
+      const formattedDateTime = now.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
       });
 
-      return { canvas, plusCode };
+      const latDir = coords.latitude >= 0 ? 'N' : 'S';
+      const lngDir = coords.longitude >= 0 ? 'E' : 'W';
+      const latStr = `${Math.abs(coords.latitude).toFixed(6)}° ${latDir}`;
+      const lngStr = `${Math.abs(coords.longitude).toFixed(6)}° ${lngDir}`;
+      const accStr = coords.accuracy ? ` (±${Math.round(coords.accuracy)}m)` : '';
+
+      // Responsive font sizing based on photo resolution
+      const fontSize = Math.max(12, Math.min(24, Math.round(width * 0.022)));
+      const lineHeight = Math.round(fontSize * 1.45);
+      const paddingX = Math.round(width * 0.03);
+      const maxTextWidth = width - paddingX * 2;
+
+      ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+      // Helper to wrap long lines cleanly
+      const wrapText = (text: string): string[] => {
+        const words = text.split(' ');
+        const wrapped: string[] = [];
+        let cur = '';
+        for (const w of words) {
+          const test = cur ? `${cur} ${w}` : w;
+          if (ctx.measureText(test).width <= maxTextWidth) {
+            cur = test;
+          } else {
+            if (cur) wrapped.push(cur);
+            cur = w;
+          }
+        }
+        if (cur) wrapped.push(cur);
+        return wrapped;
+      };
+
+      // Construct visual stamp lines
+      const lines: { text: string; isBold?: boolean; color?: string }[] = [];
+
+      // 1. Date & Time
+      lines.push({
+        text: `📅 Date & Time: ${formattedDateTime}`,
+        isBold: true,
+        color: '#ffffff',
+      });
+
+      // 2. Precise Physical Location / Address
+      if (locAddress) {
+        const addressLines = wrapText(`📍 Location: ${locAddress}`);
+        addressLines.forEach((al, idx) => {
+          lines.push({
+            text: al,
+            isBold: idx === 0,
+            color: '#f8fafc',
+          });
+        });
+      }
+
+      // 3. Exact GPS Coordinates
+      lines.push({
+        text: `🌐 Coordinates: Lat ${latStr}, Lng ${lngStr}${accStr}`,
+        color: '#e2e8f0',
+      });
+
+      // 4. Plus Code
+      if (plusCode) {
+        lines.push({
+          text: `🏷️ Plus Code: ${plusCode}`,
+          color: '#cbd5e1',
+        });
+      }
+
+      const paddingY = Math.round(fontSize * 1.1);
+      const contentHeight = lines.length * lineHeight;
+      const barHeight = contentHeight + paddingY * 2;
+
+      // Draw smooth, elegant dark gradient at the bottom
+      const gradient = ctx.createLinearGradient(0, height - barHeight - 16, 0, height);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      gradient.addColorStop(0.2, 'rgba(15, 23, 42, 0.72)');
+      gradient.addColorStop(1, 'rgba(15, 23, 42, 0.92)');
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, height - barHeight - 16, width, barHeight + 16);
+
+      // Subtle top divider line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = Math.max(1, Math.round(width * 0.0015));
+      ctx.beginPath();
+      ctx.moveTo(paddingX, height - barHeight);
+      ctx.lineTo(width - paddingX, height - barHeight);
+      ctx.stroke();
+
+      // Render text with subtle shadow for crystal clear legibility
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 1;
+      ctx.textBaseline = 'top';
+
+      let startY = height - barHeight + paddingY;
+      lines.forEach((item) => {
+        ctx.font = `${item.isBold ? '600' : '400'} ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = item.color || '#ffffff';
+        ctx.fillText(item.text, paddingX, startY);
+        startY += lineHeight;
+      });
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+
+      return { canvas, plusCode, address: locAddress };
     },
     []
   );
 
   const finishCapture = useCallback(
-    (canvas: HTMLCanvasElement, plusCode: string | null, coords: GeolocationCoordinates) => {
+    (
+      canvas: HTMLCanvasElement,
+      plusCode: string | null,
+      coords: GeolocationCoordinates,
+      capturedAddress?: string | null
+    ) => {
       canvas.toBlob(
         (blob) => {
           if (!blob) {
@@ -204,6 +330,7 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
             accuracy: coords.accuracy ?? null,
             plusCode,
             capturedAt: new Date().toISOString(),
+            address: capturedAddress ?? null,
           });
         },
         'image/jpeg',
@@ -213,12 +340,12 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
     [onCapture]
   );
 
-  const capturePhoto = useCallback(() => {
+  const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !location) return;
-    const result = drawStampedCanvas(video, video.videoWidth, video.videoHeight, location);
+    const result = await drawStampedCanvas(video, video.videoWidth, video.videoHeight, location);
     stopStream();
-    if (result) finishCapture(result.canvas, result.plusCode, location);
+    if (result) finishCapture(result.canvas, result.plusCode, location, result.address);
   }, [location, drawStampedCanvas, stopStream, finishCapture]);
 
   const handleFallbackFile = useCallback(
@@ -226,10 +353,10 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
       if (!location) return;
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        const result = drawStampedCanvas(img, img.naturalWidth, img.naturalHeight, location);
+      img.onload = async () => {
+        const result = await drawStampedCanvas(img, img.naturalWidth, img.naturalHeight, location);
         URL.revokeObjectURL(objectUrl);
-        if (result) finishCapture(result.canvas, result.plusCode, location);
+        if (result) finishCapture(result.canvas, result.plusCode, location, result.address);
       };
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
@@ -246,6 +373,8 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
     previewUrlRef.current = null;
     setPreview(null);
     setLocation(null);
+    setAddress(null);
+    addressRef.current = null;
     setStage('idle');
     setError(null);
     onClear?.();
@@ -308,14 +437,22 @@ export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }:
             <video ref={videoRef} playsInline muted className="w-full" />
           </div>
           {location && (
-            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <IconMapPin className="h-3 w-3" />
-              Lat {location.latitude.toFixed(5)}, Lng {location.longitude.toFixed(5)}
-              {(() => {
-                const code = encodePlusCode(location.latitude, location.longitude);
-                return code ? ` · ${code}` : '';
-              })()}
-            </p>
+            <div className="space-y-0.5 text-[11px] text-muted-foreground">
+              {address && (
+                <p className="flex items-center gap-1 font-medium text-foreground">
+                  <IconMapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate">{address}</span>
+                </p>
+              )}
+              <p className="flex items-center gap-1">
+                {!address && <IconMapPin className="h-3 w-3" />}
+                Lat {location.latitude.toFixed(5)}, Lng {location.longitude.toFixed(5)}
+                {(() => {
+                  const code = encodePlusCode(location.latitude, location.longitude);
+                  return code ? ` · ${code}` : '';
+                })()}
+              </p>
+            </div>
           )}
           <button
             type="button"
