@@ -15,6 +15,8 @@ export interface GeoPhoto {
 }
 
 interface Props {
+  /** Current captured photo object or null to reset/clear. */
+  value?: GeoPhoto | null;
   /** Called once a photo has been captured with its location burned in. */
   onCapture: (photo: GeoPhoto) => void;
   /** Called when the captured photo is cleared/retaken. */
@@ -33,7 +35,7 @@ type Stage = 'idle' | 'locating' | 'live' | 'captured' | 'error';
  * (<input capture="environment">) if getUserMedia isn't available (older
  * browsers, some desktop setups).
  */
-export default function GeoPhotoCapture({ onCapture, onClear, disabled }: Props) {
+export default function GeoPhotoCapture({ value, onCapture, onClear, disabled }: Props) {
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<GeolocationCoordinates | null>(null);
@@ -58,6 +60,26 @@ export default function GeoPhotoCapture({ onCapture, onClear, disabled }: Props)
     },
     []
   );
+
+  // Synchronize internal capture state when parent resets or provides value
+  useEffect(() => {
+    if (value === null) {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+      setPreview(null);
+      setLocation(null);
+      setStage((prev) => (prev === 'captured' ? 'idle' : prev));
+      setError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } else if (value && value.previewUrl) {
+      setPreview(value.previewUrl);
+      setStage('captured');
+    }
+  }, [value]);
 
   const getLocation = useCallback((): Promise<GeolocationCoordinates> => {
     return new Promise((resolve, reject) => {

@@ -151,7 +151,10 @@ export default function SubmitAttendanceTab({ employees }: Props) {
               </div>
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null);
+                  setGeoPhoto(null);
+                }}
                 className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
               >
                 <IconX className="h-4 w-4" />
@@ -176,6 +179,7 @@ export default function SubmitAttendanceTab({ employees }: Props) {
                       onClick={() => {
                         setSelected(emp);
                         setSearch('');
+                        setGeoPhoto(null);
                       }}
                       className="flex w-full flex-col items-start px-4 py-2 text-left hover:bg-muted/50"
                     >
@@ -248,6 +252,7 @@ export default function SubmitAttendanceTab({ employees }: Props) {
             4. Location Photo <span className="text-destructive">*</span>
           </p>
           <GeoPhotoCapture
+            value={geoPhoto}
             onCapture={setGeoPhoto}
             onClear={() => setGeoPhoto(null)}
             disabled={uploading || submitMut.isPending}
