@@ -9,11 +9,12 @@ import {
   IconFileText,
   IconLoader2,
   IconPlus,
+  IconPrinter,
   IconSettings,
   IconTrash,
 } from '@tabler/icons-react';
 import type { CSSProperties, ReactNode } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { resolveActAsTenant } from '@/features/organization/utils/actAsTenant';
@@ -83,7 +84,7 @@ const Btn = ({
 }: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: 'primary' | 'ghost' | 'danger' | 'outline';
+  variant?: 'primary' | 'ghost' | 'danger' | 'outline' | 'secondary';
   size?: 'sm' | 'md';
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
@@ -108,6 +109,7 @@ const Btn = ({
     ghost: { background: 'transparent', color: T.mutedFg },
     danger: { background: T.dangerBg, color: T.danger },
     outline: { background: 'transparent', color: T.fg, border: `1px solid ${T.border}` },
+    secondary: { background: 'transparent', color: T.fg, border: `1px solid ${T.border}` },
   };
   return (
     <button
@@ -713,57 +715,411 @@ function GeneratePanel({ templates }: { templates: HrLetterTemplate[] }) {
     error,
   } = useRenderedLetter(selectedTemplateId, selectedEmployeeId, actAsTenantId);
 
+  const rawPreviewHtml: string = rendered?.html || (rendered as any)?.renderedHtml || '';
+  const previewEmpName =
+    rendered?.employeeName ||
+    (rendered as any)?.tokensReplaced?.employeeName ||
+    (rendered as any)?.tokensReplaced?.name ||
+    employees.find((e) => e.employeeId === selectedEmployeeId)?.name ||
+    '';
+
+  const processedPreviewHtml = useMemo(() => {
+    if (!rawPreviewHtml) return '';
+
+    const emp = employees.find((e) => e.employeeId === selectedEmployeeId);
+    if (!emp && !rawPreviewHtml.includes('{{')) return rawPreviewHtml;
+
+    const todayStr = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const joiningStr = emp?.joiningDate
+      ? new Date(emp.joiningDate).toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : todayStr;
+
+    const norm = (s: string) => s.toLowerCase().replace(/[\s_\-]+/g, '');
+
+    const fallbackMap: Record<string, string> = {
+      employeename: emp?.name || '',
+      candidatename: emp?.name || '',
+      name: emp?.name || '',
+      designation: emp?.designation || '',
+      department: emp?.department?.name || '',
+      joiningdate: joiningStr,
+      worklocation: emp?.workLocation || '',
+      reportingto: emp?.managerName || '',
+      reportingmanager: emp?.managerName || '',
+      managername: emp?.managerName || '',
+      offerdate: todayStr,
+      todaydate: todayStr,
+      date: todayStr,
+      botivate: 'Botivate Services LLP',
+      companyname: 'Botivate Services LLP',
+      empcode: emp?.empCode || emp?.employeeId || '',
+    };
+
+    return (rawPreviewHtml as string).replace(/\{\{\s*([^}]+)\s*\}\}/g, (match: string, key: string) => {
+      const k = norm(key);
+      if (fallbackMap[k]) return fallbackMap[k];
+      return match;
+    });
+  }, [rawPreviewHtml, employees, selectedEmployeeId]);
+
+  const previewHtml = processedPreviewHtml;
+
+  const [downloading, setDownloading] = useState(false);
+
   const handleDownload = useCallback(async () => {
     if (!rendered || !printRef.current) return;
+    setDownloading(true);
+    let iframe: HTMLIFrameElement | null = null;
     try {
-      const { default: jsPDF } = await import('jspdf');
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(printRef.current, { scale: 2, useCORS: true });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const imgAspect = canvas.height / canvas.width;
-      const totalImgH = pageW * imgAspect;
-      let yOffset = 0;
-      let pageAdded = false;
+      const jspdfModule = await import('jspdf');
+      const JsPDF =
+        jspdfModule.jsPDF ||
+        (jspdfModule as any).default?.jsPDF ||
+        (jspdfModule as any).default;
 
-      while (yOffset < totalImgH) {
-        if (pageAdded) pdf.addPage();
-        pageAdded = true;
-
-        const sliceRatio = pageH / totalImgH;
-        const slicePixelH = Math.ceil(canvas.height * sliceRatio);
-        const srcY = Math.floor((yOffset / totalImgH) * canvas.height);
-
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = Math.min(slicePixelH, canvas.height - srcY);
-        const ctx = sliceCanvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(
-            canvas,
-            0,
-            srcY,
-            canvas.width,
-            sliceCanvas.height,
-            0,
-            0,
-            sliceCanvas.width,
-            sliceCanvas.height
-          );
-        }
-        const sliceH = (sliceCanvas.height / canvas.height) * totalImgH;
-        pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, sliceH);
-        yOffset += pageH;
+      if (!JsPDF || typeof JsPDF !== 'function') {
+        throw new Error('jsPDF library could not be loaded as a constructor');
       }
 
+      const html2canvasModule = await import('html2canvas');
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+
+      if (!html2canvas || typeof html2canvas !== 'function') {
+        throw new Error('html2canvas library could not be loaded');
+      }
+
+      // Create an isolated hidden iframe for html2canvas to render into.
+      // This isolates html2canvas completely from the parent document's Tailwind CSS v4 variables
+      // (e.g. oklch() color functions which html2canvas cannot parse).
+      iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.left = '-9999px';
+      iframe.style.top = '0';
+      iframe.style.width = '794px'; // Standard A4 width in px at 96 DPI
+      iframe.style.minHeight = '1123px';
+      iframe.style.border = 'none';
+      iframe.style.backgroundColor = '#ffffff';
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error('Could not access print frame document');
+
+      const isHtml =
+        previewHtml.includes('<p') ||
+        previewHtml.includes('<div') ||
+        previewHtml.includes('<table') ||
+        previewHtml.includes('<br');
+
       const tpl = templates.find((t) => t.id === selectedTemplateId);
-      pdf.save(`${tpl?.letterType ?? 'letter'}_${rendered.employeeName.replace(/\s+/g, '_')}.pdf`);
-      toast.success('PDF downloaded');
+      const safeName = (previewEmpName || 'letter').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${tpl?.name || 'Letter'}</title>
+            <style>
+              @page {
+                size: A4 portrait;
+                margin: 12mm 15mm 12mm 15mm;
+              }
+              *, *::before, *::after {
+                box-sizing: border-box;
+              }
+              html, body {
+                margin: 0;
+                padding: 0;
+                background-color: #ffffff;
+                color: #111111;
+                font-family: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-size: 13px;
+                line-height: 1.55;
+                -webkit-font-smoothing: antialiased;
+              }
+              #letter-page-container {
+                width: 794px;
+                margin: 0 auto;
+                padding: 36px 44px;
+                background-color: #ffffff;
+                white-space: ${isHtml ? 'normal' : 'pre-wrap'};
+                word-wrap: break-word;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 12px 0;
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+              tr, td, th {
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+              th, td {
+                border: 1px solid #d1d5db;
+                padding: 7px 11px;
+                text-align: left;
+                font-size: 12.5px;
+              }
+              th {
+                background-color: #f9fafb;
+                font-weight: 600;
+              }
+              p {
+                margin: 0 0 8px 0;
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+              .page-break-avoid, .signature-block {
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="letter-page-container">
+              ${printRef.current.innerHTML}
+            </div>
+          </body>
+        </html>
+      `);
+      iframeDoc.close();
+
+      // Wait a short moment to ensure iframe DOM and fonts are ready
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const letterContainer = iframeDoc.getElementById('letter-page-container') || iframeDoc.body;
+
+      const canvas = await html2canvas(letterContainer, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 794,
+      });
+
+      const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth(); // 210 mm
+      const pageH = pdf.internal.pageSize.getHeight(); // 297 mm
+
+      // Height of one A4 page in canvas pixel space (scale = 2)
+      const pageCanvasH = canvas.width * (pageH / pageW);
+
+      if (canvas.height <= pageCanvasH) {
+        // Entire letter fits comfortably on a single A4 page
+        const imgH = (canvas.height / canvas.width) * pageW;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgH);
+      } else {
+        // Multi-page: smart slicing at paragraph/row boundaries to avoid cutting across text/tables
+        const containerRect = letterContainer.getBoundingClientRect();
+        const breakElements = Array.from(
+          letterContainer.querySelectorAll('p, tr, table, h1, h2, h3, h4, div, .page-break-avoid')
+        ) as HTMLElement[];
+
+        const breakPoints: number[] = [];
+        for (const el of breakElements) {
+          const rect = el.getBoundingClientRect();
+          const topInCanvas = (rect.top - containerRect.top) * 2;
+          const bottomInCanvas = (rect.bottom - containerRect.top) * 2;
+          if (topInCanvas > 50 && topInCanvas < canvas.height - 50) {
+            breakPoints.push(Math.round(topInCanvas));
+          }
+          if (bottomInCanvas > 50 && bottomInCanvas < canvas.height - 50) {
+            breakPoints.push(Math.round(bottomInCanvas));
+          }
+        }
+        const sortedBreaks = Array.from(new Set(breakPoints)).sort((a, b) => a - b);
+
+        let currentY = 0;
+        let pageCount = 0;
+
+        while (currentY < canvas.height) {
+          if (pageCount > 0) pdf.addPage();
+          pageCount++;
+
+          const remainingCanvasH = canvas.height - currentY;
+          if (remainingCanvasH <= pageCanvasH) {
+            // Remaining fits on this last page
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = canvas.width;
+            sliceCanvas.height = remainingCanvasH;
+            const ctx = sliceCanvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(
+                canvas,
+                0,
+                currentY,
+                canvas.width,
+                remainingCanvasH,
+                0,
+                0,
+                canvas.width,
+                remainingCanvasH
+              );
+            }
+            const sliceH = (remainingCanvasH / canvas.width) * pageW;
+            pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, sliceH);
+            break;
+          }
+
+          // Find candidate clean boundary in [currentY + 0.75 * pageCanvasH, currentY + pageCanvasH]
+          const maxCutY = currentY + pageCanvasH;
+          const minCutY = currentY + pageCanvasH * 0.72;
+          let bestCutY = maxCutY;
+
+          const validBreaks = sortedBreaks.filter((bp) => bp >= minCutY && bp <= maxCutY);
+          if (validBreaks.length > 0) {
+            bestCutY = validBreaks[validBreaks.length - 1];
+          }
+
+          const sliceH = bestCutY - currentY;
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceH;
+          const ctx = sliceCanvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(
+              canvas,
+              0,
+              currentY,
+              canvas.width,
+              sliceH,
+              0,
+              0,
+              canvas.width,
+              sliceH
+            );
+          }
+          const pdfSliceH = (sliceH / canvas.width) * pageW;
+          pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, pdfSliceH);
+          currentY = bestCutY;
+        }
+      }
+
+      pdf.save(`${tpl?.letterType ?? 'letter'}_${safeName}.pdf`);
+      toast.success('PDF downloaded successfully');
     } catch (_err) {
-      toast.error('Failed to generate PDF');
+      console.error('Failed to generate PDF:', _err);
+      const msg = _err instanceof Error ? _err.message : 'Failed to generate PDF';
+      toast.error(msg);
+    } finally {
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+      setDownloading(false);
     }
-  }, [rendered, templates, selectedTemplateId]);
+  }, [rendered, templates, selectedTemplateId, previewEmpName, previewHtml]);
+
+  const handlePrint = useCallback(() => {
+    if (!printRef.current) return;
+    const isHtml =
+      previewHtml.includes('<p') ||
+      previewHtml.includes('<div') ||
+      previewHtml.includes('<table') ||
+      previewHtml.includes('<br');
+    const tpl = templates.find((t) => t.id === selectedTemplateId);
+    const title = `${tpl?.name || 'Letter'} - ${previewEmpName || 'Document'}`;
+
+    const printIframe = document.createElement('iframe');
+    printIframe.style.position = 'fixed';
+    printIframe.style.left = '-9999px';
+    printIframe.style.top = '0';
+    printIframe.style.width = '794px';
+    printIframe.style.border = 'none';
+    document.body.appendChild(printIframe);
+
+    const doc = printIframe.contentDocument || printIframe.contentWindow?.document;
+    if (!doc) {
+      toast.error('Could not prepare print document');
+      return;
+    }
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title></title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 0;
+            }
+            *, *::before, *::after {
+              box-sizing: border-box;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background-color: #ffffff;
+            }
+            body {
+              padding: 14mm 16mm;
+              color: #111111;
+              font-family: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              font-size: 13px;
+              line-height: 1.55;
+              -webkit-font-smoothing: antialiased;
+              white-space: ${isHtml ? 'normal' : 'pre-wrap'};
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              margin: 12px 0;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            tr, td, th {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            th, td {
+              border: 1px solid #d1d5db;
+              padding: 7px 11px;
+              text-align: left;
+              font-size: 12.5px;
+            }
+            th {
+              background-color: #f9fafb;
+              font-weight: 600;
+            }
+            p {
+              margin: 0 0 8px 0;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .page-break-avoid, .signature-block {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+          </style>
+        </head>
+        <body>
+          ${printRef.current.innerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      printIframe.contentWindow?.focus();
+      printIframe.contentWindow?.print();
+      setTimeout(() => {
+        if (printIframe.parentNode) printIframe.parentNode.removeChild(printIframe);
+      }, 3000);
+    }, 400);
+  }, [previewHtml, templates, selectedTemplateId, previewEmpName]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -822,8 +1178,16 @@ function GeneratePanel({ templates }: { templates: HrLetterTemplate[] }) {
             style={{ minWidth: 240 }}
           />
         </div>
-        <Btn onClick={handleDownload} disabled={!rendered}>
-          <IconDownload size={14} /> Download PDF
+        {/* <Btn onClick={handleDownload} disabled={!rendered || downloading}>
+          {downloading ? (
+            <IconLoader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+          ) : (
+            <IconDownload size={14} />
+          )}
+          {downloading ? 'Generating PDF…' : 'Download PDF'}
+        </Btn> */}
+        <Btn variant="outline" onClick={handlePrint} disabled={!rendered}>
+          <IconPrinter size={14} /> Print / Save PDF
         </Btn>
       </div>
 
@@ -866,7 +1230,7 @@ function GeneratePanel({ templates }: { templates: HrLetterTemplate[] }) {
             }}
           >
             <span style={{ fontSize: 13, fontWeight: 700, color: T.fg }}>
-              Preview — {rendered.employeeName}
+              Preview — {previewEmpName}
             </span>
           </div>
           <div
@@ -888,9 +1252,16 @@ function GeneratePanel({ templates }: { templates: HrLetterTemplate[] }) {
                 color: '#111',
                 maxWidth: 680,
                 margin: '0 auto',
+                whiteSpace:
+                  previewHtml.includes('<p') ||
+                  previewHtml.includes('<div') ||
+                  previewHtml.includes('<br') ||
+                  previewHtml.includes('<table')
+                    ? 'normal'
+                    : 'pre-wrap',
               }}
               // biome-ignore lint/security/noDangerouslySetInnerHtml: template HTML from own server
-              dangerouslySetInnerHTML={{ __html: rendered.html }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           </div>
         </div>

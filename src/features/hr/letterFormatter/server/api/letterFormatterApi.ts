@@ -79,5 +79,15 @@ export const renderLetter = async (
     params: { employeeId },
     ...actAsTenantHeaders(actAsTenantId),
   });
-  return res.data.data;
+  const data = res.data.data;
+  return {
+    ...data,
+    html: data.html || data.renderedHtml || '',
+    employeeName:
+      data.employeeName ||
+      data.tokensReplaced?.employeeName ||
+      data.tokensReplaced?.name ||
+      data.tokensReplaced?.candidateName ||
+      '',
+  };
 };

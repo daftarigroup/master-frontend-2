@@ -66,7 +66,13 @@ export interface SaveFieldValuesPayload {
 
 export interface RenderedLetter {
   html: string;
+  renderedHtml?: string;
   employeeName: string;
+  templateId?: number;
+  templateName?: string;
+  letterType?: string;
+  employeeId?: string;
+  tokensReplaced?: Record<string, string>;
 }
 
 export const LETTER_TYPE_LABELS: Record<LetterType, string> = {
