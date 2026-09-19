@@ -57,6 +57,16 @@ export default function SubmitAttendanceTab({ employees }: Props) {
   const [time, setTime] = useState(nowHHMM());
   const [geoPhoto, setGeoPhoto] = useState<GeoPhoto | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; title?: string } | null>(null);
+
+  useEffect(() => {
+    if (!viewingPhoto) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setViewingPhoto(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewingPhoto]);
 
   const submitMut = useSubmitPunch();
   const { data: todayPunches = [], isLoading: loadingToday } = useAttendancePunches({ date: today });
@@ -287,31 +297,90 @@ export default function SubmitAttendanceTab({ employees }: Props) {
           </p>
         ) : (
           <div className="max-h-[520px] space-y-2 overflow-y-auto">
-            {todayPunches.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center gap-3 rounded-xl border border-border p-2.5"
-              >
-                <img
-                  src={getPublicFileUrl(p.photoUrl)}
-                  alt={p.employeeName ?? p.employeeId}
-                  className="h-11 w-11 shrink-0 rounded-lg object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold">
-                    {p.employeeName ?? p.employeeId}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {PUNCH_OPTIONS.find((o) => o.key === p.punchType)?.label ?? p.punchType} ·{' '}
-                    {fmt12(p.punchTime)}
-                  </p>
+            {todayPunches.map((p) => {
+              const photoSrc = getPublicFileUrl(p.photoUrl);
+              const punchLabel =
+                PUNCH_OPTIONS.find((o) => o.key === p.punchType)?.label ?? p.punchType;
+              const formattedTime = fmt12(p.punchTime);
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-3 rounded-xl border border-border p-2.5 transition-colors hover:bg-muted/30"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setViewingPhoto({
+                        url: photoSrc,
+                        title: `${p.employeeName ?? p.employeeId} · ${punchLabel} (${formattedTime})`,
+                      })
+                    }
+                    className="group relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                    title="Click to view full photo"
+                  >
+                    <img
+                      src={photoSrc}
+                      alt={p.employeeName ?? p.employeeId}
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-110"
+                    />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold">
+                      {p.employeeName ?? p.employeeId}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {punchLabel} · {formattedTime}
+                    </p>
+                  </div>
+                  <IconMapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </div>
-                <IconMapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Full image preview popup */}
+      {viewingPhoto && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setViewingPhoto(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex flex-col max-h-[90vh] max-w-[90vw] sm:max-w-xl md:max-w-2xl overflow-hidden rounded-2xl border border-border/80 bg-card p-3 shadow-2xl"
+          >
+            {/* Minimized Close Button at top right corner */}
+            <button
+              type="button"
+              onClick={() => setViewingPhoto(null)}
+              className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white shadow-md transition hover:bg-black/80 focus:outline-none cursor-pointer"
+              title="Close (Esc)"
+              aria-label="Close photo preview"
+            >
+              <IconX className="h-4 w-4" />
+            </button>
+
+            <div className="overflow-hidden rounded-xl bg-black/10 flex items-center justify-center">
+              <img
+                src={viewingPhoto.url}
+                alt={viewingPhoto.title ?? 'Attendance photo'}
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg"
+              />
+            </div>
+
+            {viewingPhoto.title && (
+              <div className="mt-2.5 px-1 flex items-center justify-between">
+                <p className="text-[13px] font-semibold truncate text-foreground">
+                  {viewingPhoto.title}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
