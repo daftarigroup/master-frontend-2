@@ -1340,6 +1340,7 @@ export const MainEmployeeAttendance = () => {
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [saveResult, setSaveResult] = useState<{ saved: number; failed: number } | null>(null);
   const fmt12My = (t: string | null): string => {
     if (!t) return '—';
@@ -1562,6 +1563,53 @@ export const MainEmployeeAttendance = () => {
     a.click();
     URL.revokeObjectURL(url);
   }, [employees, allShifts]);
+
+  const handleExport = useCallback(async () => {
+    if (!rows || rows.length === 0) {
+      toast.error('No attendance data to export');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const exportData = rows.map(({ emp, summary }) => {
+        const reg = summary?.regularDays ?? 0;
+        const regularFormatted = reg % 1 === 0 ? reg : Number(reg.toFixed(1));
+        const regularDisplay = summary?.workingDays
+          ? `${regularFormatted} / ${summary.workingDays}`
+          : `${regularFormatted}`;
+
+        return {
+          'Employee Code': emp.empCode || emp.employeeId,
+          'Employee Name': emp.name || emp.email || '—',
+          'Department': emp.department?.name || '—',
+          'Designation': emp.designation || '—',
+          'Regular Days': regularDisplay,
+          'Holiday Work': summary?.holidayWorked ?? 0,
+          'Weekend Work': summary?.weekendWorked ?? 0,
+          'Total Present': summary?.totalPresent ?? 0,
+          'Absent Days': summary?.absentDays ?? 0,
+          'Leave Days': summary?.leaveDays ?? 0,
+          'Late Days': summary?.lateDays ?? 0,
+          'Attendance %': `${(summary?.attendancePercentage ?? 0).toFixed(1)}%`,
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
+
+      const monthName = MONTHS[selectedMonth - 1] || `Month_${selectedMonth}`;
+      XLSX.writeFile(workbook, `Attendance_Records_${monthName}_${selectedYear}.xlsx`);
+      toast.success(`Exported ${rows.length} attendance record${rows.length !== 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Failed to export attendance records:', error);
+      toast.error('Failed to export attendance records');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [rows, selectedMonth, selectedYear]);
 
   const saveImportedRows = useCallback(async () => {
     const toSave = previewRows.filter((r) => selectedRowIds.has(r._id));
@@ -1963,9 +2011,16 @@ export const MainEmployeeAttendance = () => {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                       >
-                        <IconDownload className="h-3.5 w-3.5" /> Export
+                        {isExporting ? (
+                          <IconLoader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <IconDownload className="h-3.5 w-3.5" />
+                        )}
+                        Export
                       </button>
                     </>
                   )}

@@ -19,6 +19,7 @@ import {
   IconWorld,
 } from '@tabler/icons-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { resolveActAsTenant } from '@/features/organization/utils/actAsTenant';
 import { cn } from '@/lib/utils';
@@ -102,6 +103,7 @@ const MainAttendance = () => {
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [saveResult, setSaveResult] = useState<{ saved: number; failed: number } | null>(null);
 
   const departments = getDepartments(employees);
@@ -306,6 +308,54 @@ const MainAttendance = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExport = useCallback(async () => {
+    const list = filteredData.length > 0 ? filteredData : (monthlyData ?? []);
+    if (list.length === 0) {
+      toast.error('No attendance data to export');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const exportData = list.map((emp) => {
+        const reg = emp.regularDays ?? 0;
+        const regularFormatted = reg % 1 === 0 ? reg : Number(reg.toFixed(1));
+        const regularDisplay = emp.workingDays
+          ? `${regularFormatted} / ${emp.workingDays}`
+          : `${regularFormatted}`;
+
+        return {
+          'Employee Code': emp.empCode || emp.employeeId,
+          'Employee Name': emp.employeeName || '—',
+          'Department': emp.department || '—',
+          'Regular Days': regularDisplay,
+          'Holiday Work': emp.holidayWorked ?? 0,
+          'Weekend Work': emp.weekendWorked ?? 0,
+          'Total Present': emp.totalPresent ?? 0,
+          'Absent Days': emp.absentDays ?? 0,
+          'Leave Days': emp.leaveDays ?? 0,
+          'Late Days': emp.lateDays ?? 0,
+          'Attendance %': `${(emp.attendancePercentage ?? 0).toFixed(1)}%`,
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Summary');
+
+      const exportYear = now.getFullYear();
+      const exportMonthName = now.toLocaleDateString('en-IN', { month: 'long' });
+      XLSX.writeFile(workbook, `Attendance_Summary_${exportMonthName}_${exportYear}.xlsx`);
+      toast.success(`Exported ${list.length} attendance record${list.length !== 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Failed to export attendance records:', error);
+      toast.error('Failed to export attendance records');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filteredData, monthlyData]);
+
   const saveImportedRows = async () => {
     const toSave = previewRows.filter((r) => selectedRowIds.has(r._id));
     setIsSaving(true);
@@ -499,9 +549,15 @@ const MainAttendance = () => {
               </button>
               <button
                 type="button"
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-auto"
+                onClick={handleExport}
+                disabled={isExporting}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
               >
-                <IconDownload className="h-4 w-4" />
+                {isExporting ? (
+                  <IconLoader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <IconDownload className="h-4 w-4" />
+                )}
                 Export Report
               </button>
             </div>
