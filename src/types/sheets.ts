@@ -376,10 +376,33 @@ export type UserPermissions = {
     pettyCashReports?: boolean;
     pettyCashSettings?: boolean;
 
+    // Asset System Permissions
+    assetDash?: boolean;
+    assetAll?: boolean;
+
     // Maintenance System Permissions
     maintDash?: boolean;
     maintMachines?: boolean;
+    maintAddMachine?: boolean;
+    maintPlans?: boolean;
+    maintTasks?: boolean;
+    maintAssignTask?: boolean;
+    maintPending?: boolean;
     maintBreakdowns?: boolean;
+    maintDailyLog?: boolean;
+    maintDailyReport?: boolean;
+    maintCalendar?: boolean;
+    maintReports?: boolean;
+
+    // Repair System Permissions
+    repairTasks?: boolean;
+    repairStoreIn?: boolean;
+    repairSentMachine?: boolean;
+    repairPartsVendors?: boolean;
+    repairPayment?: boolean;
+    repairAmc?: boolean;
+    repairCalendar?: boolean;
+    repairDailyReport?: boolean;
 
 
     // HR & Facilities Management System Permissions
@@ -495,9 +518,28 @@ export const allPermissionKeys = [
     "pettyCashLedger",
     "pettyCashReports",
     "pettyCashSettings",
+    "assetDash",
+    "assetAll",
     "maintDash",
     "maintMachines",
+    "maintAddMachine",
+    "maintPlans",
+    "maintTasks",
+    "maintAssignTask",
+    "maintPending",
     "maintBreakdowns",
+    "maintDailyLog",
+    "maintDailyReport",
+    "maintCalendar",
+    "maintReports",
+    "repairTasks",
+    "repairStoreIn",
+    "repairSentMachine",
+    "repairPartsVendors",
+    "repairPayment",
+    "repairAmc",
+    "repairCalendar",
+    "repairDailyReport",
     "hrDash",
     "hrIndent",
     "hrCandidate",

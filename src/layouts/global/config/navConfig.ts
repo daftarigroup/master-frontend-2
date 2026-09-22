@@ -31,9 +31,12 @@ import {
   FileText,
   Wallet,
   Settings,
+  Calendar,
   CalendarOff,
   Package,
   Briefcase,
+  Box,
+  Hammer,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -353,6 +356,103 @@ export const NAV_CONFIG: SystemNavConfig[] = [
       },
     ],
   },
+  {
+    id: 'asset',
+    name: 'Asset Management',
+    icon: Box,
+    accentClassName: 'blue',
+    dashboardPath: '/asset/dashboard',
+    groups: [
+      {
+        key: 'asset_overview',
+        title: 'Overview',
+        items: [
+          { name: 'Dashboard', path: '/asset/dashboard', icon: LayoutDashboard, gateKey: 'assetDash' },
+          { name: 'All Assets', path: '/asset/assets', icon: Package, gateKey: 'assetAll' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'maintenance',
+    name: 'Maintenance Management',
+    icon: Wrench,
+    accentClassName: 'emerald',
+    dashboardPath: '/maintenance/dashboard',
+    groups: [
+      {
+        key: 'maint_overview',
+        title: 'Overview',
+        items: [
+          { name: 'Dashboard', path: '/maintenance/dashboard', icon: LayoutDashboard, gateKey: 'maintDash' },
+          { name: 'Calendar', path: '/maintenance/calendar', icon: Calendar, gateKey: 'maintCalendar' },
+          { name: 'Reports', path: '/maintenance/reports', icon: BarChart, gateKey: 'maintReports' },
+        ],
+      },
+      {
+        key: 'maint_equipment',
+        title: 'Equipment & Plans',
+        items: [
+          { name: 'All Machines', path: '/maintenance/machines', icon: Settings, gateKey: 'maintMachines' },
+          { name: 'Add Machine', path: '/maintenance/machines/new', icon: PlusCircle, gateKey: 'maintAddMachine' },
+          { name: 'Maintenance Plans', path: '/maintenance/plans', icon: ClipboardList, gateKey: 'maintPlans' },
+        ],
+      },
+      {
+        key: 'maint_tasks',
+        title: 'Work Orders & Tasks',
+        items: [
+          { name: 'Scheduled Tasks', path: '/maintenance/tasks', icon: CheckSquare, gateKey: 'maintTasks' },
+          { name: 'Assign Task', path: '/maintenance/assign-task', icon: UserCheck, gateKey: 'maintAssignTask' },
+          { name: 'Pending Approval', path: '/maintenance/pending', icon: ShieldCheck, gateKey: 'maintPending' },
+        ],
+      },
+      {
+        key: 'maint_logs',
+        title: 'Operations & Logs',
+        items: [
+          { name: 'Breakdown Log', path: '/maintenance/breakdown-log', icon: FileWarning, gateKey: 'maintBreakdowns' },
+          { name: 'Daily Machine Log', path: '/maintenance/daily-machine-log', icon: History, gateKey: 'maintDailyLog' },
+          { name: 'Daily Report', path: '/maintenance/daily-report', icon: FileText, gateKey: 'maintDailyReport' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'repair',
+    name: 'Repair Management',
+    icon: Hammer,
+    accentClassName: 'amber',
+    dashboardPath: '/repair/tasks',
+    groups: [
+      {
+        key: 'repair_ops',
+        title: 'Repair Operations',
+        items: [
+          { name: 'Repair Tasks', path: '/repair/tasks', icon: ClipboardCheck, gateKey: 'repairTasks' },
+          { name: 'Store In (Receipts)', path: '/repair/storein', icon: PackageCheck, gateKey: 'repairStoreIn' },
+          { name: 'Sent Machines', path: '/repair/sentmachine', icon: Truck, gateKey: 'repairSentMachine' },
+        ],
+      },
+      {
+        key: 'repair_spares_vendors',
+        title: 'Parts & Contracts',
+        items: [
+          { name: 'Parts & Vendors', path: '/repair/parts-vendors', icon: Package, gateKey: 'repairPartsVendors' },
+          { name: 'Repair Payments', path: '/repair/payment', icon: CreditCard, gateKey: 'repairPayment' },
+          { name: 'AMC Contracts', path: '/repair/amc', icon: ShieldCheck, gateKey: 'repairAmc' },
+        ],
+      },
+      {
+        key: 'repair_reports',
+        title: 'Reports & Schedule',
+        items: [
+          { name: 'Repair Calendar', path: '/repair/calendar', icon: Calendar, gateKey: 'repairCalendar' },
+          { name: 'Daily Report', path: '/repair/dailyreport', icon: FileSpreadsheet, gateKey: 'repairDailyReport' },
+        ],
+      },
+    ],
+  },
 ];
 
 /**
@@ -392,6 +492,9 @@ export const getSystemIdFromPath = (pathname: string): string => {
   if (pathname.startsWith('/document') || pathname.startsWith('/loan')) return 'document';
   if (pathname.startsWith('/petty-cash')) return 'petty_cash';
   if (pathname.startsWith('/hr')) return 'hr';
+  if (pathname.startsWith('/asset')) return 'asset';
+  if (pathname.startsWith('/maintenance') || pathname.startsWith('/maintenancepro')) return 'maintenance';
+  if (pathname.startsWith('/repair')) return 'repair';
 
   for (const system of NAV_CONFIG) {
     if (system.id === 'global') continue;

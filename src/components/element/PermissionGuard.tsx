@@ -145,13 +145,57 @@ export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
     pettyCashSettings: 'petty_cash_settings',
     petty_cash_settings: 'petty_cash_settings',
 
-    // Maintenance
+    // Asset Management
+    assetDash: 'asset_dashboard',
+    asset_dash: 'asset_dashboard',
+    asset_dashboard: 'asset_dashboard',
+    assetAll: 'asset_all',
+    asset_all: 'asset_all',
+
+    // Maintenance Management
     maintDash: 'maint_dash',
     maint_dash: 'maint_dash',
+    maint_dashboard: 'maint_dash',
     maintMachines: 'maint_machines',
     maint_machines: 'maint_machines',
+    maintAddMachine: 'maint_add_machine',
+    maint_add_machine: 'maint_add_machine',
+    maintPlans: 'maint_plans',
+    maint_plans: 'maint_plans',
+    maintTasks: 'maint_tasks',
+    maint_tasks: 'maint_tasks',
+    maintAssignTask: 'maint_assign_task',
+    maint_assign_task: 'maint_assign_task',
+    maintPending: 'maint_pending',
+    maint_pending: 'maint_pending',
     maintBreakdowns: 'maint_breakdowns',
     maint_breakdowns: 'maint_breakdowns',
+    maintDailyLog: 'maint_daily_log',
+    maint_daily_log: 'maint_daily_log',
+    maintDailyReport: 'maint_daily_report',
+    maint_daily_report: 'maint_daily_report',
+    maintCalendar: 'maint_calendar',
+    maint_calendar: 'maint_calendar',
+    maintReports: 'maint_reports',
+    maint_reports: 'maint_reports',
+
+    // Repair Management
+    repairTasks: 'repair_tasks',
+    repair_tasks: 'repair_tasks',
+    repairStoreIn: 'repair_storein',
+    repair_storein: 'repair_storein',
+    repairSentMachine: 'repair_sentmachine',
+    repair_sentmachine: 'repair_sentmachine',
+    repairPartsVendors: 'repair_parts_vendors',
+    repair_parts_vendors: 'repair_parts_vendors',
+    repairPayment: 'repair_payment',
+    repair_payment: 'repair_payment',
+    repairAmc: 'repair_amc',
+    repair_amc: 'repair_amc',
+    repairCalendar: 'repair_calendar',
+    repair_calendar: 'repair_calendar',
+    repairDailyReport: 'repair_daily_report',
+    repair_daily_report: 'repair_daily_report',
 
 
     // HR & Facilities Management

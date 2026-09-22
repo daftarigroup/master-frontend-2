@@ -27,7 +27,7 @@ const MAX_SIDEBAR_WIDTH = 480;
 const COLLAPSE_THRESHOLD = 135;
 const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '4rem';
-const SIDEBAR_KEYBOARD_SHORTCUT = ';';
+const SIDEBAR_KEYBOARD_SHORTCUT = 'i';
 
 type SidebarContextProps = {
     state: 'expanded' | 'collapsed';
@@ -240,10 +240,13 @@ function SidebarProvider({
         return isMobile ? setOpenMobile((prev) => !prev) : setOpen((prev) => !prev);
     }, [isMobile, setOpen, setOpenMobile]);
 
-    // Adds a keyboard shortcut to toggle the sidebar.
+    // Adds a keyboard shortcut to toggle the sidebar (Ctrl+I / Cmd+I).
     React.useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                (event.key.toLowerCase() === 'i' || event.key === SIDEBAR_KEYBOARD_SHORTCUT || event.key === ';')
+            ) {
                 event.preventDefault();
                 toggleSidebar();
             }
@@ -443,6 +446,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
             data-slot="sidebar-trigger"
             variant="ghost"
             size="icon"
+            title="Toggle Sidebar (Ctrl+I)"
             className={cn('size-7', className)}
             onClick={(event) => {
                 onClick?.(event);

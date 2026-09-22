@@ -52,9 +52,18 @@ export const AppLauncherOverlay: React.FC = () => {
   );
 
   useEffect(() => {
+    if (!isLauncherOpen && shouldRender) {
+      handleClose();
+    }
+  }, [isLauncherOpen, shouldRender]);
+
+  useEffect(() => {
     if (!isLauncherOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose();
+      if (e.key === 'Escape' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j')) {
+        e.preventDefault();
+        handleClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -96,15 +105,18 @@ export const AppLauncherOverlay: React.FC = () => {
       >
         <div className="w-full max-w-3xl lg:max-w-sm bg-popover/95 backdrop-blur-xl border border-border/80 shadow-2xl rounded-3xl lg:rounded-2xl ring-1 ring-black/5 dark:ring-white/10 p-6 lg:p-4 pointer-events-auto">
           <div className="flex items-center justify-between mb-5 lg:mb-3">
-            <div>
+            <div className="flex items-center gap-2">
               <h2 className="text-sm lg:text-xs font-extrabold uppercase tracking-wider text-foreground">Switch System</h2>
-              <p className="text-[11px] text-muted-foreground lg:hidden">Choose a system to open its workspace</p>
+              <kbd className="hidden sm:inline-flex h-4.5 select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                Ctrl+J
+              </kbd>
+              <p className="text-[11px] text-muted-foreground lg:hidden">Choose a system</p>
             </div>
             <button
               type="button"
               onClick={handleClose}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
-              title="Close"
+              title="Close (Esc or Ctrl+J)"
             >
               <X className="size-4" />
             </button>

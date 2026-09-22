@@ -23,7 +23,7 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = '19rem';
 const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '4rem';
-const SIDEBAR_KEYBOARD_SHORTCUT = ';';
+const SIDEBAR_KEYBOARD_SHORTCUT = 'i';
 
 type SidebarContextProps = {
     state: 'expanded' | 'collapsed';
@@ -86,10 +86,13 @@ function SidebarProvider({
         return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
     }, [isMobile, setOpen, setOpenMobile]);
 
-    // Adds a keyboard shortcut to toggle the sidebar.
+    // Adds a keyboard shortcut to toggle the sidebar (Ctrl+I / Cmd+I).
     React.useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                (event.key.toLowerCase() === 'i' || event.key === SIDEBAR_KEYBOARD_SHORTCUT || event.key === ';')
+            ) {
                 event.preventDefault();
                 toggleSidebar();
             }

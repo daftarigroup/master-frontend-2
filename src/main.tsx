@@ -98,8 +98,6 @@ const VendorBidding = React.lazy(() => import('./components/views/VendorBidding'
 import { isAllowedFirm } from '@/lib/firmAccess';
 import GlobalDashboard from '@/shared/components/layout/GlobalDashboard';
 import StoreSystemLayout from '@/systems/store/layout/StoreSystemLayout';
-import MaintenanceSystemLayout from '@/systems/maintenance/layout/MaintenanceSystemLayout';
-import MaintenanceDashboard from '@/systems/maintenance/views/MaintenanceDashboard';
 import ChecklistSystemLayout from '@/systems/checklist/layout/ChecklistSystemLayout';
 
 const ChecklistDashboard = React.lazy(() => import('./components/views/checklist/ChecklistDashboard'));
@@ -169,6 +167,42 @@ import {
     HrSocialSitePage,
     HrReportsPage,
 } from '@/systems/hr/pages';
+
+// Asset Management System Components
+import AssetSystemLayout from '@/systems/asset/layout/AssetSystemLayout';
+import { AssetDashboardPage, AssetListPage, AssetDetailPage, PublicAssetDetailPage } from '@/systems/asset/pages';
+
+// Maintenance Management System Components
+import MaintenanceSystemLayout from '@/systems/maintenance/layout/MaintenanceSystemLayout';
+import {
+    MaintenanceDashboardPage,
+    MachinesListPage,
+    MachineDetailsPage,
+    AddMachinePage,
+    MachinePartsPage,
+    MaintenancePlansPage,
+    MaintenanceTasksPage,
+    AssignTaskPage,
+    BreakdownLogPage,
+    DailyMachineLogPage,
+    DailyReportPage,
+    MaintenanceCalendarPage,
+    PendingApprovalPage,
+    MaintenanceReportsPage,
+} from '@/systems/maintenance/pages';
+
+// Repair Management System Components
+import RepairSystemLayout from '@/systems/repair/layout/RepairSystemLayout';
+import {
+    RepairTasksPage,
+    PartAndVendorPage,
+    RepairStoreinPage,
+    RepairSentmachinePage,
+    RepairPaymentPage,
+    AMCPage,
+    RepairCalendarPage,
+    RepairDailyReportPage,
+} from '@/systems/repair/pages';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
@@ -1006,6 +1040,8 @@ if (rootElement) {
                                 <Route path="/login" element={<Login />} />
                                 <Route path="/create-account" element={<CreateAccount />} />
                                 <Route path="/bid/:token" element={<VendorBidding />} />
+                                <Route path="/product/:sn" element={<PublicAssetDetailPage />} />
+                                <Route path="/asset/public/:sn" element={<PublicAssetDetailPage />} />
 
                                 {/* Project Selection Guarded Route */}
                                 <Route
@@ -1083,13 +1119,6 @@ if (rootElement) {
                                     <Route path="admin/license" element={<Navigate to="/license" replace />} />
                                 </Route>
 
-                                {/* Layer 2 MAINTENANCE SYSTEM MODULE (Proof of Concept) */}
-                                <Route path="maintenance" element={<MaintenanceSystemLayout />}>
-                                    <Route index element={<Navigate to="/maintenance/dashboard" replace />} />
-                                    <Route path="dashboard" element={<MaintenanceDashboard />} />
-                                    <Route path="machines" element={<MaintenanceDashboard />} />
-                                    <Route path="breakdowns" element={<MaintenanceDashboard />} />
-                                </Route>
 
                                 {/* Layer 2 CHECKLIST & DELEGATION SYSTEM MODULE */}
                                 <Route
@@ -1164,6 +1193,69 @@ if (rootElement) {
                                     <Route path="social-site" element={<HrSocialSitePage />} />
                                     {/* <Route path="reports" element={<HrReportsPage />} /> */}
                                 </Route>
+
+                                {/* Layer 2 ASSET MANAGEMENT SYSTEM MODULE */}
+                                <Route path="asset" element={<AssetSystemLayout />}>
+                                    <Route index element={<Navigate to="/asset/dashboard" replace />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="assetDash"><AssetDashboardPage /></GatedRoute>} />
+                                    <Route path="assets" element={<GatedRoute identifier="assetAll"><AssetListPage /></GatedRoute>} />
+                                    <Route path="asset/:id" element={<GatedRoute identifier="assetAll"><AssetDetailPage /></GatedRoute>} />
+                                </Route>
+
+                                {/* MAINTENANCE MANAGEMENT SYSTEM MODULE */}
+                                <Route path="maintenance" element={<MaintenanceSystemLayout />}>
+                                    <Route index element={<Navigate to="/maintenance/dashboard" replace />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="maintDash"><MaintenanceDashboardPage /></GatedRoute>} />
+                                    <Route path="machines" element={<GatedRoute identifier="maintMachines"><MachinesListPage /></GatedRoute>} />
+                                    <Route path="machines/new" element={<GatedRoute identifier="maintAddMachine"><AddMachinePage /></GatedRoute>} />
+                                    <Route path="machines/:id" element={<GatedRoute identifier="maintMachines"><MachineDetailsPage /></GatedRoute>} />
+                                    <Route path="machines/:id/parts" element={<GatedRoute identifier="maintMachines"><MachinePartsPage /></GatedRoute>} />
+                                    <Route path="plans" element={<GatedRoute identifier="maintPlans"><MaintenancePlansPage /></GatedRoute>} />
+                                    <Route path="tasks" element={<GatedRoute identifier="maintTasks"><MaintenanceTasksPage /></GatedRoute>} />
+                                    <Route path="unique_task" element={<GatedRoute identifier="maintTasks"><MaintenanceTasksPage /></GatedRoute>} />
+                                    <Route path="assign-task" element={<GatedRoute identifier="maintAssignTask"><AssignTaskPage /></GatedRoute>} />
+                                    <Route path="assign_task" element={<GatedRoute identifier="maintAssignTask"><AssignTaskPage /></GatedRoute>} />
+                                    <Route path="breakdown-log" element={<GatedRoute identifier="maintBreakdowns"><BreakdownLogPage /></GatedRoute>} />
+                                    <Route path="daily-machine-log" element={<GatedRoute identifier="maintDailyLog"><DailyMachineLogPage /></GatedRoute>} />
+                                    <Route path="daily-report" element={<GatedRoute identifier="maintDailyReport"><DailyReportPage /></GatedRoute>} />
+                                    <Route path="calendar" element={<GatedRoute identifier="maintCalendar"><MaintenanceCalendarPage /></GatedRoute>} />
+                                    <Route path="pending" element={<GatedRoute identifier="maintPending"><PendingApprovalPage /></GatedRoute>} />
+                                    <Route path="reports" element={<GatedRoute identifier="maintReports"><MaintenanceReportsPage /></GatedRoute>} />
+                                    <Route path="team-report" element={<Navigate to="/maintenance/dashboard" replace />} />
+                                </Route>
+
+                                {/* REPAIR MANAGEMENT SYSTEM MODULE */}
+                                <Route path="repair" element={<RepairSystemLayout />}>
+                                    <Route index element={<Navigate to="/repair/tasks" replace />} />
+                                    <Route path="tasks" element={<GatedRoute identifier="repairTasks"><RepairTasksPage /></GatedRoute>} />
+                                    <Route path="repair-tasks" element={<GatedRoute identifier="repairTasks"><RepairTasksPage /></GatedRoute>} />
+                                    <Route path="parts-vendors" element={<GatedRoute identifier="repairPartsVendors"><PartAndVendorPage /></GatedRoute>} />
+                                    <Route path="part-and-vendor" element={<GatedRoute identifier="repairPartsVendors"><PartAndVendorPage /></GatedRoute>} />
+                                    <Route path="storein" element={<GatedRoute identifier="repairStoreIn"><RepairStoreinPage /></GatedRoute>} />
+                                    <Route path="sentmachine" element={<GatedRoute identifier="repairSentMachine"><RepairSentmachinePage /></GatedRoute>} />
+                                    <Route path="payment" element={<GatedRoute identifier="repairPayment"><RepairPaymentPage /></GatedRoute>} />
+                                    <Route path="amc" element={<GatedRoute identifier="repairAmc"><AMCPage /></GatedRoute>} />
+                                    <Route path="calendar" element={<GatedRoute identifier="repairCalendar"><RepairCalendarPage /></GatedRoute>} />
+                                    <Route path="dailyreport" element={<GatedRoute identifier="repairDailyReport"><RepairDailyReportPage /></GatedRoute>} />
+                                    <Route path="breakdown" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
+                                    <Route path="breakdown/*" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
+                                </Route>
+
+                                {/* Backward compatibility alias for legacy maintenancepro and repair paths */}
+                                <Route path="repair/breakdown/report" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
+                                <Route path="repair/breakdown" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
+                                <Route path="repair/breakdown/*" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
+                                <Route path="maintenancepro/breakdown-log" element={<Navigate to="/maintenance/breakdown-log" replace />} />
+                                <Route path="maintenancepro/assign-task" element={<Navigate to="/maintenance/assign-task" replace />} />
+                                <Route path="maintenancepro/assign_task" element={<Navigate to="/maintenance/assign-task" replace />} />
+                                <Route path="maintenancepro/plans" element={<Navigate to="/maintenance/plans" replace />} />
+                                <Route path="maintenancepro/machines" element={<Navigate to="/maintenance/machines" replace />} />
+                                <Route path="maintenancepro/machines/new" element={<Navigate to="/maintenance/machines/new" replace />} />
+                                <Route path="maintenancepro/tasks" element={<Navigate to="/maintenance/tasks" replace />} />
+                                <Route path="maintenancepro/repair-tasks" element={<Navigate to="/repair/tasks" replace />} />
+                                <Route path="maintenancepro/calendar" element={<Navigate to="/maintenance/calendar" replace />} />
+                                <Route path="maintenancepro/reports" element={<Navigate to="/maintenance/reports" replace />} />
+                                <Route path="maintenancepro/*" element={<Navigate to="/maintenance/dashboard" replace />} />
 
                                 {/* Doc-submanager backward compatibility aliases */}
                                 <Route path="doc-submanager/*" element={<Navigate to="/document/dashboard" replace />} />

@@ -1,8 +1,8 @@
 import { 
     Building, ShieldCheck, User as UserIcon, Users, Eye, EyeClosed, MoreHorizontal, Pencil, 
-    ShieldUser, Trash, UserPlus, Fingerprint, Lock, Shield, Settings, CheckSquare, 
-    ListTodo, ClipboardCheck, Truck, BarChart3, Box, Crown, ChevronDown, ChevronRight,
-    Wrench, Layers, AlertCircle, Edit3, ShieldAlert, Wallet, FileText, Files, Package, UserCog
+    ShieldUser, Trash, UserPlus, Fingerprint, Lock, CheckSquare, 
+    Box, Crown, ChevronDown, ChevronRight,
+    Wrench, Layers, Edit3, Wallet, FileText, UserCog, Hammer
 } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -569,40 +569,191 @@ const SYSTEM_HIERARCHY: SystemConfig[] = [
                 editKeys: ['hrLetter'],
             },
         ]
-    }
-    /*
+    },
+    {
+        id: 'asset',
+        name: 'Asset Management System',
+        badgeBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800',
+        badgeText: 'Asset Module',
+        icon: <Box className="size-5 text-sky-500" />,
+        description: 'Fixed asset registers, barcode/QR asset tags, equipment valuations, and capital lifecycle tracking',
+        pages: [
+            {
+                id: 'asset_dashboard',
+                name: 'Asset Dashboard',
+                description: 'Asset portfolio analytics, valuation metrics, and category distribution',
+                viewKeys: ['assetDash'],
+                editKeys: ['assetDash'],
+            },
+            {
+                id: 'asset_all',
+                name: 'All Assets',
+                description: 'Complete asset database, serial numbers, specifications, QR resolution, and status',
+                viewKeys: ['assetAll'],
+                editKeys: ['assetAll'],
+            },
+        ]
+    },
     {
         id: 'maintenance',
         name: 'Maintenance & Machinery System',
-        badgeBg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+        badgeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
         badgeText: 'Maintenance Module',
-        icon: <Wrench className="size-5 text-orange-500" />,
-        description: 'Preventive maintenance schedules, machine breakdown logs, work orders, and spare parts',
+        icon: <Wrench className="size-5 text-emerald-500" />,
+        description: 'Equipment master, preventive schedules, work order assignments, daily machine logs, and breakdowns',
         pages: [
             {
                 id: 'maint_dash',
-                name: 'Maintenance Overview',
-                description: 'Asset health dashboards, pending service alerts, and uptime tracking',
+                name: 'Maintenance Dashboard',
+                description: 'Fleet health metrics, MTBF/MTTR KPIs, active tasks, and service alerts',
                 viewKeys: ['maintDash'],
                 editKeys: ['maintDash'],
             },
             {
                 id: 'maint_machines',
-                name: 'Machine Registry',
-                description: 'Equipment assets, serial numbers, specifications, and warranty logs',
+                name: 'Equipment Master (All Machines)',
+                description: 'Central machinery database, ownership status (owned/hired), specs, and QR codes',
                 viewKeys: ['maintMachines'],
                 editKeys: ['maintMachines'],
             },
             {
+                id: 'maint_add_machine',
+                name: 'Add Machine',
+                description: 'Register new machinery, specifications, warranty, and initial meter reading',
+                viewKeys: ['maintAddMachine'],
+                editKeys: ['maintAddMachine'],
+            },
+            {
+                id: 'maint_plans',
+                name: 'Maintenance Plans',
+                description: 'Preventive maintenance plans, recurring service schedules, and inspection checklists',
+                viewKeys: ['maintPlans'],
+                editKeys: ['maintPlans'],
+            },
+            {
+                id: 'maint_tasks',
+                name: 'Scheduled Tasks',
+                description: 'Work order execution, technician checklists, task completion, and proof uploads',
+                viewKeys: ['maintTasks'],
+                editKeys: ['maintTasks'],
+            },
+            {
+                id: 'maint_assign_task',
+                name: 'Assign Task',
+                description: 'Dispatch work orders to technicians, assign priority, and set execution schedules',
+                viewKeys: ['maintAssignTask'],
+                editKeys: ['maintAssignTask'],
+            },
+            {
+                id: 'maint_pending',
+                name: 'Pending Approvals',
+                description: 'Review and verify completed service tasks and approve work order closures',
+                viewKeys: ['maintPending'],
+                editKeys: ['maintPending'],
+            },
+            {
                 id: 'maint_breakdowns',
-                name: 'Breakdown Requests',
-                description: 'Urgent breakdown tickets, downtime tracking, and repair work orders',
+                name: 'Breakdown Log',
+                description: 'Urgent breakdown tickets, downtime tracking, root cause analysis, and repair requests',
                 viewKeys: ['maintBreakdowns'],
                 editKeys: ['maintBreakdowns'],
             },
+            {
+                id: 'maint_daily_log',
+                name: 'Daily Machine Log',
+                description: 'Daily operator shift entries, meter readings, runtime hours, fuel used, and field logs',
+                viewKeys: ['maintDailyLog'],
+                editKeys: ['maintDailyLog'],
+            },
+            {
+                id: 'maint_daily_report',
+                name: 'Daily Report',
+                description: 'Consolidated machinery operations and daily fleet utilization summaries',
+                viewKeys: ['maintDailyReport'],
+                editKeys: ['maintDailyReport'],
+            },
+            {
+                id: 'maint_calendar',
+                name: 'Maintenance Calendar',
+                description: 'Visual calendar for upcoming servicing, planned shutdowns, and maintenance timelines',
+                viewKeys: ['maintCalendar'],
+                editKeys: ['maintCalendar'],
+            },
+            {
+                id: 'maint_reports',
+                name: 'Maintenance Reports',
+                description: 'Machine utilization trends, maintenance cost breakdowns, and compliance reports',
+                viewKeys: ['maintReports'],
+                editKeys: ['maintReports'],
+            },
+        ]
+    },
+    {
+        id: 'repair',
+        name: 'Repair Management System',
+        badgeBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+        badgeText: 'Repair Module',
+        icon: <Hammer className="size-5 text-amber-500" />,
+        description: 'Workshop repair tasks, sent machines, spare parts, repair disbursements, and AMC agreements',
+        pages: [
+            {
+                id: 'repair_tasks',
+                name: 'Repair Tasks',
+                description: 'Active repair work orders, mechanic assignments, and repair milestone tracking',
+                viewKeys: ['repairTasks'],
+                editKeys: ['repairTasks'],
+            },
+            {
+                id: 'repair_storein',
+                name: 'Store In (Receipts)',
+                description: 'Inward gate receipts for machinery arriving for repair or returning from workshop',
+                viewKeys: ['repairStoreIn'],
+                editKeys: ['repairStoreIn'],
+            },
+            {
+                id: 'repair_sentmachine',
+                name: 'Sent Machines',
+                description: 'Track equipment dispatched to external vendor workshops for major overhaul',
+                viewKeys: ['repairSentMachine'],
+                editKeys: ['repairSentMachine'],
+            },
+            {
+                id: 'repair_parts_vendors',
+                name: 'Parts & Vendors',
+                description: 'Spare parts inventory catalog, replacement stock, and repair vendor directory',
+                viewKeys: ['repairPartsVendors'],
+                editKeys: ['repairPartsVendors'],
+            },
+            {
+                id: 'repair_payment',
+                name: 'Repair Payments',
+                description: 'Record repair invoices, labour charges, and vendor disbursement approvals',
+                viewKeys: ['repairPayment'],
+                editKeys: ['repairPayment'],
+            },
+            {
+                id: 'repair_amc',
+                name: 'AMC Contracts',
+                description: 'Annual Maintenance Contracts, vendor service terms, SLAs, and contract renewals',
+                viewKeys: ['repairAmc'],
+                editKeys: ['repairAmc'],
+            },
+            {
+                id: 'repair_calendar',
+                name: 'Repair Calendar',
+                description: 'Repair workshop schedules, expected delivery timelines, and servicing dates',
+                viewKeys: ['repairCalendar'],
+                editKeys: ['repairCalendar'],
+            },
+            {
+                id: 'repair_daily_report',
+                name: 'Repair Daily Report',
+                description: 'Daily report on machine repairs, workshop activity, and turnaround time',
+                viewKeys: ['repairDailyReport'],
+                editKeys: ['repairDailyReport'],
+            },
         ]
     }
-    */
 ];
 
 export default function ManageUsers() {
@@ -626,6 +777,10 @@ export default function ManageUsers() {
         checklist: true,
         document: true,
         petty_cash: true,
+        hr: true,
+        asset: true,
+        maintenance: true,
+        repair: true,
     });
     const [pageAccessModes, setPageAccessModes] = useState<Record<string, 'VIEW' | 'EDIT'>>({});
     const [pageDeleteModes, setPageDeleteModes] = useState<Record<string, boolean>>({});

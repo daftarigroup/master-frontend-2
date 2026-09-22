@@ -47,13 +47,13 @@ const CollapsibleSection: React.FC<{
         <div
             className={cn(
                 'grid transition-all duration-200 ease-out',
-                isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none',
+                isOpen
+                    ? 'grid-rows-[1fr] opacity-100'
+                    : 'grid-rows-[0fr] opacity-0 pointer-events-none',
                 className
             )}
         >
-            <div className="overflow-hidden">
-                {children}
-            </div>
+            <div className="overflow-hidden">{children}</div>
         </div>
     );
 };
@@ -77,13 +77,23 @@ export const GlobalSidebar: React.FC = () => {
                 ':scope > [data-slot="sidebar-group"]'
             );
             if (!sections.length) return;
+            gsap.killTweensOf(sections);
             gsap.fromTo(
                 sections,
-                { opacity: 0, y: 5 },
-                { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out', stagger: 0.02 }
+                { autoAlpha: 0.4, y: 3 },
+                {
+                    autoAlpha: 1,
+                    y: 0,
+                    duration: 0.16,
+                    ease: 'power1.out',
+                    stagger: 0.012,
+                    force3D: true,
+                    overwrite: 'auto',
+                    clearProps: 'transform,visibility,opacity',
+                }
             );
         },
-        { dependencies: [effectiveActiveSystemId, isMobile ? openMobile : null], scope: contentRef }
+        { dependencies: [effectiveActiveSystemId, isMobile ? openMobile : null], scope: contentRef, revertOnUpdate: true }
     );
 
     const { indentSheet, storeInSheet, issueSheet, paymentsSheet } = useSheets();
@@ -99,17 +109,23 @@ export const GlobalSidebar: React.FC = () => {
     useEffect(() => {
         const currentTarget = getSystemIdFromPath(location.pathname);
         if (currentTarget && currentTarget !== 'global') {
-            setOpenSystems((prev) => ({ ...prev, [currentTarget]: true }));
+            setOpenSystems((prev) => {
+                if (prev[currentTarget]) return prev;
+                return { ...prev, [currentTarget]: true };
+            });
             if (activeSystemId !== currentTarget) {
                 setActiveSystemId(currentTarget);
             }
         }
-    }, [location.pathname]);
+    }, [location.pathname, activeSystemId, setActiveSystemId]);
 
     // When activeSystemId switches, make sure that system is marked open
     useEffect(() => {
         if (activeSystemId && activeSystemId !== 'global') {
-            setOpenSystems((prev) => ({ ...prev, [activeSystemId]: true }));
+            setOpenSystems((prev) => {
+                if (prev[activeSystemId]) return prev;
+                return { ...prev, [activeSystemId]: true };
+            });
         }
     }, [activeSystemId]);
 
@@ -126,97 +142,83 @@ export const GlobalSidebar: React.FC = () => {
         return matched.length > 0 ? matched : permitted;
     }, [user, effectiveActiveSystemId]);
 
-    // Instantly position active nav item into view when sidebar is opened or active route changes
-    useLayoutEffect(() => {
-        if ((isMobile && openMobile) || !isMobile) {
-            const scrollToActive = () => {
-                if (!contentRef.current) return;
-                const activeEl =
-                    contentRef.current.querySelector<HTMLElement>('[data-active="true"]');
+    // Non-blocking position adjustment for mobile drawer when opened
+    useEffect(() => {
+        if (isMobile && openMobile) {
+            const timer = setTimeout(() => {
+                const activeEl = contentRef.current?.querySelector<HTMLElement>('[data-active="true"]');
                 if (activeEl) {
-                    activeEl.scrollIntoView({
-                        block: 'center',
-                        behavior: 'instant' as ScrollBehavior,
-                    });
+                    activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                 }
-            };
-
-            scrollToActive();
-            const rafId = requestAnimationFrame(scrollToActive);
-            return () => cancelAnimationFrame(rafId);
+            }, 100);
+            return () => clearTimeout(timer);
         }
-    }, [location.pathname, openMobile, isMobile]);
+    }, [isMobile, openMobile]);
 
     const toggleSystem = (systemId: string) => {
         setOpenSystems((prev) => {
-            const currentIsOpen = typeof prev[systemId] === 'boolean'
-                ? prev[systemId]
-                : systemId === effectiveActiveSystemId || systemId === targetSystemId || effectiveActiveSystemId === 'global';
+            const currentIsOpen =
+                typeof prev[systemId] === 'boolean'
+                    ? prev[systemId]
+                    : systemId === effectiveActiveSystemId ||
+                      systemId === targetSystemId ||
+                      effectiveActiveSystemId === 'global';
             return { ...prev, [systemId]: !currentIsOpen };
         });
     };
-
 
     const isPermitted = (gateKey?: string) => {
         if (!gateKey) return true;
         return hasPageAccess(user, undefined, 'VIEW', gateKey as keyof UserPermissions);
     };
 
-    const getBadgeCount = (itemPath: string): number => {
+    // Memoize badge counts so filtering across thousands of sheet rows only runs
+    // when sheet records actually change, making item lookups O(1) during renders.
+    const badgeCounts: Record<string, number> = useMemo(() => {
         try {
             const permittedFirms =
                 user?.administrate || !user?.firm_access || user?.firm_access.length === 0
                     ? undefined
                     : user.firm_access;
 
-            if (itemPath === '/store/inventory/issue-data') {
-                const rows = filterByFirmAccess(issueSheet || [], permittedFirms);
-                return rows.filter(
+            const issueRows = filterByFirmAccess(issueSheet || [], permittedFirms);
+            const indentRows = filterByFirmAccess(indentSheet || [], permittedFirms);
+            const storeInRows = filterByFirmAccess(storeInSheet || [], permittedFirms);
+            const paymentsRows = filterByFirmAccess(paymentsSheet || [], permittedFirms);
+
+            const result: Record<string, number> = {
+                '/store/inventory/issue-data': issueRows.filter(
                     (s: any) =>
                         s.planned1 &&
                         s.planned1.toString().trim() !== '' &&
                         (!s.actual1 || s.actual1.toString().trim() === '')
-                ).length;
-            }
-            if (itemPath === '/store/indents/approve') {
-                const rows = filterByFirmAccess(indentSheet || [], permittedFirms);
-                return rows.filter((s: any) => !s.actual1 || s.actual1.toString().trim() === '')
-                    .length;
-            }
-            if (itemPath === '/store/indents/vendor-rates') {
-                const rows = filterByFirmAccess(indentSheet || [], permittedFirms);
-                return rows.filter(
+                ).length,
+                '/store/indents/approve': indentRows.filter(
+                    (s: any) => !s.actual1 || s.actual1.toString().trim() === ''
+                ).length,
+                '/store/indents/vendor-rates': indentRows.filter(
                     (s: any) =>
                         s.planned2 &&
                         s.planned2.toString().trim() !== '' &&
                         (!s.actual2 || s.actual2.toString().trim() === '')
-                ).length;
-            }
-            if (itemPath === '/store/indents/technical-approval') {
-                const rows = filterByFirmAccess(indentSheet || [], permittedFirms);
-                return rows.filter(
+                ).length,
+                '/store/indents/technical-approval': indentRows.filter(
                     (s: any) =>
                         s.planned3 &&
                         s.planned3.toString().trim() !== '' &&
                         (!s.actual3 || s.actual3.toString().trim() === '') &&
                         !s.vendor1Rank &&
                         !s.vendor1_rank
-                ).length;
-            }
-            if (itemPath === '/store/indents/management-approval') {
-                const rows = filterByFirmAccess(indentSheet || [], permittedFirms);
-                return rows.filter(
+                ).length,
+                '/store/indents/management-approval': indentRows.filter(
                     (s: any) =>
                         s.planned4 &&
                         s.planned4.toString().trim() !== '' &&
                         (!s.actual4 || s.actual4.toString().trim() === '') &&
                         (!s.approvedVendorName || s.approvedVendorName.toString().trim() === '') &&
                         (!s.approved_vendor_name || s.approved_vendor_name.toString().trim() === '')
-                ).length;
-            }
-            if (itemPath === '/store/procurement/pending-po') {
-                const rows = filterByFirmAccess(indentSheet || [], permittedFirms);
-                return rows.filter(
+                ).length,
+                '/store/procurement/pending-po': indentRows.filter(
                     (s: any) =>
                         (s.poRequred === 'Yes' ||
                             s.po_requred === 'Yes' ||
@@ -225,11 +227,8 @@ export const GlobalSidebar: React.FC = () => {
                             s.approved_vendor_name) &&
                         (!s.poNumber || s.poNumber.toString().trim() === '') &&
                         (!s.po_number || s.po_number.toString().trim() === '')
-                ).length;
-            }
-            if (itemPath === '/store/procurement/lifting') {
-                const rows = filterByFirmAccess(indentSheet || [], permittedFirms);
-                return rows.filter((s: any) => {
+                ).length,
+                '/store/procurement/lifting': indentRows.filter((s: any) => {
                     const poNum = String(s.poNumber || s.po_number || '').trim();
                     const isPoCreated = Boolean(poNum !== '' && poNum !== '-');
                     const appQty = Number(
@@ -237,34 +236,28 @@ export const GlobalSidebar: React.FC = () => {
                     );
                     const pendingQty = s.pendingPoQty != null ? Number(s.pendingPoQty) : appQty;
                     return isPoCreated && pendingQty > 0;
-                }).length;
-            }
-            if (itemPath === '/store/receipts/store-in') {
-                const rows = filterByFirmAccess(storeInSheet || [], permittedFirms);
-                return rows.filter((i: any) => i.planned6 && i.planned6 !== '' && !i.actual6)
-                    .length;
-            }
-            if (itemPath === '/store/receipts/hod-check') {
-                const rows = filterByFirmAccess(storeInSheet || [], permittedFirms);
-                return rows.filter(
+                }).length,
+                '/store/receipts/store-in': storeInRows.filter(
+                    (i: any) => i.planned6 && i.planned6 !== '' && !i.actual6
+                ).length,
+                '/store/receipts/hod-check': storeInRows.filter(
                     (s: any) =>
                         s.hod_status === 'Pending' ||
                         s.hodStatus === 'Pending' ||
                         (s.plannedHod && (!s.actualHod || s.actualHod === ''))
-                ).length;
-            }
-            if (itemPath === '/store/finance/make-payment') {
-                const rows = filterByFirmAccess(paymentsSheet || [], permittedFirms);
-                return rows.filter((p: any) => !p.actual && p.status1 !== 'hod_approval_pending')
-                    .length;
-            }
+                ).length,
+                '/store/finance/make-payment': paymentsRows.filter(
+                    (p: any) => !p.actual && p.status1 !== 'hod_approval_pending'
+                ).length,
+            };
+            return result;
         } catch (e) {
-            if (import.meta.env.DEV) {
-                console.error(`[getBadgeCount] Failed for route "${itemPath}":`, e);
-            }
-            return 0;
+            return {};
         }
-        return 0;
+    }, [user, indentSheet, storeInSheet, issueSheet, paymentsSheet]);
+
+    const getBadgeCount = (itemPath: string): number => {
+        return badgeCounts[itemPath] || 0;
     };
 
     return (
@@ -356,9 +349,12 @@ export const GlobalSidebar: React.FC = () => {
 
                         {visibleSystems.map((system) => {
                             const accent = getAccentStyle(system.accentClassName);
-                            const isOpen = typeof openSystems[system.id] === 'boolean'
-                                ? openSystems[system.id]
-                                : system.id === effectiveActiveSystemId || system.id === targetSystemId || effectiveActiveSystemId === 'global';
+                            const isOpen =
+                                typeof openSystems[system.id] === 'boolean'
+                                    ? openSystems[system.id]
+                                    : system.id === effectiveActiveSystemId ||
+                                      system.id === targetSystemId ||
+                                      effectiveActiveSystemId === 'global';
                             const isPrimary = system.id === effectiveActiveSystemId;
                             const Icon = system.icon;
 
@@ -399,7 +395,9 @@ export const GlobalSidebar: React.FC = () => {
                                             >
                                                 <Icon size={18} />
                                             </div>
-                                            <span className="truncate text-sm font-semibold">{system.name}</span>
+                                            <span className="truncate text-sm font-semibold">
+                                                {system.name}
+                                            </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             {system.disabled && (
@@ -429,13 +427,18 @@ export const GlobalSidebar: React.FC = () => {
                                                         .filter((item) => isPermitted(item.gateKey))
                                                         .map((item) => {
                                                             const count = getBadgeCount(item.path);
-                                                            const isSelected = location.pathname === item.path;
+                                                            const isSelected =
+                                                                location.pathname === item.path;
                                                             const ItemIcon = item.icon;
 
                                                             return (
                                                                 <SidebarMenuItem
                                                                     key={item.path}
-                                                                    data-active={isSelected ? 'true' : 'false'}
+                                                                    data-active={
+                                                                        isSelected
+                                                                            ? 'true'
+                                                                            : 'false'
+                                                                    }
                                                                 >
                                                                     <SidebarMenuButton
                                                                         asChild

@@ -15,13 +15,14 @@ export const useAppSelector = <T>(selector: (state: any) => T): T => {
           id: user.id || 'usr-1',
           name: user.name || user.username || 'Admin User',
           email: user.email || 'admin@master.com',
-          role: user.role || Role.ADMIN,
+          role: user.role === 'SUPER_ADMIN' ? 'SUPERADMIN' : user.role || (user.administrate ? Role.ADMIN : Role.USER),
+          administrate: !!user.administrate,
           tenantId: user.firm_id?.toString() || 'tenant-1',
           tenant: { id: user.firm_id?.toString() || 'tenant-1', name: user.firmNameMatch || 'Master Org' },
           company: { id: user.firm_id?.toString() || '1', name: user.firmNameMatch || 'Master' },
         }
       : selectUser({}),
-    role: user?.role || Role.ADMIN,
+    role: user?.role === 'SUPER_ADMIN' ? 'SUPERADMIN' : user?.role || (user?.administrate ? Role.ADMIN : Role.USER),
     orgViewMode: 'all',
   };
 

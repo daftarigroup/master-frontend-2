@@ -48,12 +48,7 @@ import { AppLauncherOverlay } from './AppLauncherOverlay';
 
 export const TopBar: React.FC = () => {
     const { user, logout } = useAuth();
-    const {
-        selectedProject,
-        selectProject,
-        availableProjects,
-        isAllProjects,
-    } = useProject();
+    const { selectedProject, selectProject, availableProjects, isAllProjects } = useProject();
     const { updateAll, allLoading, indentSheet, storeInSheet, issueSheet, paymentsSheet } =
         useSheets();
     const { activeSystemId, setActiveSystemId, isSearchOpen, setIsSearchOpen, setIsLauncherOpen } =
@@ -64,7 +59,8 @@ export const TopBar: React.FC = () => {
     const canSelectAll = useMemo(() => {
         if (!user) return false;
         if (user.administrate || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
-        if (!user.firm_access || user.firm_access.length === 0 || user.firm_access.length > 1) return true;
+        if (!user.firm_access || user.firm_access.length === 0 || user.firm_access.length > 1)
+            return true;
         return false;
     }, [user]);
 
@@ -78,30 +74,44 @@ export const TopBar: React.FC = () => {
         }
     }, [location.pathname, activeSystemId, setActiveSystemId]);
 
-    // GSAP smooth transition for system name pill
+    // GSAP smooth transition for system name pill (GPU accelerated, clean overwrite)
     useGSAP(
         () => {
             if (!systemTitleRef.current) return;
+            gsap.killTweensOf(systemTitleRef.current);
             gsap.fromTo(
                 systemTitleRef.current,
-                { opacity: 0, y: -4 },
-                { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out' }
+                { autoAlpha: 0.3, y: -3 },
+                {
+                    autoAlpha: 1,
+                    y: 0,
+                    duration: 0.15,
+                    ease: 'power1.out',
+                    force3D: true,
+                    overwrite: 'auto',
+                    clearProps: 'transform,opacity,visibility',
+                }
             );
         },
-        { dependencies: [activeSystemId] }
+        { dependencies: [activeSystemId], revertOnUpdate: true }
     );
 
-    // Cmd+K / Ctrl+K keyboard shortcut listener
+    // Keyboard shortcut listeners:
+    // Cmd+K / Ctrl+K -> Global Search
+    // Cmd+J / Ctrl+J -> Switch System (AppLauncherOverlay)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
                 e.preventDefault();
-                setIsSearchOpen(true);
+                setIsSearchOpen((prev: boolean) => !prev);
+            } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+                e.preventDefault();
+                setIsLauncherOpen((prev: boolean) => !prev);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [setIsSearchOpen]);
+    }, [setIsSearchOpen, setIsLauncherOpen]);
 
     // Kept in sync with `NAV_CONFIG` (src/layouts/global/config/navConfig.ts) —
     // both the sidebar and this switcher read from the same set of systems.
@@ -384,12 +394,17 @@ export const TopBar: React.FC = () => {
                     size="sm"
                     className="gap-2 h-8 font-medium px-2 sm:px-3 shrink-0"
                     onClick={() => setIsLauncherOpen(true)}
-                    title="Switch system"
+                    title="Switch system (Ctrl+J)"
                 >
                     <Grid className="size-4 text-primary shrink-0" />
                     <span ref={systemTitleRef} className="capitalize hidden sm:inline">
-                        {systems.find((s) => s.id === activeSystemId)?.name || getSystemConfig(activeSystemId)?.name || 'Select System'}
+                        {systems.find((s) => s.id === activeSystemId)?.name ||
+                            getSystemConfig(activeSystemId)?.name ||
+                            'Select System'}
                     </span>
+                    <kbd className="pointer-events-none hidden md:inline-flex h-4.5 select-none items-center gap-0.5 rounded border bg-muted/80 px-1 font-mono text-[9px] font-medium text-muted-foreground">
+                        <span className="text-[9px]">⌘</span>J
+                    </kbd>
                     <ChevronDown className="size-3 text-muted-foreground hidden sm:inline shrink-0" />
                 </Button>
 
@@ -545,8 +560,9 @@ export const TopBar: React.FC = () => {
                         </div>
                         <div
                             className={cn(
-                                "divide-y",
-                                pendingReminders.length > 5 && "max-h-[310px] overflow-y-auto custom-scrollbar-thin"
+                                'divide-y',
+                                pendingReminders.length > 5 &&
+                                    'max-h-[310px] overflow-y-auto custom-scrollbar-thin'
                             )}
                         >
                             {pendingReminders.length > 0 ? (
