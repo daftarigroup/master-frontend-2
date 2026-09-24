@@ -91,6 +91,7 @@ export type IndentSheet = {
     paymentype: string;
     cancelOty?: number; // "Cancel Oty" column becomes "cancelOty" in camelCase
     firm_id?: number;
+    siteLocation?: string;
 };
 export type PaymentHistory = {
     timestamp: string;

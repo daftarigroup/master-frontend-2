@@ -322,6 +322,7 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                     // so deriving approved_quantity - po_qty gives wrong (negative) values
                     pendingPoQty: r.pending_po_qty != null ? Number(r.pending_po_qty) : (r.approved_quantity || 0) - (Number(r.po_qty) || 0),
                     pendingLiftQty: r.pending_lift_qty != null ? Number(r.pending_lift_qty) : (r.approved_quantity || 0) - (Number(r.received_quantity) || 0),
+                    siteLocation: (r as any).site_location || (r as any).siteLocation || (r as any).area_of_use || '',
                     rowIndex: String(r.id),
                 }));
                 setIndentSheet(mapped as unknown as IndentSheet[]);

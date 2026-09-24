@@ -16,6 +16,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableFooter,
 } from '@/components/ui/table';
 import { useState, useRef, type ReactNode, useEffect } from 'react';
 import { Input } from '../ui/input';
@@ -137,6 +138,7 @@ interface DataTableProps<TData, TValue> {
     searchFields?: string[];
     dataLoading?: boolean;
     children?: ReactNode;
+    footer?: ReactNode | ((info: { table: any; filteredRows: Row<TData>[] }) => ReactNode);
     className?: string;
     extraActions?: ReactNode;
     rowSelection?: Record<string, boolean>;
@@ -173,7 +175,8 @@ export default function DataTable<TData, TValue>({
     data,
     searchFields = [],
     dataLoading,
-    children: _children,
+    children,
+    footer,
     className,
     extraActions,
     rowSelection = {},
@@ -428,6 +431,24 @@ export default function DataTable<TData, TValue>({
                                 </TableRow>
                             )}
                         </TableBody>
+                        {table.getFooterGroups().some(fg => fg.headers.some(h => h.column.columnDef.footer)) && (
+                            <TableFooter className="sticky bottom-0 z-10 bg-background border-t-2 shadow-xs">
+                                {table.getFooterGroups().map((footerGroup) => (
+                                    <TableRow key={footerGroup.id}>
+                                        {footerGroup.headers.map((header) => (
+                                            <TableCell key={header.id} className="font-bold">
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(
+                                                        header.column.columnDef.footer,
+                                                        header.getContext()
+                                                    )}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableFooter>
+                        )}
                     </Table>
                 </div>
                 <div className="absolute bottom-1.5 inset-x-1 z-10 pointer-events-none">
@@ -462,6 +483,15 @@ export default function DataTable<TData, TValue>({
                     </div>
                 )}
             </div>
+
+            {footer && (
+                <div className="flex justify-end items-center w-full">
+                    {typeof footer === 'function'
+                        ? footer({ table, filteredRows: table.getFilteredRowModel().rows })
+                        : footer}
+                </div>
+            )}
+            {children}
         </div>
     );
 }

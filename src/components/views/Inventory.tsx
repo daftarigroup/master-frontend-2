@@ -404,7 +404,8 @@ export default () => {
                             rate,
                             amount: Number((quantity * rate).toFixed(2)),
                             party,
-                            projectName: i.firmName || 'N/A'
+                            projectName: i.firmName || 'N/A',
+                            siteLocation: i.siteLocation || i.site_location || i.areaOfUse || i.area_of_use || i.location || 'N/A'
                         };
                     });
                 break;
@@ -439,7 +440,8 @@ export default () => {
                             rate,
                             amount: Number((quantity * rate).toFixed(2)),
                             party,
-                            projectName: i.firmName || 'N/A'
+                            projectName: i.firmName || 'N/A',
+                            siteLocation: i.siteLocation || i.site_location || i.areaOfUse || i.area_of_use || i.location || 'N/A'
                         };
                     });
                 break;
@@ -547,6 +549,7 @@ export default () => {
                             amount: Number((quantity * itemFallbackRate).toFixed(2)),
                             party: is.constructorName || is.constructor_name || is.issuePersonName || is.issue_person_name || is.issueTo || is.party || 'N/A',
                             projectName: is.projectName || is.firm_name || 'N/A',
+                            siteLocation: is.siteLocation || is.site_location || is.location || 'N/A'
                         };
                     });
                 break;
@@ -638,7 +641,8 @@ export default () => {
                             rate: itemFallbackRate,
                             amount: Number((qty * itemFallbackRate).toFixed(2)),
                             party: t.fromProject,
-                            projectName: t.toProject || 'N/A'
+                            projectName: t.toProject || 'N/A',
+                            siteLocation: t.siteLocation || t.site_location || t.location || 'N/A'
                         };
                     });
 
@@ -656,7 +660,8 @@ export default () => {
                             rate: itemFallbackRate,
                             amount: Number((qty * itemFallbackRate).toFixed(2)),
                             party: t.fromProject,
-                            projectName: t.toProject || 'N/A'
+                            projectName: t.toProject || 'N/A',
+                            siteLocation: t.siteLocation || t.site_location || t.location || 'N/A'
                         };
                     });
                 break;
@@ -684,6 +689,7 @@ export default () => {
                     <div className="text-wrap max-w-40 text-center">{row.original.itemName}</div>
                 );
             },
+            footer: () => <span className="font-bold">Total</span>,
         },
         { accessorKey: 'groupHead', header: 'Group Head' },
         { accessorKey: 'uom', header: 'UOM' },
@@ -767,7 +773,14 @@ export default () => {
                 </div>
             )
         },
-        { accessorKey: 'current', header: 'Quantity' },
+        {
+            accessorKey: 'current',
+            header: 'Quantity',
+            footer: ({ table }) => {
+                const total = table.getFilteredRowModel().rows.reduce((sum, r) => sum + (Number(r.original?.current) || 0), 0);
+                return <span className="font-bold">{total.toLocaleString('en-IN')}</span>;
+            },
+        },
         {
             accessorKey: 'avgPrice',
             header: 'Avg Price',
@@ -779,9 +792,17 @@ export default () => {
         {
             accessorKey: 'totalPrice',
             header: 'Total Price',
-
             cell: ({ row }) => {
-                return <>&#8377;{row.original.totalPrice}</>;
+                const val = Number(row.original.totalPrice) || 0;
+                return <>&#8377;{val.toLocaleString('en-IN')}</>;
+            },
+            footer: ({ table }) => {
+                const total = table.getFilteredRowModel().rows.reduce((sum, r) => sum + (Number(r.original?.totalPrice) || 0), 0);
+                return (
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                        &#8377;{total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </span>
+                );
             },
         },
     ], [ClickableCell]);
@@ -846,24 +867,46 @@ export default () => {
                 columns={columns}
                 dataLoading={isLoading}
                 searchFields={['itemName', 'firmName', 'groupHead', 'uom', 'status']}
-                className="h-[80dvh]"
+                className="h-[75dvh]"
+                footer={({ filteredRows }) => {
+                    const totalSum = filteredRows.reduce((sum, r) => sum + (Number((r.original as any)?.totalPrice) || 0), 0);
+                    const totalQty = filteredRows.reduce((sum, r) => sum + (Number((r.original as any)?.current) || 0), 0);
+                    return (
+                        <div className="flex flex-wrap justify-end items-center gap-3 sm:gap-6 pt-2 pb-1 px-1 text-sm w-full">
+                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                <span>Total Items:</span>
+                                <span className="font-semibold text-foreground">{filteredRows.length}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                <span>Total Qty:</span>
+                                <span className="font-bold text-foreground">{totalQty.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                <span className="text-xs sm:text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                                    Total Price:
+                                </span>
+                                <span className="font-black text-base sm:text-lg text-emerald-600 dark:text-emerald-400">
+                                    ₹{totalSum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                        </div>
+                    );
+                }}
             />
 
             <Dialog open={detailDialog.open} onOpenChange={(open) => { setDetailDialog(prev => ({ ...prev, open })); if (!open) setDialogSearch(''); }}>
                 <DialogContent className="max-w-[95vw] lg:max-w-[90vw] xl:max-w-[1400px] max-h-[90dvh] flex flex-col">
                     <DialogHeader className="flex flex-row items-center justify-between space-x-4">
                         <DialogTitle className="shrink-0">{detailDialog.title}</DialogTitle>
-                        {(detailDialog.title.includes('Lifting Quantity') || detailDialog.title.startsWith('Issued History')) && (
-                            <div className="relative flex-1 max-w-xs">
-                                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search by ref, party, project..."
-                                    value={dialogSearch}
-                                    onChange={e => setDialogSearch(e.target.value)}
-                                    className="h-8 pl-7 text-sm"
-                                />
-                            </div>
-                        )}
+                        <div className="relative flex-1 max-w-xs">
+                            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by ref, party, project, location..."
+                                value={dialogSearch}
+                                onChange={e => setDialogSearch(e.target.value)}
+                                className="h-8 pl-7 text-sm"
+                            />
+                        </div>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="ml-auto flex h-8 items-center gap-1 px-2 text-xs">
@@ -917,21 +960,18 @@ export default () => {
                                 >
                                     Project Name
                                 </DropdownMenuCheckboxItem>
-                                {!detailDialog.title.startsWith('Issued History') && (
-                                    <DropdownMenuCheckboxItem
-                                        checked={visibleCols.siteLocation}
-                                        onCheckedChange={(checked) => setVisibleCols(v => ({ ...v, siteLocation: !!checked }))}
-                                    >
-                                        Site Location
-                                    </DropdownMenuCheckboxItem>
-                                )}
+                                <DropdownMenuCheckboxItem
+                                    checked={visibleCols.siteLocation}
+                                    onCheckedChange={(checked) => setVisibleCols(v => ({ ...v, siteLocation: !!checked }))}
+                                >
+                                    Site Location
+                                </DropdownMenuCheckboxItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </DialogHeader>
                     {(() => {
-                        const q = dialogSearch.toLowerCase();
-                        const isSearchable = detailDialog.title.includes('Lifting Quantity') || detailDialog.title.startsWith('Issued History');
-                        const visibleRows = isSearchable && q
+                        const q = dialogSearch.toLowerCase().trim();
+                        const visibleRows = q
                             ? detailDialog.rows.filter(row =>
                                 row.refNo?.toLowerCase().includes(q) ||
                                 row.party?.toLowerCase().includes(q) ||
@@ -941,6 +981,7 @@ export default () => {
                             : detailDialog.rows;
                         const totalQty = visibleRows.reduce((sum, r) => sum + (r.quantity || 0), 0);
                         const totalAmount = visibleRows.reduce((sum, r) => sum + (r.amount || 0), 0);
+                        const avgPrice = totalQty > 0 ? (totalAmount / totalQty) : 0;
                         return (
                             <>
                                 <div className="flex-1 overflow-auto mt-4 border rounded-lg">
@@ -955,7 +996,7 @@ export default () => {
                                                 {visibleCols.projectName && (
                                                     <TableHead>{detailDialog.title.includes('Stock Transfer') ? 'To' : 'Project'}</TableHead>
                                                 )}
-                                                {visibleCols.siteLocation && !detailDialog.title.startsWith('Issued History') && <TableHead>Site Location</TableHead>}
+                                                {visibleCols.siteLocation && <TableHead>Site Location</TableHead>}
                                                 {visibleCols.quantity && <TableHead className="text-right">Qty</TableHead>}
                                                 {visibleCols.rate && <TableHead className="text-right">Rate</TableHead>}
                                                 {visibleCols.amount && <TableHead className="text-right">Amount</TableHead>}
@@ -985,7 +1026,7 @@ export default () => {
                                                         {visibleCols.refNo && <TableCell className="font-mono text-sm whitespace-nowrap">{row.refNo}</TableCell>}
                                                         {visibleCols.party && <TableCell className="whitespace-nowrap">{row.party}</TableCell>}
                                                         {visibleCols.projectName && <TableCell className="whitespace-nowrap">{row.projectName}</TableCell>}
-                                                        {visibleCols.siteLocation && !detailDialog.title.startsWith('Issued History') && <TableCell className="whitespace-nowrap">{row.siteLocation || 'N/A'}</TableCell>}
+                                                        {visibleCols.siteLocation && <TableCell className="whitespace-nowrap">{row.siteLocation || 'N/A'}</TableCell>}
                                                         {visibleCols.quantity && <TableCell className="text-right font-bold">{row.quantity}</TableCell>}
                                                         {visibleCols.rate && (
                                                             <TableCell className="text-right font-medium whitespace-nowrap text-blue-600">
@@ -1014,10 +1055,18 @@ export default () => {
                                         <span className="text-muted-foreground">Total Qty:</span>
                                         <span className="font-bold text-base">{totalQty.toLocaleString('en-IN')}</span>
                                     </div>
+                                    {avgPrice > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground">Total Avg Price:</span>
+                                            <span className="font-bold text-base text-blue-600">
+                                                ₹{avgPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    )}
                                     {visibleCols.amount && totalAmount > 0 && (
                                         <div className="flex items-center gap-2">
                                             <span className="text-muted-foreground">Total Amount:</span>
-                                            <span className="font-bold text-base text-emerald-600">₹{totalAmount.toLocaleString('en-IN')}</span>
+                                            <span className="font-bold text-base text-emerald-600">₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                     )}
                                 </div>
