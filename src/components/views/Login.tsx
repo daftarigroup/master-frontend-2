@@ -18,8 +18,6 @@ import { useGSAP } from '@gsap/react';
 export default () => {
     const { login, loggedIn } = useAuth();
     const [visible, setVisible] = useState(false);
-    const [viewportHeight, setViewportHeight] = useState<number | undefined>(undefined);
-    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const navigate = useNavigate();
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -32,54 +30,40 @@ export default () => {
         }
     }, [loggedIn]);
 
-    useEffect(() => {
-        const updateViewport = () => {
-            if (typeof window !== 'undefined') {
-                const vvHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-                setViewportHeight(vvHeight);
-
-                // Detect keyboard open on mobile:
-                // When keyboard appears, visualViewport height shrinks significantly
-                const isMobile = window.innerWidth <= 768;
-                const heightDiff = window.innerHeight - vvHeight;
-                const screenDiff = window.screen?.height ? window.screen.height - vvHeight : 0;
-                const keyboardActive = isMobile && (heightDiff > 120 || screenDiff > 220 || vvHeight < 520);
-                setIsKeyboardOpen(keyboardActive);
-            }
-        };
-
-        updateViewport();
-
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', updateViewport);
-            window.visualViewport.addEventListener('scroll', updateViewport);
-        }
-        window.addEventListener('resize', updateViewport);
-
-        return () => {
-            if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', updateViewport);
-                window.visualViewport.removeEventListener('scroll', updateViewport);
-            }
-            window.removeEventListener('resize', updateViewport);
-        };
-    }, []);
-
     const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
         const target = e.target;
         setTimeout(() => {
             target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 250);
+        }, 300);
     };
 
     useGSAP(() => {
         const blobs = gsap.utils.toArray<HTMLElement>('.login-blob', containerRef.current);
 
         const tl = gsap.timeline();
-        tl.from(blobs, { opacity: 0, scale: 0.4, duration: 1.4, stagger: 0.15, ease: 'power3.out' })
-            .from(cardRef.current, { y: 50, opacity: 0, scale: 0.92, duration: 0.9, ease: 'power3.out' }, '-=0.9')
-            .from(logoRef.current, { scale: 0, rotate: -200, opacity: 0, duration: 0.7, ease: 'back.out(1.8)' }, '-=0.55')
-            .from('.form-stagger', { y: 18, opacity: 0, duration: 0.5, stagger: 0.1, ease: 'power2.out' }, '-=0.35');
+        tl.fromTo(
+            blobs,
+            { opacity: 0, scale: 0.4 },
+            { opacity: 0.6, scale: 1, duration: 1.2, stagger: 0.15, ease: 'power3.out' }
+        )
+            .fromTo(
+                cardRef.current,
+                { y: 50, opacity: 0, scale: 0.92 },
+                { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'power3.out' },
+                '-=0.8'
+            )
+            .fromTo(
+                logoRef.current,
+                { scale: 0, rotate: -200, opacity: 0 },
+                { scale: 1, rotate: 0, opacity: 1, duration: 0.7, ease: 'back.out(1.8)' },
+                '-=0.5'
+            )
+            .fromTo(
+                '.form-stagger',
+                { y: 18, opacity: 0 },
+                { y: 0, opacity: 1, duration: 0.5, stagger: 0.08, ease: 'power2.out' },
+                '-=0.3'
+            );
 
         gsap.to(logoRef.current, { y: -6, duration: 2, repeat: -1, yoyo: true, ease: 'sine.inOut', delay: 1.6 });
 
@@ -127,48 +111,70 @@ export default () => {
     return (
         <div
             ref={containerRef}
-            style={{
-                minHeight: viewportHeight ? `${viewportHeight}px` : '100dvh',
-                height: viewportHeight ? `${viewportHeight}px` : '100dvh',
-            }}
-            className="relative flex flex-col items-center justify-center w-full overflow-y-auto px-4 py-3 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
+            className="relative flex flex-col items-center justify-center min-h-[100dvh] w-full overflow-y-auto px-4 py-6 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
         >
+            <style>{`
+                @media (max-height: 650px) {
+                    .login-card {
+                        padding: 0.75rem !important;
+                    }
+                    .login-header {
+                        padding: 0.5rem 0.5rem 0.25rem 0.5rem !important;
+                    }
+                    .login-logo img {
+                        width: 44px !important;
+                        height: 44px !important;
+                    }
+                    .login-title {
+                        font-size: 1.1rem !important;
+                        margin-top: 0.25rem !important;
+                    }
+                    .login-desc {
+                        display: none !important;
+                    }
+                    .login-content {
+                        padding: 0.5rem !important;
+                        gap: 0.65rem !important;
+                    }
+                    .login-footer {
+                        padding: 0.25rem 0.5rem 0.5rem 0.5rem !important;
+                    }
+                    .login-input {
+                        height: 2.25rem !important;
+                        font-size: 0.875rem !important;
+                    }
+                }
+            `}</style>
+
             <div className="login-blob absolute -top-24 -left-24 h-72 w-72 rounded-full bg-gradient-to-br from-blue-300 to-purple-300 blur-3xl opacity-60 pointer-events-none" />
             <div className="login-blob absolute top-1/3 -right-20 h-80 w-80 rounded-full bg-gradient-to-br from-purple-300 to-fuchsia-300 blur-3xl opacity-50 pointer-events-none" />
             <div className="login-blob absolute -bottom-24 left-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-pink-300 to-blue-200 blur-3xl opacity-50 pointer-events-none" />
 
             <Card
-                className={`relative w-full max-w-sm my-auto bg-white/85 backdrop-blur-sm border-white/60 shadow-xl transition-all duration-200 ${
-                    isKeyboardOpen ? 'py-1' : ''
-                }`}
+                className="login-card relative w-full max-w-sm my-auto bg-white/85 backdrop-blur-sm border-white/60 shadow-xl"
                 ref={cardRef}
             >
                 <Form {...form}>
-                    <form
-                        onSubmit={form.handleSubmit(onSubmit, onError)}
-                        className={`transition-all duration-200 ${isKeyboardOpen ? 'grid gap-2.5' : 'grid gap-6'}`}
-                    >
-                        <CardHeader className={`text-center flex justify-center flex-col items-center transition-all duration-200 ${isKeyboardOpen ? 'p-3 pb-0' : ''}`}>
-                            <Logo ref={logoRef} size={isKeyboardOpen ? 42 : 72} />
-                            <CardTitle className={`form-stagger font-bold bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent transition-all duration-200 ${isKeyboardOpen ? 'text-lg mt-1' : 'text-xl'}`}>
+                    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="grid gap-6">
+                        <CardHeader className="login-header text-center flex justify-center flex-col items-center">
+                            <Logo ref={logoRef} size={72} className="login-logo" />
+                            <CardTitle className="login-title form-stagger font-bold text-xl bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent">
                                 Pooja Constructions PMS
                             </CardTitle>
-                            {!isKeyboardOpen && (
-                                <CardDescription className="form-stagger">Please login to your account</CardDescription>
-                            )}
+                            <CardDescription className="login-desc form-stagger">Please login to your account</CardDescription>
                         </CardHeader>
-                        <CardContent className={`grid transition-all duration-200 ${isKeyboardOpen ? 'gap-2.5 p-3' : 'gap-4'}`}>
+                        <CardContent className="login-content grid gap-4">
                             <FormField
                                 control={form.control}
                                 name="username"
                                 render={({ field }) => (
                                     <FormItem className="form-stagger">
-                                        <FormLabel className={isKeyboardOpen ? 'text-xs' : ''}>Username</FormLabel>
+                                        <FormLabel className="text-xs sm:text-sm">Username</FormLabel>
                                         <FormControl>
                                             <Input
                                                 {...field}
                                                 onFocus={handleInputFocus}
-                                                className={isKeyboardOpen ? 'h-9 text-sm' : ''}
+                                                className="login-input"
                                                 placeholder="Enter username"
                                             />
                                         </FormControl>
@@ -180,7 +186,7 @@ export default () => {
                                 name="password"
                                 render={({ field }) => (
                                     <FormItem className="form-stagger">
-                                        <FormLabel className={isKeyboardOpen ? 'text-xs' : ''}>Password</FormLabel>
+                                        <FormLabel className="text-xs sm:text-sm">Password</FormLabel>
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
@@ -188,7 +194,7 @@ export default () => {
                                                     placeholder="Enter password"
                                                     {...field}
                                                     onFocus={handleInputFocus}
-                                                    className={isKeyboardOpen ? 'h-9 text-sm' : ''}
+                                                    className="login-input"
                                                 />
                                                 <Button
                                                     variant="ghost"
@@ -212,10 +218,10 @@ export default () => {
                             />
                         </CardContent>
 
-                        <CardFooter className={`form-stagger transition-all duration-200 ${isKeyboardOpen ? 'p-3 pt-0' : ''}`}>
+                        <CardFooter className="login-footer form-stagger">
                             <Button
                                 type="submit"
-                                className={`bg-gradient-to-br from-blue-600 to-purple-600 font-medium w-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] ${isKeyboardOpen ? 'h-9 text-sm' : ''}`}
+                                className="login-input bg-gradient-to-br from-blue-600 to-purple-600 font-medium w-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
                                 disabled={form.formState.isSubmitting}
                             >
                                 {form.formState.isSubmitting && (
