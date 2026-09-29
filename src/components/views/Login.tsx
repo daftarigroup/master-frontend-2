@@ -111,13 +111,28 @@ export default () => {
     return (
         <div
             ref={containerRef}
-            className="relative flex flex-col items-center justify-center min-h-[100dvh] w-full overflow-y-auto px-4 py-6 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
+            className="login-container relative grid place-items-center h-screen overflow-hidden bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
         >
             <style>{`
-                @media (max-height: 650px) {
-                    .login-card {
-                        padding: 0.75rem !important;
+                /* Mobile only: allow scroll when keyboard pushes height down */
+                @media (max-width: 768px) {
+                    .login-container {
+                        height: auto !important;
+                        min-height: 100dvh !important;
+                        overflow-y: auto !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        padding: 1.5rem 1rem !important;
                     }
+                    .login-card {
+                        margin-top: auto !important;
+                        margin-bottom: auto !important;
+                    }
+                }
+                /* Mobile + keyboard open (small height): compact layout */
+                @media (max-width: 768px) and (max-height: 600px) {
                     .login-header {
                         padding: 0.5rem 0.5rem 0.25rem 0.5rem !important;
                     }
@@ -126,15 +141,15 @@ export default () => {
                         height: 44px !important;
                     }
                     .login-title {
-                        font-size: 1.1rem !important;
-                        margin-top: 0.25rem !important;
+                        font-size: 1.05rem !important;
+                        margin-top: 0.2rem !important;
                     }
                     .login-desc {
                         display: none !important;
                     }
                     .login-content {
                         padding: 0.5rem !important;
-                        gap: 0.65rem !important;
+                        gap: 0.6rem !important;
                     }
                     .login-footer {
                         padding: 0.25rem 0.5rem 0.5rem 0.5rem !important;
