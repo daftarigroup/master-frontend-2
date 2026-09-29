@@ -18,6 +18,8 @@ import { useGSAP } from '@gsap/react';
 export default () => {
     const { login, loggedIn } = useAuth();
     const [visible, setVisible] = useState(false);
+    const [viewportHeight, setViewportHeight] = useState<number | undefined>(undefined);
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const navigate = useNavigate();
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -29,6 +31,46 @@ export default () => {
             navigate('/select-project');
         }
     }, [loggedIn]);
+
+    useEffect(() => {
+        const updateViewport = () => {
+            if (typeof window !== 'undefined') {
+                const vvHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+                setViewportHeight(vvHeight);
+
+                // Detect keyboard open on mobile:
+                // When keyboard appears, visualViewport height shrinks significantly
+                const isMobile = window.innerWidth <= 768;
+                const heightDiff = window.innerHeight - vvHeight;
+                const screenDiff = window.screen?.height ? window.screen.height - vvHeight : 0;
+                const keyboardActive = isMobile && (heightDiff > 120 || screenDiff > 220 || vvHeight < 520);
+                setIsKeyboardOpen(keyboardActive);
+            }
+        };
+
+        updateViewport();
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateViewport);
+            window.visualViewport.addEventListener('scroll', updateViewport);
+        }
+        window.addEventListener('resize', updateViewport);
+
+        return () => {
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', updateViewport);
+                window.visualViewport.removeEventListener('scroll', updateViewport);
+            }
+            window.removeEventListener('resize', updateViewport);
+        };
+    }, []);
+
+    const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        const target = e.target;
+        setTimeout(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 250);
+    };
 
     useGSAP(() => {
         const blobs = gsap.utils.toArray<HTMLElement>('.login-blob', containerRef.current);
@@ -85,34 +127,50 @@ export default () => {
     return (
         <div
             ref={containerRef}
-            className="relative grid place-items-center h-screen overflow-hidden bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
+            style={{
+                minHeight: viewportHeight ? `${viewportHeight}px` : '100dvh',
+                height: viewportHeight ? `${viewportHeight}px` : '100dvh',
+            }}
+            className="relative flex flex-col items-center justify-center w-full overflow-y-auto px-4 py-3 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50"
         >
-            <div className="login-blob absolute -top-24 -left-24 h-72 w-72 rounded-full bg-gradient-to-br from-blue-300 to-purple-300 blur-3xl opacity-60" />
-            <div className="login-blob absolute top-1/3 -right-20 h-80 w-80 rounded-full bg-gradient-to-br from-purple-300 to-fuchsia-300 blur-3xl opacity-50" />
-            <div className="login-blob absolute -bottom-24 left-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-pink-300 to-blue-200 blur-3xl opacity-50" />
+            <div className="login-blob absolute -top-24 -left-24 h-72 w-72 rounded-full bg-gradient-to-br from-blue-300 to-purple-300 blur-3xl opacity-60 pointer-events-none" />
+            <div className="login-blob absolute top-1/3 -right-20 h-80 w-80 rounded-full bg-gradient-to-br from-purple-300 to-fuchsia-300 blur-3xl opacity-50 pointer-events-none" />
+            <div className="login-blob absolute -bottom-24 left-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-pink-300 to-blue-200 blur-3xl opacity-50 pointer-events-none" />
 
             <Card
-                className="relative w-full max-w-sm bg-white/80 backdrop-blur-sm border-white/60 shadow-xl"
+                className={`relative w-full max-w-sm my-auto bg-white/85 backdrop-blur-sm border-white/60 shadow-xl transition-all duration-200 ${
+                    isKeyboardOpen ? 'py-1' : ''
+                }`}
                 ref={cardRef}
             >
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="grid gap-6">
-                        <CardHeader className="text-center flex justify-center flex-col items-center">
-                            <Logo ref={logoRef} size={72} />
-                            <CardTitle className="form-stagger font-bold text-xl bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    <form
+                        onSubmit={form.handleSubmit(onSubmit, onError)}
+                        className={`transition-all duration-200 ${isKeyboardOpen ? 'grid gap-2.5' : 'grid gap-6'}`}
+                    >
+                        <CardHeader className={`text-center flex justify-center flex-col items-center transition-all duration-200 ${isKeyboardOpen ? 'p-3 pb-0' : ''}`}>
+                            <Logo ref={logoRef} size={isKeyboardOpen ? 42 : 72} />
+                            <CardTitle className={`form-stagger font-bold bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text text-transparent transition-all duration-200 ${isKeyboardOpen ? 'text-lg mt-1' : 'text-xl'}`}>
                                 Pooja Constructions PMS
                             </CardTitle>
-                            <CardDescription className="form-stagger">Please login to your account</CardDescription>
+                            {!isKeyboardOpen && (
+                                <CardDescription className="form-stagger">Please login to your account</CardDescription>
+                            )}
                         </CardHeader>
-                        <CardContent className="grid gap-4">
+                        <CardContent className={`grid transition-all duration-200 ${isKeyboardOpen ? 'gap-2.5 p-3' : 'gap-4'}`}>
                             <FormField
                                 control={form.control}
                                 name="username"
                                 render={({ field }) => (
                                     <FormItem className="form-stagger">
-                                        <FormLabel>Username</FormLabel>
+                                        <FormLabel className={isKeyboardOpen ? 'text-xs' : ''}>Username</FormLabel>
                                         <FormControl>
-                                            <Input {...field} placeholder="Enter username" />
+                                            <Input
+                                                {...field}
+                                                onFocus={handleInputFocus}
+                                                className={isKeyboardOpen ? 'h-9 text-sm' : ''}
+                                                placeholder="Enter username"
+                                            />
                                         </FormControl>
                                     </FormItem>
                                 )}
@@ -122,13 +180,15 @@ export default () => {
                                 name="password"
                                 render={({ field }) => (
                                     <FormItem className="form-stagger">
-                                        <FormLabel>Password</FormLabel>
+                                        <FormLabel className={isKeyboardOpen ? 'text-xs' : ''}>Password</FormLabel>
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
                                                     type={visible ? 'text' : 'password'}
                                                     placeholder="Enter password"
                                                     {...field}
+                                                    onFocus={handleInputFocus}
+                                                    className={isKeyboardOpen ? 'h-9 text-sm' : ''}
                                                 />
                                                 <Button
                                                     variant="ghost"
@@ -140,7 +200,7 @@ export default () => {
                                                         setVisible(!visible);
                                                     }}
                                                 >
-                                                    {visible ? <EyeClosed /> : <Eye />}
+                                                    {visible ? <EyeClosed className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                                     <span className="sr-only">
                                                         Toggle password visibility
                                                     </span>
@@ -152,10 +212,10 @@ export default () => {
                             />
                         </CardContent>
 
-                        <CardFooter className="form-stagger">
+                        <CardFooter className={`form-stagger transition-all duration-200 ${isKeyboardOpen ? 'p-3 pt-0' : ''}`}>
                             <Button
                                 type="submit"
-                                className="bg-gradient-to-br from-blue-600 to-purple-600 font-medium w-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                                className={`bg-gradient-to-br from-blue-600 to-purple-600 font-medium w-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] ${isKeyboardOpen ? 'h-9 text-sm' : ''}`}
                                 disabled={form.formState.isSubmitting}
                             >
                                 {form.formState.isSubmitting && (
