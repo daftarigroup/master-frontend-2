@@ -237,6 +237,7 @@ function ProcessModal({
       });
       queryClient.invalidateQueries({ queryKey: ['repair-system'] });
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
       onSuccess();
       onClose();
     } catch (_e) {
@@ -245,6 +246,8 @@ function ProcessModal({
       setIsUploadingFiles(false);
     }
   };
+
+  const renderedCode = wo.workOrderCode || (wo.id ? `WO-${wo.id.slice(-6).toUpperCase()}` : '');
 
   return (
     <div
@@ -283,7 +286,7 @@ function ProcessModal({
           }}
         >
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.fg }}>
-            Process Repair {wo.id.slice(-6)}
+            Process Repair {renderedCode}
           </h2>
           <button
             type="button"
@@ -327,6 +330,12 @@ function ProcessModal({
               gap: 6,
             }}
           >
+            {renderedCode && (
+              <div style={{ fontSize: 13, color: T.fg }}>
+                <span style={{ color: T.mutedFg, fontSize: 12 }}>Work Order: </span>
+                <strong style={{ fontFamily: 'monospace' }}>{renderedCode}</strong>
+              </div>
+            )}
             <div style={{ fontSize: 13, color: T.fg }}>
               <span style={{ color: T.mutedFg, fontSize: 12 }}>Machine: </span>
               <strong>

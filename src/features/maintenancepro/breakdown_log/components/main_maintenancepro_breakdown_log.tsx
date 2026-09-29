@@ -18,6 +18,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import {
   Dialog,
   DialogContent,
@@ -162,6 +164,8 @@ export default function BreakdownLogPage() {
   const [filterFirm, setFilterFirm] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
+  const { effectivePermittedFirms } = useProject();
+
   const { data: firmsResponse } = useQuery({
     queryKey: ['breakdown', 'firms', 'list'],
     queryFn: () => api.get('/maintenance/firms'),
@@ -170,7 +174,10 @@ export default function BreakdownLogPage() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-  const firms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const rawFirms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const firms: { id: string; name: string }[] = useMemo(() => {
+    return filterByFirmAccess(rawFirms, effectivePermittedFirms);
+  }, [rawFirms, effectivePermittedFirms]);
 
   const [selectedBd, setSelectedBd] = useState<BreakdownReport | null>(null);
   const [toast, setToast] = useState('');
@@ -344,8 +351,11 @@ export default function BreakdownLogPage() {
   const filteredBreakdowns = useMemo(() => {
     return allBreakdowns
       .filter((b) => {
+        const m = machines?.find((mach) => mach.id === b.machineId);
+        // Scoped to permitted project/firms
+        if (!filterByFirmAccess([m || b], effectivePermittedFirms).length) return false;
+
         if (filterFirm !== 'all') {
-          const m = machines?.find((mach) => mach.id === b.machineId);
           const firmMatch =
             String(m?.firmId) === filterFirm ||
             m?.firmName === filterFirm ||
@@ -357,7 +367,7 @@ export default function BreakdownLogPage() {
         return ds === filterStatus;
       })
       .sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
-  }, [allBreakdowns, filterStatus, filterFirm, machines]);
+  }, [allBreakdowns, filterStatus, filterFirm, machines, effectivePermittedFirms]);
 
   const totalDowntime = filteredBreakdowns.reduce(
     (s, b) =>

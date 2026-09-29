@@ -7,7 +7,7 @@ import type {
   RealMachineStatus,
 } from '../types/types';
 
-export const fetchMaintenanceDailyReport = async (): Promise<DailyReportData> => {
+export const fetchMaintenanceDailyReport = async (firmId?: string): Promise<DailyReportData> => {
   const today = new Date();
   const from = new Date(today);
   from.setHours(0, 0, 0, 0);
@@ -16,9 +16,21 @@ export const fetchMaintenanceDailyReport = async (): Promise<DailyReportData> =>
 
   const [woRes, machinesRes] = await Promise.all([
     api.get('/maintenance/work-orders', {
-      params: { from: from.toISOString(), to: to.toISOString(), limit: 200, page: 1 },
+      params: {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        limit: 200,
+        page: 1,
+        ...(firmId ? { firmId } : {}),
+      },
     }),
-    api.get('/maintenance/machines', { params: { limit: 200, page: 1 } }),
+    api.get('/maintenance/machines', {
+      params: {
+        limit: 200,
+        page: 1,
+        ...(firmId ? { firmId } : {}),
+      },
+    }),
   ]);
 
   const rawWOs: unknown[] = woRes.data?.data ?? [];
@@ -31,6 +43,7 @@ export const fetchMaintenanceDailyReport = async (): Promise<DailyReportData> =>
     const assignee = wo.currentAssignee as Record<string, unknown> | null | undefined;
     return {
       id: wo.id as string,
+      firmId: (wo.firmId as string | undefined) ?? (machine?.firmId as string | undefined),
       title: (plan?.title as string | undefined) ?? 'Work Order',
       description:
         (plan?.activityType as { name?: string } | undefined)?.name ??
@@ -51,6 +64,7 @@ export const fetchMaintenanceDailyReport = async (): Promise<DailyReportData> =>
     const m = raw as Record<string, unknown>;
     return {
       id: m.id as string,
+      firmId: (m.firmId as string | undefined) ?? (m.firm_id as string | undefined),
       name: m.name as string,
       status: ((m.status as string | undefined) ?? 'OPERATIONAL') as RealMachineStatus,
     };

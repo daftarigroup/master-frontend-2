@@ -13,8 +13,10 @@ import {
  X,
 } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -54,8 +56,17 @@ const PaymentPage = () => {
  const { usePendingOuthousePayment, useOuthousePaymentHistory, completeOuthousePaymentMutation } =
  useRepairSystem();
 
- const { data: pendingIndents = [], isLoading: isLoadingPending } = usePendingOuthousePayment();
- const { data: historyIndents = [], isLoading: isLoadingHistory } = useOuthousePaymentHistory();
+  const { effectivePermittedFirms } = useProject();
+  const { data: rawPendingIndents = [], isLoading: isLoadingPending } = usePendingOuthousePayment();
+  const { data: rawHistoryIndents = [], isLoading: isLoadingHistory } = useOuthousePaymentHistory();
+
+  const pendingIndents = useMemo(() => {
+    return filterByFirmAccess(rawPendingIndents, effectivePermittedFirms);
+  }, [rawPendingIndents, effectivePermittedFirms]);
+
+  const historyIndents = useMemo(() => {
+    return filterByFirmAccess(rawHistoryIndents, effectivePermittedFirms);
+  }, [rawHistoryIndents, effectivePermittedFirms]);
 
  const [activeSection, setActiveSection] = useState<'pending' | 'history'>('pending');
  const [searchTerm, setSearchTerm] = useState('');

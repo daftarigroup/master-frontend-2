@@ -16,6 +16,7 @@ export type RealMachineStatus = 'OPERATIONAL' | 'UNDER_MAINTENANCE' | 'BREAKDOWN
 
 export interface DailyWorkOrder {
   id: string;
+  firmId?: string;
   title: string;
   description: string;
   status: DailyTaskStatus;
@@ -29,6 +30,7 @@ export interface DailyWorkOrder {
 
 export interface DailyMachine {
   id: string;
+  firmId?: string;
   name: string;
   status: RealMachineStatus;
 }

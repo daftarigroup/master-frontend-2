@@ -40,20 +40,28 @@ export const canDeletePage = (
   // Admin role or legacy administrate flag
   if (role === 'ADMIN' || user.administrate === true) {
     if (!pageId) return true;
-    if (!user.page_access || Object.keys(user.page_access).length === 0) return true;
+
+    // Resolve page_access to an object (it may arrive as a JSON string from the DB)
+    const rawPageAccess = user.page_access;
+    const pageAccessObj: Record<string, any> | null =
+      typeof rawPageAccess === 'string'
+        ? (() => { try { return JSON.parse(rawPageAccess); } catch { return null; } })()
+        : (rawPageAccess ?? null);
+
+    if (!pageAccessObj || Object.keys(pageAccessObj).length === 0) return true;
 
     // Check if delete access is explicitly granted
     const pageDeleteKey = `${pageId}_delete`;
-    if (user.page_access[pageDeleteKey] === true) return true;
-    if (user.page_access[pageDeleteKey] === false) return false;
+    if (pageAccessObj[pageDeleteKey] === true) return true;
+    if (pageAccessObj[pageDeleteKey] === false) return false;
 
-    const pageAcc = user.page_access[pageId];
+    const pageAcc = pageAccessObj[pageId];
     if (typeof pageAcc === 'object' && pageAcc !== null && pageAcc.canDelete !== undefined) {
       return pageAcc.canDelete === true;
     }
 
     // Global admin wildcard
-    if (user.page_access['ALL'] || user.page_access['all']) return true;
+    if (pageAccessObj['ALL'] || pageAccessObj['all']) return true;
 
     // If granular page_access exists but delete was not granted for this page
     return false;

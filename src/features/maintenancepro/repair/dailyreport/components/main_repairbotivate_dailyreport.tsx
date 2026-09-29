@@ -13,7 +13,9 @@ import {
  Users,
  Wrench,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useDailyReport } from '../server/tanstackQuery/useDailyreportQueries';
 import type { DailyReportTask } from '../server/api/dailyreportApi';
 
@@ -31,11 +33,29 @@ interface AuthUser {
 }
 
 const DailyReport = () => {
+ const { effectivePermittedFirms, selectedProject } = useProject();
+ const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
  // Mock user - TODO: Replace with actual auth store
  const user: AuthUser = { role: 'admin', username: 'Admin User' };
  const [selectedUser, setSelectedUser] = useState<string>('all');
 
- const { data, isLoading, isError } = useDailyReport();
+ const { data: rawData, isLoading, isError } = useDailyReport(undefined, queryFirmId);
+
+ const data = useMemo(() => {
+   if (!rawData) return null;
+   const scopedTasks = filterByFirmAccess(rawData.tasks || [], effectivePermittedFirms);
+   return {
+     ...rawData,
+     tasks: scopedTasks,
+     stats: {
+       totalTasks: scopedTasks.length,
+       completed: scopedTasks.filter((t) => t.status === 'completed').length,
+       inProgress: scopedTasks.filter((t) => t.status === 'in-progress').length,
+       pending: scopedTasks.filter((t) => t.status === 'pending').length,
+     },
+   };
+ }, [rawData, effectivePermittedFirms]);
 
  const today = new Date().toLocaleDateString('en-US', {
  weekday: 'long',

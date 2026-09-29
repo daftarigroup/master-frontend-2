@@ -16,7 +16,7 @@ export function hasNoFirmAccess(firms?: (string | number)[]) {
     return normalized !== undefined && normalized.length === 0;
 }
 
-export function isAllowedFirm(firm: { id?: number | string; name?: string }, permitted?: (string | number)[]) {
+export function isAllowedFirm(firm: { id?: number | string | null; name?: string | null }, permitted?: (string | number)[]) {
     const allowed = normalizeFirmAccess(permitted);
     if (allowed === undefined) return true; // 'all' access
     if (allowed.length === 0) return false;
@@ -28,6 +28,13 @@ export function isAllowedFirm(firm: { id?: number | string; name?: string }, per
         const normalizedVal = String(val).trim();
         return (firmId && normalizedVal === firmId) || (firmName && normalizedVal.toLowerCase() === firmName);
     });
+}
+
+export function getUserPermittedFirms(user?: { role?: string; administrate?: boolean; firm_access?: string[] } | null): string[] | undefined {
+    if (!user) return [];
+    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.administrate === true;
+    if (isAdmin) return undefined; // undefined = all access granted
+    return user.firm_access && user.firm_access.length > 0 ? user.firm_access : [];
 }
 
 export function filterByFirmAccess<T>(
@@ -43,9 +50,16 @@ export function filterByFirmAccess<T>(
     if (allowed.length === 0) return [];
 
     return rows.filter((row: any) => {
-        // Use provided accessors or fall back to common property names
-        const firmId = accessors.id ? accessors.id(row) : (row.firm_id || row.id);
-        const firmName = accessors.name ? accessors.name(row) : (row.firm_name || row.firmNameMatch || row.name);
+        if (!row) return false;
+
+        // Use provided accessors or extract firm id/name from known schemas
+        const firmId = accessors.id
+            ? accessors.id(row)
+            : (row.firm_id ?? row.firmId ?? row.firm?.id ?? row.machine?.firmId ?? row.machine?.firm_id ?? row.machine?.firm?.id ?? (row.projectId ? row.projectId : undefined) ?? (row.id && row.name && !row.productName && !row.category ? row.id : undefined));
+
+        const firmName = accessors.name
+            ? accessors.name(row)
+            : (row.firm_name ?? row.firmName ?? row.firmNameMatch ?? row.firm?.name ?? row.firm?.firm_name ?? row.machine?.firmName ?? row.machine?.firm?.name ?? row.machine?.firm?.firm_name ?? row.projectName ?? (row.name && !row.productName && !row.category && !row.assetCode ? row.name : undefined));
         
         return isAllowedFirm({ id: firmId, name: firmName }, allowed);
     });

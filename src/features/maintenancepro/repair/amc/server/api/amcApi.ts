@@ -7,6 +7,7 @@ export const fetchAMCData = async (): Promise<AMCData> => {
 
   const machineData = amcs.map((a, idx) => ({
     id: a.id ? String(a.id) : String(idx + 1),
+    firmId: a.firmId ? String(a.firmId) : (a.machine?.firmId ? String(a.machine.firmId) : undefined),
     indentNumber: a.contractNumber || `AMC-${idx + 1}`,
     machineName: a.machineName || '—',
     machineSerialNo: a.serialNumber || '',

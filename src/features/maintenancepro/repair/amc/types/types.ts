@@ -1,5 +1,6 @@
 export type AMCMachineItem = {
   id: string;
+  firmId?: string;
   indentNumber: string;
   machineName: string;
   machineSerialNo: string;

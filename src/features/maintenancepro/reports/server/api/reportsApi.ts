@@ -9,6 +9,7 @@ import type {
 export interface ReportFilters {
   timeframe: ReportTimeframe;
   departmentId?: string;
+  firmId?: string;
 }
 
 export const fetchCostAnalysis = async (filters: ReportFilters): Promise<CostAnalysisReport> => {
@@ -16,6 +17,7 @@ export const fetchCostAnalysis = async (filters: ReportFilters): Promise<CostAna
     params: {
       timeframe: filters.timeframe,
       ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters.firmId ? { firmId: filters.firmId } : {}),
     },
   });
   return res.data.data;
@@ -28,6 +30,7 @@ export const fetchMachineReliability = async (
     params: {
       timeframe: filters.timeframe,
       ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters.firmId ? { firmId: filters.firmId } : {}),
     },
   });
   return res.data.data;

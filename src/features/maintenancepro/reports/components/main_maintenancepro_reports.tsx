@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useProject } from '@/context/ProjectContext';
 import {
   useCostAnalysisReport,
   useMachineReliabilityReport,
@@ -30,6 +31,9 @@ const reliabilityColor = (score: number) =>
 const departmentChartColors = ['#0284c7', '#60A5FA', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899'];
 
 export default function ReportsPage() {
+  const { selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
   const [reportType, setReportType] = useState<'costAnalysis' | 'machineReliability'>(
     'costAnalysis'
   );
@@ -39,6 +43,7 @@ export default function ReportsPage() {
   const filters = {
     timeframe: selectedTimeframe,
     departmentId: selectedDepartment === 'all' ? undefined : selectedDepartment,
+    firmId: queryFirmId,
   };
 
   const { data: departments } = useReportDepartments();

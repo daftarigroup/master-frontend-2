@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useProject } from '@/context/ProjectContext';
 import { useAssignableUsers } from '../../assign_task/server/tanstackQuery/useUsersQueries';
 
 interface TeamMember {
@@ -73,7 +74,9 @@ const initialMembers: TeamMember[] = [
 const initialForm = { name: '', image: '', department: '', experience: '', skills: '' };
 
 export default function TeamReportPage() {
-  const { data: realUsers } = useAssignableUsers();
+  const { selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+  const { data: realUsers } = useAssignableUsers(queryFirmId);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialMembers);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState(initialForm);

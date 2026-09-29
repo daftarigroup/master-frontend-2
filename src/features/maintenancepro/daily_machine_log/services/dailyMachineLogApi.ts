@@ -9,6 +9,7 @@ import type {
 
 export const fetchDailyMachineLogs = async (params?: {
   machineId?: string;
+  firmId?: string;
   date?: string;
   page?: number;
   limit?: number;
@@ -24,6 +25,7 @@ export const fetchDailyMachineLogs = async (params?: {
       const machine = item.machine as Record<string, unknown> | null | undefined;
       return {
         id: item.id as string,
+        firmId: (item.firmId as string | undefined) ?? (machine?.firmId as string | undefined),
         machineId: item.machineId as string,
         machineName: (machine?.name as string | undefined) ?? (item.machineId as string),
         date: item.date as string,
@@ -36,6 +38,14 @@ export const fetchDailyMachineLogs = async (params?: {
         remarks: (item.remarks as string | null) ?? null,
         createdAt: item.createdAt as string,
         tenant: (item.tenant as { id: string; name: string } | undefined) ?? null,
+        machine: machine
+          ? {
+              id: (machine.id as string) ?? (item.machineId as string),
+              name: (machine.name as string) ?? '',
+              assetCode: (machine.assetCode as string) ?? '',
+              firmId: machine.firmId as string | undefined,
+            }
+          : null,
       };
     }),
     pagination: res.data?.pagination ?? { total: 0, page: 1, limit: 50, totalPages: 1 },
@@ -86,6 +96,7 @@ export const fetchRealMachines = async (actAsTenantId?: string): Promise<RealMac
       id: m.id as string,
       name: m.name as string,
       assetCode: m.assetCode as string,
+      firmId: (m.firmId as string | undefined) ?? (m.firm_id as string | undefined),
     };
   });
 };

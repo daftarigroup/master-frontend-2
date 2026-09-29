@@ -3,7 +3,9 @@
 import { AlertCircle, Calendar, CheckCircle2, Clock, FileText, Save, X, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { CompanySelectField } from '@/features/organization/components/CompanySelectField';
 import { useCompanyPinForCreate } from '@/features/organization/hooks/useCompanyPinForCreate';
 import { useGetProfileQuery } from '@/features/profile/shared/server/tanstackQuery/useProfileQueries';
@@ -248,6 +250,9 @@ const EMPTY: FormState = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AssignTaskMain() {
+  const { effectivePermittedFirms, selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
   const navigate = useNavigate();
   const router = { push: (p: string) => navigate(p), back: () => navigate(-1) };
   const isMobile = useIsMobile();
@@ -259,7 +264,10 @@ export default function AssignTaskMain() {
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: machinesRes } = useMachines(undefined, pinnedCompany?.id);
+  const { data: machinesRes } = useMachines(
+    queryFirmId ? { firmId: queryFirmId } : undefined,
+    pinnedCompany?.id
+  );
   const { data: users } = useAssignableUsers(pinnedCompany?.id);
   const { data: partsRes } = useMachineParts(form.machineId || undefined, pinnedCompany?.id);
   const { data: activityTypes } = useActivityTypes(pinnedCompany?.id);
@@ -283,7 +291,11 @@ export default function AssignTaskMain() {
     allowedTypes: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'],
   });
 
-  const machines = machinesRes?.data ?? [];
+  const rawMachines = machinesRes?.data ?? [];
+  const machines = useMemo(
+    () => filterByFirmAccess(rawMachines, effectivePermittedFirms),
+    [rawMachines, effectivePermittedFirms]
+  );
   const parts: { id: string; name: string }[] = form.machineId
     ? ((partsRes?.data ?? []) as { id: string; name: string }[])
     : [];

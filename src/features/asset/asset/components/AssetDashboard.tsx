@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -23,8 +24,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useAssets } from '../server/tanstackQuery/useAssetQueries';
-import { CATEGORY_COLORS, formatCurrency, STATUS_COLORS, type AssetCategory } from '../types/types';
+import { CATEGORY_COLORS, formatCurrency, STATUS_COLORS, type Asset, type AssetCategory } from '../types/types';
 
 const wrap = {
   hidden: {},
@@ -118,7 +121,22 @@ function StatCard({
 }
 
 export default function AssetDashboard() {
-  const { data: assets = [] } = useAssets();
+  const { selectedProject, effectivePermittedFirms } = useProject();
+
+  const queryFirmId = useMemo(() => {
+    if (selectedProject && selectedProject.id !== 'all') {
+      return String(selectedProject.id);
+    }
+    if (effectivePermittedFirms && effectivePermittedFirms.length === 1) {
+      return effectivePermittedFirms[0];
+    }
+    return undefined;
+  }, [selectedProject, effectivePermittedFirms]);
+
+  const { data: rawAssets = [] } = useAssets(queryFirmId ? { firmId: queryFirmId } : undefined);
+  const assets = useMemo<Asset[]>(() => {
+    return filterByFirmAccess(rawAssets, effectivePermittedFirms);
+  }, [rawAssets, effectivePermittedFirms]);
 
   const total = assets.length;
   const active = assets.filter((a) => a.status === 'Active').length;
@@ -134,19 +152,14 @@ export default function AssetDashboard() {
       new Date(a.warrantyEnd) < new Date('2027-06-01')
   ).length;
 
-  if (total === 0) {
-    return (
-      <div className="min-h-screen bg-background p-4 sm:p-6 flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">No assets yet.</p>
-      </div>
-    );
-  }
-
   const categoryMap: Record<string, number> = {};
   for (const a of assets) {
     categoryMap[a.category] = (categoryMap[a.category] || 0) + 1;
   }
   const categoryEntries = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
+  const defaultCategories: AssetCategory[] = ['Machinery', 'IT', 'Electronics', 'Tools', 'Vehicle'];
+  const displayCategoryEntries: [string, number][] =
+    categoryEntries.length > 0 ? categoryEntries : defaultCategories.map((c) => [c, 0]);
 
   const deptMap: Record<string, number> = {};
   for (const a of assets) {
@@ -154,8 +167,19 @@ export default function AssetDashboard() {
   }
   const deptEntries = Object.entries(deptMap).sort((a, b) => b[1] - a[1]);
   const topDept = deptEntries[0]?.[0];
+  const defaultDepts = ['Mechanical', 'Electrical', 'Production', 'Operations'];
+  const displayDeptEntries: [string, number][] =
+    deptEntries.length > 0 ? deptEntries : defaultDepts.map((d) => [d, 0]);
 
   const recent = [...assets].reverse().slice(0, 5);
+
+  const maintenanceAlerts = assets
+    .filter((a) => a.maintenanceRequired === 'Yes' && a.nextService)
+    .slice(0, 3);
+  const repairAlerts = assets.filter((a) => a.status === 'Under Repair');
+  const warrantyAlerts = assets.filter((a) => a.warrantyAvailable === 'Yes').slice(0, 2);
+  const hasAlerts =
+    maintenanceAlerts.length > 0 || repairAlerts.length > 0 || warrantyAlerts.length > 0;
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
@@ -186,6 +210,37 @@ export default function AssetDashboard() {
         </div>
       </motion.div>
 
+      {total === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs text-foreground"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-lg bg-blue-500/15 p-1.5 text-blue-600">
+              <Package className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="font-semibold text-foreground">
+                No assets currently assigned to{' '}
+                {selectedProject && selectedProject.id !== 'all'
+                  ? selectedProject.name
+                  : 'this project'}
+              </span>
+              <span className="text-muted-foreground ml-1.5 hidden sm:inline">
+                Displaying baseline metrics.
+              </span>
+            </div>
+          </div>
+          <Link
+            to="/asset/assets"
+            className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 hover:underline shrink-0 text-xs"
+          >
+            Asset Directory <ArrowRight className="h-3 w-3" />
+          </Link>
+        </motion.div>
+      )}
+
       <motion.div
         variants={wrap}
         initial="hidden"
@@ -195,14 +250,14 @@ export default function AssetDashboard() {
         <StatCard
           label="Total Assets"
           value={total}
-          sub={`₹${formatCurrency(totalCost)} total cost`}
+          sub={`${formatCurrency(totalCost)} total cost`}
           icon={Package}
           tone="blue"
         />
         <StatCard
           label="Active Assets"
           value={active}
-          sub={`${Math.round((active / total) * 100)}% utilization`}
+          sub={`${total > 0 ? Math.round((active / total) * 100) : 0}% utilization`}
           icon={CheckCircle2}
           tone="green"
         />
@@ -276,7 +331,7 @@ export default function AssetDashboard() {
                     </span>
                   </div>
                   <Progress
-                    value={(item.count / total) * 100}
+                    value={total > 0 ? (item.count / total) * 100 : 0}
                     className="h-2"
                     progressColor={item.color}
                   />
@@ -288,7 +343,7 @@ export default function AssetDashboard() {
               <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted/50 p-3">
                 <div className="text-center">
                   <p className="text-lg font-black tabular-nums text-emerald-600">
-                    {Math.round((active / total) * 100)}%
+                    {total > 0 ? Math.round((active / total) * 100) : 0}%
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">Active Rate</p>
                 </div>
@@ -315,7 +370,7 @@ export default function AssetDashboard() {
               <CardDescription className="text-xs">Assets per category</CardDescription>
             </CardHeader>
             <CardContent className="-mt-2 space-y-2">
-              {categoryEntries.map(([cat, count]) => {
+              {displayCategoryEntries.map(([cat, count]) => {
                 const cfg = CATEGORY_COLORS[cat as AssetCategory];
                 return (
                   <div key={cat} className="flex items-center gap-3">
@@ -328,12 +383,17 @@ export default function AssetDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-semibold text-foreground">{cat}</span>
-                        <span className={cn('text-xs font-bold tabular-nums', cfg?.text)}>
+                        <span
+                          className={cn(
+                            'text-xs font-bold tabular-nums',
+                            cfg?.text ?? 'text-muted-foreground'
+                          )}
+                        >
                           {count}
                         </span>
                       </div>
                       <Progress
-                        value={(count / total) * 100}
+                        value={total > 0 ? (count / total) * 100 : 0}
                         className="h-1.5"
                         progressColor={cfg?.dot ?? 'bg-muted-foreground'}
                       />
@@ -359,7 +419,7 @@ export default function AssetDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="-mt-2 space-y-2">
-              {deptEntries.map(([dept, count]) => (
+              {displayDeptEntries.map(([dept, count]) => (
                 <div
                   key={dept}
                   className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-muted/40 transition-colors"
@@ -370,7 +430,7 @@ export default function AssetDashboard() {
                       <span className="text-xs font-bold tabular-nums text-teal-600">{count}</span>
                     </div>
                     <Progress
-                      value={(count / total) * 100}
+                      value={total > 0 ? (count / total) * 100 : 0}
                       className="h-1.5 mt-1"
                       progressColor="bg-teal-500"
                     />
@@ -378,12 +438,17 @@ export default function AssetDashboard() {
                 </div>
               ))}
 
-              {topDept && (
+              {topDept ? (
                 <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-xl p-2.5">
                   <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   <span>
                     <span className="font-bold text-foreground">{topDept}</span> has most assets
                   </span>
+                </div>
+              ) : (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-xl p-2.5">
+                  <Zap className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>No department asset allocation yet</span>
                 </div>
               )}
             </CardContent>
@@ -417,60 +482,78 @@ export default function AssetDashboard() {
               </div>
             </CardHeader>
             <CardContent className="-mt-2 p-0">
-              <div className="divide-y divide-border/60">
-                {recent.map((asset) => {
-                  const catCfg = CATEGORY_COLORS[asset.category];
-                  const statusCfg = STATUS_COLORS[asset.status];
-                  return (
-                    <Link
-                      key={asset.id}
-                      to={`/asset/asset/${asset.id}`}
-                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/40 transition-colors group"
-                    >
-                      <div className={cn('rounded-xl p-2.5 shrink-0', catCfg?.bg ?? 'bg-muted')}>
-                        <Package
-                          className={cn('h-4 w-4', catCfg?.text ?? 'text-muted-foreground')}
-                        />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                          {asset.productName}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-[11px] font-mono text-muted-foreground">
-                            {asset.sn}
-                          </span>
-                          <span className="text-muted-foreground/40">·</span>
-                          <span className="text-[11px] text-muted-foreground">{asset.brand}</span>
-                          <span className="text-muted-foreground/40">·</span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {asset.department}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0 hidden sm:block">
-                        <p className="text-sm font-bold tabular-nums text-foreground">
-                          {formatCurrency(asset.assetValue)}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Book Value</p>
-                      </div>
-
-                      <span
-                        className={cn(
-                          'shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border',
-                          statusCfg.bg,
-                          statusCfg.text,
-                          statusCfg.border
-                        )}
+              {recent.length > 0 ? (
+                <div className="divide-y divide-border/60">
+                  {recent.map((asset) => {
+                    const catCfg = CATEGORY_COLORS[asset.category];
+                    const statusCfg = STATUS_COLORS[asset.status];
+                    return (
+                      <Link
+                        key={asset.id}
+                        to={`/asset/asset/${asset.id}`}
+                        className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/40 transition-colors group"
                       >
-                        {asset.status}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
+                        <div className={cn('rounded-xl p-2.5 shrink-0', catCfg?.bg ?? 'bg-muted')}>
+                          <Package
+                            className={cn('h-4 w-4', catCfg?.text ?? 'text-muted-foreground')}
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                            {asset.productName}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-[11px] font-mono text-muted-foreground">
+                              {asset.sn}
+                            </span>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="text-[11px] text-muted-foreground">{asset.brand}</span>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {asset.department}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 hidden sm:block">
+                          <p className="text-sm font-bold tabular-nums text-foreground">
+                            {formatCurrency(asset.assetValue)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Book Value</p>
+                        </div>
+
+                        <span
+                          className={cn(
+                            'shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border',
+                            statusCfg.bg,
+                            statusCfg.text,
+                            statusCfg.border
+                          )}
+                        >
+                          {asset.status}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                  <div className="h-10 w-10 rounded-2xl bg-muted/60 flex items-center justify-center mb-2">
+                    <Package className="h-5 w-5 text-muted-foreground/60" />
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">No recent assets</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
+                    Assets created or assigned to this project will appear here.
+                  </p>
+                  <Link
+                    to="/asset/assets"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    View asset directory <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -486,67 +569,73 @@ export default function AssetDashboard() {
               </div>
             </CardHeader>
             <CardContent className="-mt-2 space-y-2">
-              {assets
-                .filter((a) => a.maintenanceRequired === 'Yes' && a.nextService)
-                .slice(0, 3)
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-start gap-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-100 dark:bg-amber-950/30 dark:border-amber-800/50"
-                  >
-                    <Wrench className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 truncate">
-                        {a.productName}
-                      </p>
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-1">
-                        <Calendar className="h-2.5 w-2.5" /> Service due {a.nextService}
-                      </p>
+              {hasAlerts ? (
+                <>
+                  {maintenanceAlerts.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-100 dark:bg-amber-950/30 dark:border-amber-800/50"
+                    >
+                      <Wrench className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 truncate">
+                          {a.productName}
+                        </p>
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 flex items-center gap-1">
+                          <Calendar className="h-2.5 w-2.5" /> Service due {a.nextService}
+                        </p>
+                      </div>
+                      <Badge className="text-[9px] bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 shrink-0 px-1.5">
+                        {a.priority}
+                      </Badge>
                     </div>
-                    <Badge className="text-[9px] bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 shrink-0 px-1.5">
-                      {a.priority}
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
 
-              {assets
-                .filter((a) => a.status === 'Under Repair')
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-start gap-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-100 dark:bg-rose-950/30 dark:border-rose-800/50"
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-300 truncate">
-                        {a.productName}
-                      </p>
-                      <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">
-                        Currently under repair
-                      </p>
+                  {repairAlerts.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-100 dark:bg-rose-950/30 dark:border-rose-800/50"
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-300 truncate">
+                          {a.productName}
+                        </p>
+                        <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">
+                          Currently under repair
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-              {assets
-                .filter((a) => a.warrantyAvailable === 'Yes')
-                .slice(0, 2)
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-start gap-2.5 p-2.5 rounded-xl bg-blue-50 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-800/50"
-                  >
-                    <Shield className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 truncate">
-                        {a.productName}
-                      </p>
-                      <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1">
-                        <Clock className="h-2.5 w-2.5" /> Warranty till {a.warrantyEnd}
-                      </p>
+                  {warrantyAlerts.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-2.5 p-2.5 rounded-xl bg-blue-50 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-800/50"
+                    >
+                      <Shield className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 truncate">
+                          {a.productName}
+                        </p>
+                        <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1">
+                          <Clock className="h-2.5 w-2.5" /> Warranty till {a.warrantyEnd}
+                        </p>
+                      </div>
                     </div>
+                  ))}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                  <div className="h-10 w-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-2.5">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                ))}
+                  <p className="text-xs font-semibold text-foreground">All Systems Clear</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
+                    No overdue maintenance, active repairs, or warranty warnings.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

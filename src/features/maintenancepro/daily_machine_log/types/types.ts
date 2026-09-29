@@ -1,5 +1,6 @@
 export interface DailyMachineLog {
   id: string;
+  firmId?: string;
   machineId: string;
   machineName: string;
   date: string;
@@ -17,6 +18,7 @@ export interface DailyMachineLog {
   createdAt: string;
   // Only present in "All Companies" mode
   tenant?: { id: string; name: string } | null;
+  machine?: { id: string; name: string; assetCode: string; firmId?: string } | null;
 }
 
 export interface MachineStat {
@@ -29,6 +31,7 @@ export interface RealMachine {
   id: string;
   name: string;
   assetCode: string;
+  firmId?: string;
 }
 
 export interface CreateDailyMachineLogDto {

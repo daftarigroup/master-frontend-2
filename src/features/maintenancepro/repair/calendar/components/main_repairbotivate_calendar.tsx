@@ -8,6 +8,8 @@ import {
  Clock,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useCalendarEvents } from '../server/tanstackQuery/useCalendarQueries';
 
 interface Task {
@@ -21,16 +23,20 @@ interface Task {
 }
 
 const Calendar = () => {
+ const { effectivePermittedFirms, selectedProject } = useProject();
+ const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
  const [currentDate, setCurrentDate] = useState(new Date());
  const [view, setView] = useState<'day' | 'week' | 'month'>('month');
  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
  const [tasks, setTasks] = useState<Task[]>([]);
 
- const { data: rawEvents = [] } = useCalendarEvents();
+ const { data: rawEvents = [] } = useCalendarEvents(queryFirmId);
 
  useEffect(() => {
- if (rawEvents && rawEvents.length > 0) {
- const mapped: Task[] = rawEvents.map((e, idx) => {
+ const scopedEvents = filterByFirmAccess(rawEvents, effectivePermittedFirms);
+ if (scopedEvents && scopedEvents.length > 0) {
+ const mapped: Task[] = scopedEvents.map((e, idx) => {
  const rawStatus = (e.status || '').toUpperCase();
  let status: Task['status'] = 'pending';
  if (rawStatus === 'COMPLETED' || rawStatus === 'CLOSED' || rawStatus === 'RESOLVED') {

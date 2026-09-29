@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import PageLayout from './PageLayout';
-import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { isSystemPermitted } from '@/components/element/PermissionGuard';
@@ -22,7 +21,14 @@ export const GlobalDashboard: React.FC = () => {
   const iconRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Get all systems except global itself
-  const systems = getOrderedNavConfig().filter((s) => s.id !== 'global');
+  // Get all systems except global itself, then hide any that the user has no access to
+  const allSystems = getOrderedNavConfig().filter((s) => s.id !== 'global');
+  const systems = allSystems.filter((s) => {
+    // Always show 'Coming Soon' disabled systems (optional — remove this line to hide them too)
+    if (s.disabled) return true;
+    // Hide if user has no permission at all for this system
+    return isSystemPermitted(user, s);
+  });
 
   // GSAP animations for lively wobbly motion and entrance
   useGSAP(
@@ -138,9 +144,8 @@ export const GlobalDashboard: React.FC = () => {
         {/* Responsive Grid Icons Navigation */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-4 sm:gap-6">
           {systems.map((system, idx) => {
-            const hasPermission = system.disabled ? false : isSystemPermitted(user, system);
             const isViewOnly = user?.modify_access === 'VIEW';
-            const isCardDisabled = system.disabled || !hasPermission;
+            const isCardDisabled = system.disabled ?? false;
             const viewsCount = system.groups.reduce((acc, g) => acc + g.items.length, 0);
             const accent = getAccentStyle(system.accentClassName);
 
@@ -150,9 +155,6 @@ export const GlobalDashboard: React.FC = () => {
             if (system.disabled) {
               badgeText = 'Coming Soon';
               badgeStyle = 'bg-muted text-muted-foreground border-transparent';
-            } else if (!hasPermission) {
-              badgeText = 'No Access';
-              badgeStyle = 'bg-red-500/10 text-red-600 dark:text-red-400 border-transparent';
             } else if (isViewOnly) {
               badgeText = 'View Only';
               badgeStyle = 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-transparent';
@@ -201,11 +203,7 @@ export const GlobalDashboard: React.FC = () => {
                         !isCardDisabled ? accent.ring : 'ring-transparent'
                       )}
                     />
-                    {!hasPermission && !system.disabled && (
-                      <span className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full shadow-sm ring-2 ring-background">
-                        <Lock className="size-2.5" />
-                      </span>
-                    )}
+
                   </div>
 
                   <div className="space-y-0.5 w-full">
@@ -222,7 +220,6 @@ export const GlobalDashboard: React.FC = () => {
                       badgeStyle
                     )}
                   >
-                    {!hasPermission && !system.disabled && <Lock className="size-2.5" />}
                     {badgeText}
                   </span>
                 </div>

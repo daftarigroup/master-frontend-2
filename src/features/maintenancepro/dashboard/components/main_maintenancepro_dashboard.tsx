@@ -37,6 +37,9 @@ import {
   type DashboardPeriod,
   useMaintenanceDashboardV3,
 } from '../server/tanstackQuery/useDashboardQueries';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
+import type { V3Machine, V3WorkOrder } from '../types/types';
 
 type SelectedCard = 'machines' | 'departments' | 'weekly' | 'frequent';
 
@@ -71,23 +74,45 @@ const MaintenanceDashboard = () => {
     ? { backgroundColor: '#1f2937', border: '1px solid #374151', color: '#f3f4f6' }
     : {};
 
+  const { effectivePermittedFirms } = useProject();
   const { data, isLoading, isFetching, isError, refetch } = useMaintenanceDashboardV3(period);
 
-  const MACHINES = data?.machines ?? [];
-  const WORK_ORDERS = data?.workOrders ?? [];
-  const ALERTS = data?.alerts ?? [];
+  const rawMachines = data?.machines ?? [];
+  const rawWorkOrders = data?.workOrders ?? [];
+
+  const MACHINES = useMemo<V3Machine[]>(() => {
+    return filterByFirmAccess(rawMachines, effectivePermittedFirms);
+  }, [rawMachines, effectivePermittedFirms]);
+
+  const permittedMachineIds = useMemo(() => new Set(MACHINES.map((m) => m.id)), [MACHINES]);
+
+  const WORK_ORDERS = useMemo<V3WorkOrder[]>(() => {
+    return rawWorkOrders.filter((wo) => permittedMachineIds.has(wo.machineId));
+  }, [rawWorkOrders, permittedMachineIds]);
+
+  const ALERTS = useMemo(() => {
+    return (data?.alerts ?? []).filter((a) => !a.machineId || permittedMachineIds.has(a.machineId));
+  }, [data?.alerts, permittedMachineIds]);
+
   const WEEKLY_COMPLETION = data?.weeklyCompletion ?? [];
-  const KPI = data?.kpi ?? {
-    totalWorkOrders: 0,
-    overdueTasks: 0,
-    completedToday: 0,
-    completionRate: 0,
-    criticalMachines: 0,
-    criticalMachineIds: [] as string[],
-    activeTechnicians: 0,
-    pendingToday: 0,
-    totalCost: 0,
-  };
+
+  const KPI = useMemo(() => {
+    const totalWOs = WORK_ORDERS.length;
+    const completedToday = WORK_ORDERS.filter((w) => w.status === 'done').length;
+    const overdueTasks = WORK_ORDERS.filter((w) => w.status === 'overdue').length;
+    const critical = MACHINES.filter((m) => m.status === 'critical');
+    return {
+      totalWorkOrders: totalWOs,
+      overdueTasks,
+      completedToday,
+      completionRate: totalWOs > 0 ? Math.round((completedToday / totalWOs) * 100) : 0,
+      criticalMachines: critical.length,
+      criticalMachineIds: critical.map((m) => m.id),
+      activeTechnicians: data?.kpi?.activeTechnicians ?? 0,
+      pendingToday: WORK_ORDERS.filter((w) => w.status === 'pending').length,
+      totalCost: data?.kpi?.totalCost ?? 0,
+    };
+  }, [WORK_ORDERS, MACHINES, data?.kpi]);
 
   // ── Derived chart data ──────────────────────────────────────────────
 

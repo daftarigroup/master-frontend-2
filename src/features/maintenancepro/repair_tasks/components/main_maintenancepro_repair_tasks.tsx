@@ -8,6 +8,8 @@ import { CompanySelectField } from '@/features/organization/components/CompanySe
 import { useCompanyPinForCreate } from '@/features/organization/hooks/useCompanyPinForCreate';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 
 const useGetProfileQuery = () => ({
   data: { data: { id: 'user-1', name: 'Admin', role: 'ADMIN' } },
@@ -954,6 +956,8 @@ export default function MainRepairTasks() {
   const [givenByFilter, setGivenByFilter] = useState('');
   const [firmFilter, setFirmFilter] = useState('');
 
+  const { effectivePermittedFirms } = useProject();
+
   const { data: firmsResponse } = useQuery({
     queryKey: ['repair', 'firms', 'list'],
     queryFn: () => api.get('/maintenance/firms'),
@@ -962,7 +966,10 @@ export default function MainRepairTasks() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-  const firms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const rawFirms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const firms: { id: string; name: string }[] = useMemo(() => {
+    return filterByFirmAccess(rawFirms, effectivePermittedFirms);
+  }, [rawFirms, effectivePermittedFirms]);
 
   const { page, setPage } = usePagination(20);
   // Page 2 of "All" isn't meaningful once you've switched to a different bucket.
@@ -1167,8 +1174,9 @@ export default function MainRepairTasks() {
       ...((activeData as { data?: WorkOrder[] } | undefined)?.data ?? []),
       ...((historyData as { data?: WorkOrder[] } | undefined)?.data ?? []),
     ];
-    return Array.from(new Map(merged.map((wo) => [wo.id, wo])).values());
-  }, [activeData, historyData]);
+    const deduped = Array.from(new Map(merged.map((wo) => [wo.id, wo])).values());
+    return filterByFirmAccess(deduped, effectivePermittedFirms);
+  }, [activeData, historyData, effectivePermittedFirms]);
 
   const stats = useMemo(
     () => ({
@@ -1880,7 +1888,7 @@ export default function MainRepairTasks() {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {wo.workOrderCode || `#${wo.id.slice(-6)}`}
+                        {wo.workOrderCode || (wo.id ? `WO-${wo.id.slice(-6).toUpperCase()}` : '—')}
                       </td>
                       <td style={{ padding: '12px 14px', color: T.fg, whiteSpace: 'nowrap' }}>
                         <div style={{ fontWeight: 600 }}>{wo.machine?.name ?? '-'}</div>

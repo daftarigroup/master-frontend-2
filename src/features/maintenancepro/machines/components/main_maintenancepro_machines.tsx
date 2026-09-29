@@ -24,6 +24,8 @@ import { useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePagination } from '@/hooks/usePagination';
 import { api } from '@/lib/axios';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useMachines } from '../server/tanstackQuery/useMachinesQueries';
 import type { Machine, MachineStatus } from '../types/types';
 import { MACHINE_STATUS_LABELS } from '../types/types';
@@ -102,6 +104,15 @@ export default function MachinesList() {
 
   const { page: currentPage, limit: ITEMS_PER_PAGE, setPage: setCurrentPage } = usePagination(10);
 
+  const { selectedProject, effectivePermittedFirms } = useProject();
+
+  const queryFirmId = useMemo(() => {
+    if (firmFilter !== 'all') return firmFilter;
+    if (selectedProject && selectedProject.id !== 'all') return String(selectedProject.id);
+    if (effectivePermittedFirms && effectivePermittedFirms.length === 1) return effectivePermittedFirms[0];
+    return undefined;
+  }, [firmFilter, selectedProject, effectivePermittedFirms]);
+
   const {
     data: machinesResponse,
     isLoading,
@@ -112,9 +123,12 @@ export default function MachinesList() {
     search: searchTerm.trim() || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
     departmentId: departmentFilter !== 'all' ? departmentFilter : undefined,
-    firmId: firmFilter !== 'all' ? firmFilter : undefined,
+    firmId: queryFirmId,
   });
-  const machines: Machine[] = useMemo(() => machinesResponse?.data ?? [], [machinesResponse?.data]);
+  const rawMachines: Machine[] = useMemo(() => machinesResponse?.data ?? [], [machinesResponse?.data]);
+  const machines: Machine[] = useMemo(() => {
+    return filterByFirmAccess(rawMachines, effectivePermittedFirms);
+  }, [rawMachines, effectivePermittedFirms]);
   const total = machinesResponse?.pagination?.total ?? 0;
   const totalPages = machinesResponse?.pagination?.totalPages ?? 1;
 
@@ -154,7 +168,10 @@ export default function MachinesList() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-  const firms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const rawFirms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const firms: { id: string; name: string }[] = useMemo(() => {
+    return filterByFirmAccess(rawFirms, effectivePermittedFirms);
+  }, [rawFirms, effectivePermittedFirms]);
 
   const handleSort = (col: SortColumn) => {
     if (sortColumn === col) {

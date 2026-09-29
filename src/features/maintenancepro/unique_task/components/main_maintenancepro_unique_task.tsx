@@ -2,7 +2,9 @@
 
 import { Link } from 'react-router-dom';
 import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { PaginationBar } from '@/components/shared/PaginationBar';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { useImageUpload } from '@/hooks/useImageUpload';
@@ -1228,17 +1230,16 @@ export default function UniqueTaskMain() {
   const createPlan = useCreatePlan();
   const createActivityType = useCreateActivityType();
 
+  const { effectivePermittedFirms } = useProject();
   const allOrders: WorkOrder[] = woData?.data ?? [];
   const machines = (machinesData as { data?: MachineRef[] } | undefined)?.data ?? [];
   const users = (usersData as UserRef[] | undefined) ?? [];
   const activityTypes = activityTypesData ?? [];
 
-  // Search, status, frequency, date range, and view are all applied
-  // server-side now (see commonParams/statusParams above) — the backend's
-  // WHERE clause and the stats endpoint's bucket counts share the same
-  // definitions, so what's on screen always matches the full dataset, not
-  // just whatever happened to be on the current page.
-  const filtered = allOrders;
+  // Scoped to permitted project/firms
+  const filtered = useMemo<WorkOrder[]>(() => {
+    return filterByFirmAccess(allOrders, effectivePermittedFirms);
+  }, [allOrders, effectivePermittedFirms]);
 
   // Only true when the backend merged this list across a multi-company
   // identity's linked companies (see UserIdentity) — `tenant` is absent for

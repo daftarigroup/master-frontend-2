@@ -41,7 +41,14 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { useAssets, useCreateAsset, useUsersList } from '../server/tanstackQuery/useAssetQueries';
+import {
+  useAssets,
+  useCreateAsset,
+  useUsersList,
+  useDepartmentsList,
+  useSiteLocationsList,
+  type SiteLocationOption,
+} from '../server/tanstackQuery/useAssetQueries';
 import {
   CATEGORY_COLORS,
   formatCurrency,
@@ -163,10 +170,29 @@ function AssetCard({ asset }: { asset: Asset }) {
   );
 }
 
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
+
 const CATEGORIES: AssetCategory[] = ['IT', 'Electronics', 'Furniture', 'Machinery', 'Tools', 'Vehicle'];
 
 export default function AssetList() {
-  const { data: assets = [] } = useAssets();
+  const { selectedProject, effectivePermittedFirms } = useProject();
+
+  const queryFirmId = useMemo(() => {
+    if (selectedProject && selectedProject.id !== 'all') {
+      return String(selectedProject.id);
+    }
+    if (effectivePermittedFirms && effectivePermittedFirms.length === 1) {
+      return effectivePermittedFirms[0];
+    }
+    return undefined;
+  }, [selectedProject, effectivePermittedFirms]);
+
+  const { data: rawAssets = [] } = useAssets(queryFirmId ? { firmId: queryFirmId } : undefined);
+  const assets = useMemo(() => {
+    return filterByFirmAccess(rawAssets, effectivePermittedFirms);
+  }, [rawAssets, effectivePermittedFirms]);
+
   const createAsset = useCreateAsset();
 
   const [search, setSearch] = useState('');
@@ -197,7 +223,7 @@ export default function AssetList() {
     depMethod: 'Straight Line',
     location: '',
     department: '',
-    firmId: '',
+    firmId: selectedProject && selectedProject.id !== 'all' ? String(selectedProject.id) : '',
     assignedTo: '',
     responsiblePerson: '',
     warrantyAvailable: 'No' as 'Yes' | 'No',
@@ -214,13 +240,44 @@ export default function AssetList() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-  const firms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const rawFirms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const firms = useMemo(() => {
+    return filterByFirmAccess(rawFirms, effectivePermittedFirms);
+  }, [rawFirms, effectivePermittedFirms]);
   const { data: users = [] } = useUsersList();
+  const { data: dbDepartments = [] } = useDepartmentsList();
+  const { data: dbLocations = [] } = useSiteLocationsList();
 
-  const departments = useMemo(
-    () => [...new Set(assets.map((a) => a.department).filter(Boolean))],
-    [assets]
-  );
+  const availableLocations = useMemo(() => {
+    const selectedFirmId = form.firmId && form.firmId !== 'none' ? String(form.firmId) : null;
+    let list = dbLocations;
+    if (selectedFirmId) {
+      list = dbLocations.filter(
+        (l) => l.firmId && String(l.firmId) === selectedFirmId
+      );
+    }
+    const seen = new Set<string>();
+    const result: SiteLocationOption[] = [];
+    for (const item of list) {
+      const key = item.location.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(item);
+      }
+    }
+    return result;
+  }, [dbLocations, form.firmId]);
+
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    dbDepartments.forEach((d) => {
+      if (d.name) set.add(d.name);
+    });
+    assets.forEach((a) => {
+      if (a.department) set.add(a.department);
+    });
+    return Array.from(set).sort();
+  }, [dbDepartments, assets]);
 
   const filtered = useMemo(() => {
     let list = assets;
@@ -278,7 +335,7 @@ export default function AssetList() {
       depMethod: 'Straight Line',
       location: '',
       department: '',
-      firmId: '',
+      firmId: selectedProject && selectedProject.id !== 'all' ? String(selectedProject.id) : '',
       assignedTo: '',
       responsiblePerson: '',
       warrantyAvailable: 'No',
@@ -722,14 +779,14 @@ export default function AssetList() {
         </>
       )}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Add Asset</DialogTitle>
             <DialogDescription>
               Create a new asset record with assignment, warranty, and maintenance details.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
             <Input
               placeholder="Product name *"
               value={form.productName}
@@ -739,7 +796,7 @@ export default function AssetList() {
               value={form.category}
               onValueChange={(value) => setForm((f) => ({ ...f, category: value as AssetCategory }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -822,7 +879,7 @@ export default function AssetList() {
               value={form.paymentMode || undefined}
               onValueChange={(val) => setForm((f) => ({ ...f, paymentMode: val }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Payment Mode" />
               </SelectTrigger>
               <SelectContent>
@@ -837,7 +894,7 @@ export default function AssetList() {
               value={form.depMethod || 'Straight Line'}
               onValueChange={(val) => setForm((f) => ({ ...f, depMethod: val }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Depreciation Method" />
               </SelectTrigger>
               <SelectContent>
@@ -845,23 +902,80 @@ export default function AssetList() {
                 <SelectItem value="WDV">WDV</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              placeholder="Location"
-              value={form.location}
-              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-            />
-            <Input
-              placeholder="Department"
-              value={form.department}
-              onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-            />
             <Select
-              value={form.firmId || 'none'}
+              value={form.location || undefined}
+              onValueChange={(val) => {
+                if (val === '_clear') {
+                  setForm((f) => ({ ...f, location: '' }));
+                } else {
+                  const match = dbLocations.find((l) => l.location === val);
+                  setForm((f) => ({
+                    ...f,
+                    location: val,
+                    firmId: (!f.firmId || f.firmId === 'none') && match?.firmId ? String(match.firmId) : f.firmId,
+                  }));
+                }
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_clear">Clear (None)</SelectItem>
+                {availableLocations.map((l) => (
+                  <SelectItem key={l.id} value={l.location}>
+                    {l.location}
+                    {(!form.firmId || form.firmId === 'none') && l.firmName ? ` (${l.firmName})` : ''}
+                  </SelectItem>
+                ))}
+                {form.location && !availableLocations.some((l) => l.location === form.location) && (
+                  <SelectItem value={form.location}>{form.location}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <Select
+              value={form.department || undefined}
               onValueChange={(value) =>
-                setForm((f) => ({ ...f, firmId: value === 'none' ? '' : value }))
+                setForm((f) => ({ ...f, department: value === '_clear' ? '' : value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_clear">Clear (None)</SelectItem>
+                {dbDepartments.map((d) => (
+                  <SelectItem key={d.id} value={d.name}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+                {form.department && !dbDepartments.some((d) => d.name === form.department) && (
+                  <SelectItem value={form.department}>{form.department}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <Select
+              value={form.firmId || 'none'}
+              onValueChange={(value) => {
+                const newFirmId = value === 'none' ? '' : value;
+                setForm((f) => {
+                  const belongs =
+                    !f.location ||
+                    !newFirmId ||
+                    dbLocations.some(
+                      (l) =>
+                        l.location.toLowerCase() === f.location.toLowerCase() &&
+                        String(l.firmId) === newFirmId
+                    );
+                  return {
+                    ...f,
+                    firmId: newFirmId,
+                    location: belongs ? f.location : '',
+                  };
+                });
+              }}
+            >
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Project (Firm)" />
               </SelectTrigger>
               <SelectContent>
@@ -879,7 +993,7 @@ export default function AssetList() {
                 setForm((f) => ({ ...f, assignedTo: value === '_clear' ? '' : value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Assigned To" />
               </SelectTrigger>
               <SelectContent>
@@ -901,7 +1015,7 @@ export default function AssetList() {
                 setForm((f) => ({ ...f, responsiblePerson: value === '_clear' ? '' : value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Responsible To" />
               </SelectTrigger>
               <SelectContent>
@@ -923,7 +1037,7 @@ export default function AssetList() {
                 setForm((f) => ({ ...f, warrantyAvailable: value as 'Yes' | 'No' }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Warranty" />
               </SelectTrigger>
               <SelectContent>
@@ -943,7 +1057,7 @@ export default function AssetList() {
                 setForm((f) => ({ ...f, maintenanceRequired: value as 'Yes' | 'No' }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Maintenance" />
               </SelectTrigger>
               <SelectContent>
@@ -956,7 +1070,7 @@ export default function AssetList() {
               onValueChange={(value) => setForm((f) => ({ ...f, priority: value }))}
               disabled={form.maintenanceRequired === 'No'}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
               <SelectContent>

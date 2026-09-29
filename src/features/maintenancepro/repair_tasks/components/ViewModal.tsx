@@ -199,7 +199,7 @@ function ViewModal({ wo, onClose }: { wo: WorkOrder; onClose: () => void }) {
                           wordBreak: 'break-word',
                         }}
                       >
-                        {wo.plan?.title ?? `Work Order #${wo.id.slice(-6)}`}
+                        {wo.plan?.title ?? (wo.workOrderCode || (wo.id ? `WO-${wo.id.slice(-6).toUpperCase()}` : 'Repair Task'))}
                       </h2>
                     </div>
                   </div>
@@ -240,8 +240,8 @@ function ViewModal({ wo, onClose }: { wo: WorkOrder; onClose: () => void }) {
                 >
                   {[
                     {
-                      label: 'Occurrence ID',
-                      value: wo.workOrderCode || wo.id,
+                      label: 'Work Order ID',
+                      value: wo.workOrderCode || (wo.id ? `WO-${wo.id.slice(-6).toUpperCase()}` : '—'),
                     },
                     {
                       label: 'Task / Plan ID',

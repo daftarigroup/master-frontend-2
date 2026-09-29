@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/apiClient';
 import { CHECKLIST_TOKEN_KEY } from '@/lib/checklistApiClient';
 import { allPermissionKeys, type UserPermissions } from '@/types/sheets';
+import { GATEKEY_TO_PAGE_ID } from '@/lib/permissionMapping';
 
 /**
  * User Service
@@ -34,6 +35,14 @@ function mapUserRow(r: any): UserRecord {
             ? r.role
             : (r.administrate ? 'SUPER_ADMIN' : 'USER');
 
+    const pageAccess = r.page_access && typeof r.page_access === 'object' ? r.page_access : {};
+    const isSuperAdmin = role === 'SUPER_ADMIN' || r.administrate === true || (r.administrate as any) === 'true';
+    const isAllPageAccess = pageAccess['ALL'] === 'EDIT' || pageAccess['all'] === 'EDIT' || pageAccess['ALL'] === 'VIEW' || pageAccess['all'] === 'VIEW';
+
+    const systemAccessList: string[] = Array.isArray(r.system_access)
+        ? [...r.system_access]
+        : (typeof r.system_access === 'string' ? [r.system_access] : []);
+
     const user: any = {
         id: r.id,
         timestamp: r.timestamp || '',
@@ -44,20 +53,39 @@ function mapUserRow(r: any): UserRecord {
         modify_access: (String(r.modify_access || 'EDIT').toUpperCase() === 'VIEW' ? 'VIEW' : 'EDIT'),
         firmNameMatch: '',
         firm_access: normalizeFirmAccess(r.firm_access),
-        system_access: r.system_access || [],
-        page_access: r.page_access || {},
+        system_access: systemAccessList,
+        page_access: pageAccess,
         rowIndex: r.id,
         role: role,
     };
 
-    // Map each permission key from snake_case in DB to camelCase in UserPermissions
+    // Map each permission key from both DB legacy columns and unified page_access JSON
     allPermissionKeys.forEach((key) => {
-        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        const value = r[dbKey];
+        if (isSuperAdmin || isAllPageAccess) {
+            user[key] = true;
+            return;
+        }
 
-        // Handle "true"/"TRUE"/true results
-        user[key] = value === true ||
-            (typeof value === 'string' && value.toLowerCase() === 'true');
+        // 1. Check legacy DB boolean columns
+        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        const rawColValue = r[dbKey];
+        const isDbColTrue = rawColValue === true || (typeof rawColValue === 'string' && rawColValue.toLowerCase() === 'true');
+
+        // 2. Check unified page_access JSON object
+        const mappedPageId = GATEKEY_TO_PAGE_ID[key];
+        const rawPageMode = (mappedPageId && pageAccess[mappedPageId]) ?? pageAccess[key] ?? pageAccess[dbKey];
+        const pageMode = typeof rawPageMode === 'object' && rawPageMode !== null ? rawPageMode.mode : rawPageMode;
+
+        let isPageAccessGranted = false;
+        if (pageMode === 'EDIT' || pageMode === true || pageMode === 'true') {
+            isPageAccessGranted = true;
+        } else if (pageMode === 'VIEW' || pageMode === 'view') {
+            // Action-only keys require EDIT mode
+            const isActionOnlyKey = key.toLowerCase().endsWith('action');
+            isPageAccessGranted = !isActionOnlyKey;
+        }
+
+        user[key] = isDbColTrue || isPageAccessGranted;
     });
 
     const activePerms: string[] = [];
@@ -67,6 +95,32 @@ function mapUserRow(r: any): UserRecord {
         }
     });
     user.permissions = activePerms;
+
+    // Ensure system_access includes systems corresponding to any granted pages
+    if (isSuperAdmin && !user.system_access.includes('ALL')) {
+        user.system_access.push('ALL');
+    }
+
+    const systemPrefixMap: Record<string, string[]> = {
+        hr: ['hr_'],
+        asset: ['asset_'],
+        maintenance: ['maint_'],
+        repair: ['repair_'],
+        document: ['doc_'],
+        petty_cash: ['petty_cash_'],
+        checklist: ['checklist_'],
+    };
+
+    Object.entries(systemPrefixMap).forEach(([sysId, prefixes]) => {
+        if (!user.system_access.includes(sysId)) {
+            const hasAnyPage = Object.keys(pageAccess).some((p) =>
+                prefixes.some((pfx) => p.startsWith(pfx))
+            );
+            if (hasAnyPage) {
+                user.system_access.push(sysId);
+            }
+        }
+    });
 
     return applyDerivedUserAccess(user) as UserRecord;
 }

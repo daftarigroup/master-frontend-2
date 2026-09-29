@@ -1,6 +1,7 @@
 // Calendar types
 export interface CalendarEvent {
   id: number | string;
+  firmId?: string;
   title: string;
   date: string;
   type?: string;

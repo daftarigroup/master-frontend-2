@@ -301,8 +301,9 @@ export type UserPermissions = {
     firm_access: string[]; // New field for project-based access
 
     role?: 'SUPER_ADMIN' | 'ADMIN' | 'USER'; // New independent role field (Checklist & Delegation module)
-    system_access?: string[];
-    page_access?: Record<string, any>;
+    system_access?: string | string[];
+    page_access?: string | Record<string, any>;
+    permissions?: string[];
 
     administrate: boolean;
     manageUsers?: boolean;

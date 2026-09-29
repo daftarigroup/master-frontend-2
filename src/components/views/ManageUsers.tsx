@@ -53,8 +53,8 @@ interface UsersTableData {
     firmNameMatch: string;
     firm_access: string[];
     permissions: string[];
-    page_access?: Record<string, any>;
-    system_access?: string[];
+    page_access?: string | Record<string, any>;
+    system_access?: string | string[];
 }
 
 interface SystemPageConfig {
@@ -1090,7 +1090,11 @@ export default function ManageUsers() {
         const initialDeletes: Record<string, boolean> = {};
         const userPerms = user?.permissions || [];
         const isUserViewOnly = user?.modify_access === 'VIEW';
-        const userPageAccess = user?.page_access || {};
+        const rawUserPageAccess = user?.page_access;
+        const userPageAccess: Record<string, any> =
+            typeof rawUserPageAccess === 'string'
+                ? (() => { try { return JSON.parse(rawUserPageAccess); } catch { return {}; } })()
+                : (rawUserPageAccess && typeof rawUserPageAccess === 'object' ? rawUserPageAccess : {});
 
         SYSTEM_HIERARCHY.forEach((system) => {
             system.pages.forEach((page) => {
@@ -1117,6 +1121,21 @@ export default function ManageUsers() {
         setPageDeleteModes(initialDeletes);
 
         if (user) {
+            // Build the full permission set merging user.permissions AND user.page_access
+            const effectivePermsSet = new Set(user.permissions || []);
+            SYSTEM_HIERARCHY.forEach((system) => {
+                system.pages.forEach((page) => {
+                    const pageAcc = userPageAccess[page.id];
+                    const mode = typeof pageAcc === 'object' && pageAcc !== null ? pageAcc.mode : (typeof pageAcc === 'string' ? pageAcc : undefined);
+                    if (mode === 'VIEW' || mode === 'EDIT' || mode === true || (mode as any) === 'true' || user.role === 'SUPER_ADMIN') {
+                        page.viewKeys.forEach((k) => effectivePermsSet.add(k));
+                        if (mode === 'EDIT' || mode === true || (mode as any) === 'true' || user.role === 'SUPER_ADMIN') {
+                            page.editKeys.forEach((k) => effectivePermsSet.add(k));
+                        }
+                    }
+                });
+            });
+
             form.reset({
                 username: user.username,
                 name: user.name,
@@ -1124,7 +1143,7 @@ export default function ManageUsers() {
                 role: user.role || 'USER',
                 firmNameMatch: user.firmNameMatch,
                 firm_access: (user.firm_access || []).map(String),
-                permissions: user.permissions || [],
+                permissions: Array.from(effectivePermsSet),
             });
         } else {
             form.reset({

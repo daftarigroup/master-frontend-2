@@ -20,8 +20,10 @@ import {
  X,
 } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,8 +68,17 @@ const SentMachinePage = () => {
  getUploadUrl,
  } = useRepairSystem();
 
- const { data: pendingIndents = [], isLoading: isLoadingPending } = usePendingOuthouseSent();
- const { data: historyItems = [], isLoading: isLoadingHistory } = useOuthouseSentHistory();
+  const { effectivePermittedFirms } = useProject();
+  const { data: rawPendingIndents = [], isLoading: isLoadingPending } = usePendingOuthouseSent();
+  const { data: rawHistoryItems = [], isLoading: isLoadingHistory } = useOuthouseSentHistory();
+
+  const pendingIndents = useMemo(() => {
+    return filterByFirmAccess(rawPendingIndents, effectivePermittedFirms);
+  }, [rawPendingIndents, effectivePermittedFirms]);
+
+  const historyItems = useMemo(() => {
+    return filterByFirmAccess(rawHistoryItems, effectivePermittedFirms);
+  }, [rawHistoryItems, effectivePermittedFirms]);
 
  const [activeSection, setActiveSection] = useState<'pending' | 'history'>('pending');
  const [searchTerm, setSearchTerm] = useState('');

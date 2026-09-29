@@ -28,7 +28,9 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { isAllowedFirm } from '@/lib/firmAccess';
 import {
   Bar,
   BarChart,
@@ -132,6 +134,16 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
   const isAdmin =
     (currentUser as { role?: string } | null)?.role === 'ADMIN' ||
     (currentUser as { role?: string } | null)?.role === 'SUPERADMIN';
+
+  const { effectivePermittedFirms } = useProject();
+  const hasAccessToMachine = useMemo(() => {
+    if (!machine) return true;
+    return isAllowedFirm(
+      { id: machine.firmId ?? undefined, name: machine.firmName ?? undefined },
+      effectivePermittedFirms
+    );
+  }, [machine, effectivePermittedFirms]);
+
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const updateMachine = useUpdateMachine();
@@ -194,6 +206,20 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
           </Button>
           <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
+      </div>
+    );
+  }
+
+  if (!hasAccessToMachine) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 space-y-4">
+        <div className="text-amber-500 font-semibold text-lg">Access Restricted</div>
+        <p className="text-muted-foreground text-sm max-w-md">
+          You do not have permission to view machine records belonging to this project/firm.
+        </p>
+        <Button variant="outline" onClick={() => router.back()}>
+          Go Back
+        </Button>
       </div>
     );
   }

@@ -14,6 +14,8 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useDailyReport } from '../server/tanstackQuery/useDailyReportQueries';
 import type { DailyTaskStatus } from '../types/types';
 
@@ -41,8 +43,19 @@ function taskStatusBadgeClass(status: DisplayStatus) {
 }
 
 export default function MaintenanceDailyReportPage() {
+  const { effectivePermittedFirms, selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('all');
-  const { data, isLoading, isError } = useDailyReport();
+  const { data: rawData, isLoading, isError } = useDailyReport(queryFirmId);
+
+  const data = useMemo(() => {
+    if (!rawData) return null;
+    return {
+      workOrders: filterByFirmAccess(rawData.workOrders, effectivePermittedFirms),
+      machines: filterByFirmAccess(rawData.machines, effectivePermittedFirms),
+    };
+  }, [rawData, effectivePermittedFirms]);
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',

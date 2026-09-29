@@ -2,6 +2,7 @@ import { api } from '@/lib/axios';
 
 export interface DailyReportTask {
   id: string;
+  firmId?: string;
   indentNumber?: string;
   title: string;
   problem?: string;
@@ -32,9 +33,12 @@ export interface DailyReportData {
   };
 }
 
-export const fetchDailyReport = async (date?: string): Promise<DailyReportData> => {
+export const fetchDailyReport = async (date?: string, firmId?: string): Promise<DailyReportData> => {
   const response = await api.get('/repair-system/daily-report', {
-    params: { date },
+    params: {
+      ...(date ? { date } : {}),
+      ...(firmId ? { firmId } : {}),
+    },
   });
   return response.data;
 };

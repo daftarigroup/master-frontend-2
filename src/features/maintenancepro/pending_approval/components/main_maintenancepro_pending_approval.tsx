@@ -2,6 +2,8 @@
 
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import type { WorkOrder } from '../../unique_task/server/api/workordersApi';
@@ -1096,6 +1098,9 @@ function ActionBtn({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export function MainPendingApproval() {
+  const { effectivePermittedFirms, selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
   const requireCompanySelected = useRequireCompanySelected();
   const isMobile = useIsMobile();
   const [tab, setTab] = useState<'pending' | 'history'>('pending');
@@ -1122,6 +1127,7 @@ export function MainPendingApproval() {
   } = useWorkOrders({
     status: 'PENDING_APPROVAL',
     limit: 100,
+    ...(queryFirmId ? { firmId: queryFirmId } : {}),
   });
 
   // Fetch history (approved/rejected — completed and completion_rejected)
@@ -1132,11 +1138,22 @@ export function MainPendingApproval() {
   } = useWorkOrders({
     status: 'COMPLETED',
     limit: 100,
+    ...(queryFirmId ? { firmId: queryFirmId } : {}),
   });
-  const { data: historyLate } = useWorkOrders({ status: 'COMPLETED_LATE', limit: 100 });
-  const { data: historyRejected } = useWorkOrders({ status: 'COMPLETION_REJECTED', limit: 100 });
+  const { data: historyLate } = useWorkOrders({
+    status: 'COMPLETED_LATE',
+    limit: 100,
+    ...(queryFirmId ? { firmId: queryFirmId } : {}),
+  });
+  const { data: historyRejected } = useWorkOrders({
+    status: 'COMPLETION_REJECTED',
+    limit: 100,
+    ...(queryFirmId ? { firmId: queryFirmId } : {}),
+  });
 
-  const pendingOrders: WorkOrder[] = pendingData?.data ?? [];
+  const pendingOrders: WorkOrder[] = useMemo(() => {
+    return filterByFirmAccess(pendingData?.data ?? [], effectivePermittedFirms);
+  }, [pendingData?.data, effectivePermittedFirms]);
 
   const historyOrders: WorkOrder[] = useMemo(() => {
     const all: WorkOrder[] = [
@@ -1145,14 +1162,15 @@ export function MainPendingApproval() {
       ...(historyRejected?.data ?? []),
     ];
     // Only show those that went through approval
-    return all
-      .filter((wo) => wo.approvalRequest !== null)
-      .sort((a, b) => {
-        const aTime = a.approvalRequest?.reviewedAt ?? a.completedAt ?? '';
-        const bTime = b.approvalRequest?.reviewedAt ?? b.completedAt ?? '';
-        return bTime.localeCompare(aTime);
-      });
-  }, [historyCompleted, historyLate, historyRejected]);
+    return filterByFirmAccess(
+      all.filter((wo) => wo.approvalRequest !== null),
+      effectivePermittedFirms
+    ).sort((a, b) => {
+      const aTime = a.approvalRequest?.reviewedAt ?? a.completedAt ?? '';
+      const bTime = b.approvalRequest?.reviewedAt ?? b.completedAt ?? '';
+      return bTime.localeCompare(aTime);
+    });
+  }, [historyCompleted, historyLate, historyRejected, effectivePermittedFirms]);
 
   const approveMutation = useApproveWorkOrder();
   const rejectMutation = useRejectWorkOrder();

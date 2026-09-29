@@ -91,12 +91,20 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Compute effective permitted firms for filtering based on active project
     const effectivePermittedFirms = useMemo(() => {
+        const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.administrate === true;
         if (!selectedProject || selectedProject.id === 'all') {
-            return user?.administrate || !user?.firm_access || user?.firm_access.length === 0
-                ? undefined
-                : user.firm_access;
+            if (isAdmin) return undefined;
+            return user?.firm_access && user.firm_access.length > 0 ? user.firm_access : [];
         }
-        return [String(selectedProject.id)];
+
+        const selectedIdStr = String(selectedProject.id);
+        if (!isAdmin && user?.firm_access && user.firm_access.length > 0) {
+            const hasAccess = user.firm_access.some(
+                (f) => String(f).trim() === selectedIdStr || String(f).trim().toLowerCase() === selectedProject.name.trim().toLowerCase()
+            );
+            if (!hasAccess) return [];
+        }
+        return [selectedIdStr];
     }, [user, selectedProject]);
 
     // Fetch permitted projects for current user
@@ -109,10 +117,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setLoadingProjects(true);
         try {
-            const permittedFirms =
-                user?.administrate || !user?.firm_access || user?.firm_access.length === 0
-                    ? undefined
-                    : user.firm_access;
+            const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.administrate === true;
+            const permittedFirms = isAdmin ? undefined : (user?.firm_access && user.firm_access.length > 0 ? user.firm_access : ['__NONE__']);
 
             const masterOptions = await fetchMasterOptions(permittedFirms);
             const firmObjs = masterOptions.firmObjects || [];

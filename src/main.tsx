@@ -1174,23 +1174,23 @@ if (rootElement) {
                                 {/* Layer 2 HR & FACILITIES MANAGEMENT SYSTEM MODULE */}
                                 <Route path="hr" element={<HrSystemLayout />}>
                                     <Route index element={<Navigate to="/hr/dashboard" replace />} />
-                                    <Route path="dashboard" element={<HrDashboardPage />} />
-                                    <Route path="indent" element={<HrIndentPage />} />
-                                    <Route path="find-enquiry" element={<HrFindEnquiryPage />} />
-                                    <Route path="employee" element={<HrEmployeePage />} />
-                                    <Route path="deployment" element={<HrDeploymentPage />} />
-                                    <Route path="attendance" element={<HrAttendancePage />} />
-                                    <Route path="leave" element={<HrLeavePage />} />
-                                    <Route path="gate-pass" element={<HrGatePassPage />} />
-                                    <Route path="advance" element={<HrAdvancePage />} />
-                                    <Route path="advance/loan/:advanceId" element={<HrLoanTransactionPage />} />
-                                    <Route path="salary-management" element={<HrSalaryManagementPage />} />
-                                    <Route path="salary-management/:employeeId" element={<HrSalaryDetailPage />} />
-                                    <Route path="after-joining" element={<HrAfterJoiningPage />} />
-                                    <Route path="after-leaving" element={<HrAfterLeavingPage />} />
-                                    <Route path="letter-formatter" element={<HrLetterFormatterPage />} />
-                                    <Route path="calendar" element={<HrCalendarPage />} />
-                                    <Route path="social-site" element={<HrSocialSitePage />} />
+                                    <Route path="dashboard" element={<GatedRoute identifier="hrDash"><HrDashboardPage /></GatedRoute>} />
+                                    <Route path="indent" element={<GatedRoute identifier="hrIndent"><HrIndentPage /></GatedRoute>} />
+                                    <Route path="find-enquiry" element={<GatedRoute identifier="hrCandidate"><HrFindEnquiryPage /></GatedRoute>} />
+                                    <Route path="employee" element={<GatedRoute identifier="hrEmployee"><HrEmployeePage /></GatedRoute>} />
+                                    <Route path="deployment" element={<GatedRoute identifier="hrEmployee"><HrDeploymentPage /></GatedRoute>} />
+                                    <Route path="attendance" element={<GatedRoute identifier="hrAttendance"><HrAttendancePage /></GatedRoute>} />
+                                    <Route path="leave" element={<GatedRoute identifier="hrLeave"><HrLeavePage /></GatedRoute>} />
+                                    <Route path="gate-pass" element={<GatedRoute identifier="hrGatePass"><HrGatePassPage /></GatedRoute>} />
+                                    <Route path="advance" element={<GatedRoute identifier="hrAdvance"><HrAdvancePage /></GatedRoute>} />
+                                    <Route path="advance/loan/:advanceId" element={<GatedRoute identifier="hrAdvance"><HrLoanTransactionPage /></GatedRoute>} />
+                                    <Route path="salary-management" element={<GatedRoute identifier="hrSalary"><HrSalaryManagementPage /></GatedRoute>} />
+                                    <Route path="salary-management/:employeeId" element={<GatedRoute identifier="hrSalary"><HrSalaryDetailPage /></GatedRoute>} />
+                                    <Route path="after-joining" element={<GatedRoute identifier="hrEmployee"><HrAfterJoiningPage /></GatedRoute>} />
+                                    <Route path="after-leaving" element={<GatedRoute identifier="hrEmployee"><HrAfterLeavingPage /></GatedRoute>} />
+                                    <Route path="letter-formatter" element={<GatedRoute identifier="hrLetter"><HrLetterFormatterPage /></GatedRoute>} />
+                                    <Route path="calendar" element={<GatedRoute identifier="hrCalendar"><HrCalendarPage /></GatedRoute>} />
+                                    <Route path="social-site" element={<GatedRoute identifier="hrCandidate"><HrSocialSitePage /></GatedRoute>} />
                                     {/* <Route path="reports" element={<HrReportsPage />} /> */}
                                 </Route>
 

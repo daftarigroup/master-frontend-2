@@ -14,11 +14,13 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getPublicFileUrl } from '@/lib/utils';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import {
   useDeletePartAndVendorMutation,
   useMachineTypesQuery,
@@ -56,8 +58,11 @@ export default function MainPartAndVendor() {
   const { data: dbMachineTypes = [] } = useMachineTypesQuery();
   const deleteMutation = useDeletePartAndVendorMutation();
 
-  // type (machine category/subCategory) is now filtered server-side too.
-  const repairs = data?.data || [];
+  const { effectivePermittedFirms } = useProject();
+  const rawRepairs = (data?.data || []) as MachineRepair[];
+  const repairs: MachineRepair[] = useMemo(() => {
+    return filterByFirmAccess(rawRepairs, effectivePermittedFirms);
+  }, [rawRepairs, effectivePermittedFirms]);
 
   const totalCount = data?.totalCount || 0;
 

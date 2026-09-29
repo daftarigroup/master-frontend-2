@@ -10,7 +10,7 @@ import {
 import type { CreateDailyMachineLogDto } from '../../types/types';
 
 const KEYS = {
-  logs: (params?: { machineId?: string; date?: string; page?: number; limit?: number }) => [
+  logs: (params?: { machineId?: string; firmId?: string; date?: string; page?: number; limit?: number }) => [
     'maintenance',
     'daily-machine-logs',
     params ?? {},
@@ -24,6 +24,7 @@ const KEYS = {
 // single-company list past this query's staleTime.
 export const useDailyMachineLogs = (params?: {
   machineId?: string;
+  firmId?: string;
   date?: string;
   page?: number;
   limit?: number;

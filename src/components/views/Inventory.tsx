@@ -1,7 +1,7 @@
 import Heading from '../element/Heading';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Pill } from '../ui/pill';
-import { Store, Settings2, ArrowRightLeft, Send, Package, Building2, Info, AlertCircle, Search } from 'lucide-react';
+import { Store, Settings2, ArrowRightLeft, Send, Package, Building2, Info, AlertCircle, Search, Download } from 'lucide-react';
 import DataTable from '../element/DataTable';
 import { useSheets } from '@/context/SheetsContext';
 import { useAuth } from '@/context/AuthContext';
@@ -807,6 +807,118 @@ export default () => {
         },
     ], [ClickableCell]);
 
+    const handleExportCSV = useCallback(() => {
+        if (!tableData || tableData.length === 0) {
+            toast.error("No inventory data to export");
+            return;
+        }
+
+        const getStatusLabel = (item: any) => {
+            const code = (item.status || '').toLowerCase();
+            if ((item.current || 0) === 0) return 'Out of Stock';
+            if (code === 'red') return 'Low Stock';
+            if (code === 'purple') return 'Excess';
+            return 'In Stock';
+        };
+
+        const escapeCSV = (val: any) => {
+            if (val === null || val === undefined) return '';
+            const str = String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        };
+
+        const headers = [
+            'Item',
+            'Group Head',
+            'UOM',
+            'Status',
+            'Indented',
+            'Approved',
+            'Purchase Return',
+            'Lifting Quantity',
+            'In Transit',
+            'Issue Return',
+            'Issued',
+            'S.T. To',
+            'S.T. From',
+            'Quantity',
+            'Avg Price',
+            'Total Price'
+        ];
+
+        const rows = tableData.map(item => [
+            escapeCSV(item.itemName),
+            escapeCSV(item.groupHead),
+            escapeCSV(item.uom),
+            escapeCSV(getStatusLabel(item)),
+            escapeCSV(item.indented || 0),
+            escapeCSV(item.approved || 0),
+            escapeCSV(item.purchaseReturn || 0),
+            escapeCSV(item.liftingQty || 0),
+            escapeCSV(item.inTransit || 0),
+            escapeCSV(item.issueReturn || 0),
+            escapeCSV(item.outQuantity || 0),
+            escapeCSV(item.stockTransferGiven || 0),
+            escapeCSV(item.stockTransferReceiving || 0),
+            escapeCSV(item.current || 0),
+            escapeCSV(item.avgPrice || 0),
+            escapeCSV(item.totalPrice || 0)
+        ]);
+
+        const totalIndented = tableData.reduce((sum, i) => sum + (i.indented || 0), 0);
+        const totalApproved = tableData.reduce((sum, i) => sum + (i.approved || 0), 0);
+        const totalPurchaseReturn = tableData.reduce((sum, i) => sum + (i.purchaseReturn || 0), 0);
+        const totalLiftingQty = tableData.reduce((sum, i) => sum + (i.liftingQty || 0), 0);
+        const totalInTransit = tableData.reduce((sum, i) => sum + (i.inTransit || 0), 0);
+        const totalIssueReturn = tableData.reduce((sum, i) => sum + (i.issueReturn || 0), 0);
+        const totalIssued = tableData.reduce((sum, i) => sum + (i.outQuantity || 0), 0);
+        const totalStTo = tableData.reduce((sum, i) => sum + (i.stockTransferGiven || 0), 0);
+        const totalStFrom = tableData.reduce((sum, i) => sum + (i.stockTransferReceiving || 0), 0);
+        const totalQuantity = tableData.reduce((sum, i) => sum + (i.current || 0), 0);
+        const grandTotalPrice = tableData.reduce((sum, i) => sum + (i.totalPrice || 0), 0);
+
+        const round2 = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
+
+        const totalRow = [
+            'TOTAL',
+            '',
+            '',
+            '',
+            round2(totalIndented),
+            round2(totalApproved),
+            round2(totalPurchaseReturn),
+            round2(totalLiftingQty),
+            round2(totalInTransit),
+            round2(totalIssueReturn),
+            round2(totalIssued),
+            round2(totalStTo),
+            round2(totalStFrom),
+            round2(totalQuantity),
+            '',
+            round2(grandTotalPrice).toFixed(2)
+        ].map(escapeCSV);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(r => r.join(',')),
+            totalRow.join(',')
+        ].join('\r\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `inventory_export_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast.success("Inventory exported successfully as CSV");
+    }, [tableData]);
+
     return (
         <div>
             <Heading
@@ -814,6 +926,14 @@ export default () => {
                 subtext="View inventory"
                 action={
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-4 w-full sm:w-auto">
+                        <Button
+                            variant="outline"
+                            onClick={handleExportCSV}
+                            className="border-emerald-600/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center gap-2 h-9 text-xs sm:text-sm rounded-xl w-full sm:w-auto"
+                        >
+                            <Download className="size-4 text-emerald-600" />
+                            <span>Export CSV</span>
+                        </Button>
                         <Button
                             onClick={() => setTransferDialog(prev => ({ ...prev, open: true, fromProject: '', toProject: '', itemName: '', quantity: 0 }))}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 flex items-center justify-center gap-2 h-9 text-xs sm:text-sm rounded-xl w-full sm:w-auto"

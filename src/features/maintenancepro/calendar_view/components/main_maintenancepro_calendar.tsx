@@ -13,6 +13,8 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useAppSelector } from '@/store/hook';
 import { selectUser } from '@/store/slice/userAccountData';
 import type { WorkOrder, WorkOrderStatus } from '../../unique_task/server/api/workordersApi';
@@ -151,6 +153,9 @@ function taskTitle(wo: WorkOrder): string {
 }
 
 export default function MaintenanceCalendarPage() {
+  const { effectivePermittedFirms, selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('month');
   const [modalDate, setModalDate] = useState<Date | null>(null);
@@ -202,11 +207,13 @@ export default function MaintenanceCalendarPage() {
     from: rangeFrom.toISOString(),
     to: rangeTo.toISOString(),
     limit: 500,
+    ...(queryFirmId ? { firmId: queryFirmId } : {}),
   });
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, CalendarTask[]>();
-    const workOrders = woData?.data ?? [];
+    const rawWorkOrders = woData?.data ?? [];
+    const workOrders = filterByFirmAccess(rawWorkOrders, effectivePermittedFirms);
     for (const wo of workOrders) {
       const d = workOrderDate(wo);
       if (!d) continue;

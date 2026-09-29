@@ -17,9 +17,11 @@ import {
  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAMCData } from '../server/tanstackQuery/useAmcQueries';
-import type { AMCVendorItem } from '../types/types';
+import type { AMCMachineItem, AMCVendorItem } from '../types/types';
 
 const COLORS = [
  '#0ea5e9',
@@ -68,11 +70,15 @@ export default function MainRepairBotivateAMC() {
  const [selectedVendor, setSelectedVendor] = useState<AMCVendorItem | null>(null);
  const itemsPerPage = 20;
 
- const { data, isLoading, isError, error } = useAMCData();
+  const { effectivePermittedFirms } = useProject();
+  const { data, isLoading, isError, error } = useAMCData();
 
- const allMachineData = data?.machineData ?? [];
- const vendorData = data?.vendorData ?? [];
- const allTimeTotalCost = data?.allTimeTotalCost ?? 0;
+  const rawMachineData = data?.machineData ?? [];
+  const allMachineData = useMemo<AMCMachineItem[]>(() => {
+    return filterByFirmAccess(rawMachineData, effectivePermittedFirms);
+  }, [rawMachineData, effectivePermittedFirms]);
+  const vendorData = data?.vendorData ?? [];
+  const allTimeTotalCost = data?.allTimeTotalCost ?? 0;
 
  useEffect(() => {
  setCurrentPage(1);

@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { usePlatform } from '../context/PlatformContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { useSidebarBadgeCounts } from '../hooks/useSidebarBadgeCounts';
 import {
     getOrderedNavConfig,
     getSystemIdFromPath,
@@ -172,89 +173,14 @@ export const GlobalSidebar: React.FC = () => {
         return hasPageAccess(user, undefined, 'VIEW', gateKey as keyof UserPermissions);
     };
 
-    // Memoize badge counts so filtering across thousands of sheet rows only runs
-    // when sheet records actually change, making item lookups O(1) during renders.
-    const badgeCounts: Record<string, number> = useMemo(() => {
-        try {
-            const permittedFirms =
-                user?.administrate || !user?.firm_access || user?.firm_access.length === 0
-                    ? undefined
-                    : user.firm_access;
-
-            const issueRows = filterByFirmAccess(issueSheet || [], permittedFirms);
-            const indentRows = filterByFirmAccess(indentSheet || [], permittedFirms);
-            const storeInRows = filterByFirmAccess(storeInSheet || [], permittedFirms);
-            const paymentsRows = filterByFirmAccess(paymentsSheet || [], permittedFirms);
-
-            const result: Record<string, number> = {
-                '/store/inventory/issue-data': issueRows.filter(
-                    (s: any) =>
-                        s.planned1 &&
-                        s.planned1.toString().trim() !== '' &&
-                        (!s.actual1 || s.actual1.toString().trim() === '')
-                ).length,
-                '/store/indents/approve': indentRows.filter(
-                    (s: any) => !s.actual1 || s.actual1.toString().trim() === ''
-                ).length,
-                '/store/indents/vendor-rates': indentRows.filter(
-                    (s: any) =>
-                        s.planned2 &&
-                        s.planned2.toString().trim() !== '' &&
-                        (!s.actual2 || s.actual2.toString().trim() === '')
-                ).length,
-                '/store/indents/technical-approval': indentRows.filter(
-                    (s: any) =>
-                        s.planned3 &&
-                        s.planned3.toString().trim() !== '' &&
-                        (!s.actual3 || s.actual3.toString().trim() === '') &&
-                        !s.vendor1Rank &&
-                        !s.vendor1_rank
-                ).length,
-                '/store/indents/management-approval': indentRows.filter(
-                    (s: any) =>
-                        s.planned4 &&
-                        s.planned4.toString().trim() !== '' &&
-                        (!s.actual4 || s.actual4.toString().trim() === '') &&
-                        (!s.approvedVendorName || s.approvedVendorName.toString().trim() === '') &&
-                        (!s.approved_vendor_name || s.approved_vendor_name.toString().trim() === '')
-                ).length,
-                '/store/procurement/pending-po': indentRows.filter(
-                    (s: any) =>
-                        (s.poRequred === 'Yes' ||
-                            s.po_requred === 'Yes' ||
-                            s.actual4 ||
-                            s.approvedVendorName ||
-                            s.approved_vendor_name) &&
-                        (!s.poNumber || s.poNumber.toString().trim() === '') &&
-                        (!s.po_number || s.po_number.toString().trim() === '')
-                ).length,
-                '/store/procurement/lifting': indentRows.filter((s: any) => {
-                    const poNum = String(s.poNumber || s.po_number || '').trim();
-                    const isPoCreated = Boolean(poNum !== '' && poNum !== '-');
-                    const appQty = Number(
-                        s.approvedQuantity || s.approved_quantity || s.quantity || 0
-                    );
-                    const pendingQty = s.pendingPoQty != null ? Number(s.pendingPoQty) : appQty;
-                    return isPoCreated && pendingQty > 0;
-                }).length,
-                '/store/receipts/store-in': storeInRows.filter(
-                    (i: any) => i.planned6 && i.planned6 !== '' && !i.actual6
-                ).length,
-                '/store/receipts/hod-check': storeInRows.filter(
-                    (s: any) =>
-                        s.hod_status === 'Pending' ||
-                        s.hodStatus === 'Pending' ||
-                        (s.plannedHod && (!s.actualHod || s.actualHod === ''))
-                ).length,
-                '/store/finance/make-payment': paymentsRows.filter(
-                    (p: any) => !p.actual && p.status1 !== 'hod_approval_pending'
-                ).length,
-            };
-            return result;
-        } catch (e) {
-            return {};
-        }
-    }, [user, indentSheet, storeInSheet, issueSheet, paymentsSheet]);
+    // Comprehensive pending count across all systems: Store, Checklist, Petty Cash, Document, HR, Maintenance, Repair
+    const badgeCounts = useSidebarBadgeCounts({
+        user,
+        indentSheet,
+        storeInSheet,
+        issueSheet,
+        paymentsSheet,
+    });
 
     const getBadgeCount = (itemPath: string): number => {
         return badgeCounts[itemPath] || 0;
@@ -357,6 +283,9 @@ export const GlobalSidebar: React.FC = () => {
                                       effectiveActiveSystemId === 'global';
                             const isPrimary = system.id === effectiveActiveSystemId;
                             const Icon = system.icon;
+                            const systemPendingTotal = system.groups.reduce((acc, grp) => {
+                                return acc + grp.items.reduce((itemAcc, it) => itemAcc + getBadgeCount(it.path), 0);
+                            }, 0);
 
                             return (
                                 <SidebarGroup key={system.id} className="p-0">
@@ -403,6 +332,11 @@ export const GlobalSidebar: React.FC = () => {
                                             {system.disabled && (
                                                 <span className="text-[9px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                                                     Soon
+                                                </span>
+                                            )}
+                                            {!system.disabled && !isOpen && systemPendingTotal > 0 && (
+                                                <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold px-1.5 py-0.2 rounded-md shrink-0">
+                                                    {systemPendingTotal > 99 ? '99+' : systemPendingTotal}
                                                 </span>
                                             )}
                                             {!system.disabled && (

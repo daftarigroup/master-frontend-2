@@ -30,6 +30,66 @@ export const useUsersList = () => {
   });
 };
 
+export interface DepartmentOption {
+  id: string;
+  name: string;
+}
+
+export const useDepartmentsList = () => {
+  return useQuery({
+    queryKey: ['departments', 'list'],
+    queryFn: async (): Promise<DepartmentOption[]> => {
+      const res = await api.get('/maintenance/departments', { params: { limit: 200 } });
+      const items = Array.isArray(res.data?.data)
+        ? res.data.data
+        : Array.isArray(res.data)
+          ? res.data
+          : [];
+      return items
+        .filter((d: any) => d && (d.name || d.department))
+        .map((d: any) => ({
+          id: String(d.id),
+          name: String(d.name || d.department || '').trim(),
+        }))
+        .filter((d: DepartmentOption) => Boolean(d.name));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export interface SiteLocationOption {
+  id: string;
+  location: string;
+  firmId?: string | null;
+  firmName?: string | null;
+}
+
+export const useSiteLocationsList = () => {
+  return useQuery({
+    queryKey: ['site_locations', 'list'],
+    queryFn: async (): Promise<SiteLocationOption[]> => {
+      const res = await api.get('/store/entity/site_location_details', {
+        params: { limit: 'all', order: 'location.asc' },
+      });
+      const items = Array.isArray(res.data?.data)
+        ? res.data.data
+        : Array.isArray(res.data)
+          ? res.data
+          : [];
+      return items
+        .filter((l: any) => l && l.location)
+        .map((l: any) => ({
+          id: String(l.id),
+          location: String(l.location).trim(),
+          firmId: l.firm_id ? String(l.firm_id) : (l.firm?.id ? String(l.firm.id) : null),
+          firmName: l.firm?.firm_name || l.firm_name || null,
+        }))
+        .filter((l: SiteLocationOption) => Boolean(l.location));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 export const useAssets = (params?: {
   firmId?: string;
   search?: string;

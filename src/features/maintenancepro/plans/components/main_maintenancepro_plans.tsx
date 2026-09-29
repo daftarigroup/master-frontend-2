@@ -15,8 +15,10 @@ import {
   IconSearch,
 } from '@tabler/icons-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { usePagination } from '@/hooks/usePagination';
 import { useAppSelector } from '@/store/hook';
@@ -143,10 +145,13 @@ export default function MaintenancePlans() {
   const resumePlan = useResumePlan();
   const archivePlan = useArchivePlan();
 
+  const { effectivePermittedFirms } = useProject();
   const total = data?.pagination?.total ?? 0;
   const totalPages = data?.pagination?.totalPages ?? 1;
-  // search/frequency/status are already applied server-side (see usePlans params above).
-  const filteredPlans = data?.data ?? [];
+  const rawPlans = data?.data ?? [];
+  const filteredPlans = useMemo<MaintenancePlan[]>(() => {
+    return filterByFirmAccess(rawPlans, effectivePermittedFirms);
+  }, [rawPlans, effectivePermittedFirms]);
 
   const isPending =
     createPlan.isPending ||

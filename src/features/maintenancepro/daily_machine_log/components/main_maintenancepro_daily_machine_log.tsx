@@ -33,6 +33,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useEffect, useMemo, useState } from 'react';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import { CompanySelectField } from '@/features/organization/components/CompanySelectField';
 import { useCompanyPinForCreate } from '@/features/organization/hooks/useCompanyPinForCreate';
 import { usePagination } from '@/hooks/usePagination';
@@ -61,6 +63,9 @@ const initialForm = {
 };
 
 export default function DailyMachineLogPage() {
+  const { effectivePermittedFirms, selectedProject } = useProject();
+  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+
   const orgViewMode = useAppSelector(selectOrgViewMode);
   const { pinnedCompany, selectCompany, reset: resetPinnedCompany } = useCompanyPinForCreate();
   const [form, setForm] = useState(initialForm);
@@ -88,16 +93,25 @@ export default function DailyMachineLogPage() {
 
   const { data: logsData, isLoading: logsLoading } = useDailyMachineLogs({
     ...(filterMachineId !== 'all' ? { machineId: filterMachineId } : {}),
+    ...(queryFirmId ? { firmId: queryFirmId } : {}),
     page,
     limit,
   });
-  const { data: machines, isLoading: machinesLoading } = useRealMachinesForLog(pinnedCompany?.id);
+  const { data: rawMachines, isLoading: machinesLoading } = useRealMachinesForLog(pinnedCompany?.id);
+  const machines = useMemo(
+    () => filterByFirmAccess(rawMachines ?? [], effectivePermittedFirms),
+    [rawMachines, effectivePermittedFirms]
+  );
   const { data: users, isLoading: usersLoading } = useAssignableUsers(pinnedCompany?.id);
   const createMutation = useCreateDailyMachineLog();
 
-  const logs = useMemo(() => logsData?.data ?? [], [logsData?.data]);
-  const total = logsData?.pagination?.total ?? 0;
-  const totalPages = logsData?.pagination?.totalPages ?? 1;
+  const rawLogs = useMemo(() => logsData?.data ?? [], [logsData?.data]);
+  const logs = useMemo(
+    () => filterByFirmAccess(rawLogs, effectivePermittedFirms),
+    [rawLogs, effectivePermittedFirms]
+  );
+  const total = logs.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const handlePrevDay = () => {
     const d = new Date(selectedDate);

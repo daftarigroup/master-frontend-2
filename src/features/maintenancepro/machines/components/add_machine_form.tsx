@@ -19,6 +19,8 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { mockRepairStore } from '@/lib/mockRepairStore';
 import { api } from '@/lib/axios';
 import { useCreateMachine } from '../server/tanstackQuery/useMachinesQueries';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess } from '@/lib/firmAccess';
 import type { CreateMachinePayload, MachineCategory } from '../types/types';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -166,6 +168,8 @@ export default function AddMachineForm() {
     ],
   });
 
+  const { selectedProject, effectivePermittedFirms } = useProject();
+
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
@@ -182,7 +186,16 @@ export default function AddMachineForm() {
       try {
         setLoadingFirms(true);
         const response = await api.get('/maintenance/firms');
-        setFirms(response.data?.data || []);
+        const raw: { id: string; name: string }[] = response.data?.data || [];
+        const permitted = filterByFirmAccess(raw, effectivePermittedFirms);
+        setFirms(permitted);
+
+        // Preselect active project or single permitted firm
+        if (selectedProject && selectedProject.id !== 'all') {
+          setFormData((prev) => ({ ...prev, firmId: String(selectedProject.id) }));
+        } else if (permitted.length === 1) {
+          setFormData((prev) => ({ ...prev, firmId: String(permitted[0].id) }));
+        }
       } catch (err) {
         console.error('Failed to fetch firms:', err);
       } finally {
@@ -191,7 +204,7 @@ export default function AddMachineForm() {
     };
     fetchDepartments();
     fetchFirms();
-  }, []);
+  }, [effectivePermittedFirms, selectedProject]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>

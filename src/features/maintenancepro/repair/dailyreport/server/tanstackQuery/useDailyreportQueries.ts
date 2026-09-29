@@ -10,11 +10,11 @@ export const dailyreportKeys = {
 // orgViewMode folded into the key so toggling "All Companies" doesn't keep
 // serving a stale single-company (or stale merged) response past staleTime —
 // see docs/organizationplan/08-all-companies-rollout.md.
-export const useDailyReport = (date?: string) => {
+export const useDailyReport = (date?: string, firmId?: string) => {
   const orgViewMode = useAppSelector(selectOrgViewMode);
   return useQuery({
-    queryKey: [...dailyreportKeys.list(), date, orgViewMode],
-    queryFn: () => api.fetchDailyReport(date),
+    queryKey: [...dailyreportKeys.list(), date, firmId ?? 'all', orgViewMode],
+    queryFn: () => api.fetchDailyReport(date, firmId),
     staleTime: 5 * 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,

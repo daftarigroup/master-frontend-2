@@ -23,6 +23,8 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useProject } from '@/context/ProjectContext';
+import { filterByFirmAccess, isAllowedFirm } from '@/lib/firmAccess';
 import { api } from '@/lib/axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useMachines } from '@/features/maintenancepro/machines/server/tanstackQuery/useMachinesQueries';
@@ -46,7 +48,14 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { useAsset, useUpdateAsset, useUsersList } from '../server/tanstackQuery/useAssetQueries';
+import {
+  useAsset,
+  useUpdateAsset,
+  useUsersList,
+  useDepartmentsList,
+  useSiteLocationsList,
+  type SiteLocationOption,
+} from '../server/tanstackQuery/useAssetQueries';
 import {
   CATEGORY_COLORS,
   formatCurrency,
@@ -172,8 +181,25 @@ export default function AssetDetail() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-  const firms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+
+  const { effectivePermittedFirms } = useProject();
+  const rawFirms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
+  const firms = useMemo<{ id: string; name: string }[]>(
+    () => filterByFirmAccess(rawFirms, effectivePermittedFirms),
+    [rawFirms, effectivePermittedFirms]
+  );
+
+  const hasAccessToAsset = useMemo(() => {
+    if (!asset) return true;
+    return isAllowedFirm(
+      { id: asset.firmId ?? machine?.firmId, name: asset.firmName ?? machine?.firmName },
+      effectivePermittedFirms
+    );
+  }, [asset, machine, effectivePermittedFirms]);
+
   const { data: users = [] } = useUsersList();
+  const { data: dbDepartments = [] } = useDepartmentsList();
+  const { data: dbLocations = [] } = useSiteLocationsList();
 
   const [form, setForm] = useState({
     productName: '',
@@ -204,6 +230,26 @@ export default function AssetDetail() {
     maintenanceRequired: 'No' as 'Yes' | 'No',
     priority: '' as 'Low' | 'Medium' | 'High' | '',
   });
+
+  const availableLocations = useMemo(() => {
+    const selectedFirmId = form.firmId && form.firmId !== 'none' ? String(form.firmId) : null;
+    let list = dbLocations;
+    if (selectedFirmId) {
+      list = dbLocations.filter(
+        (l) => l.firmId && String(l.firmId) === selectedFirmId
+      );
+    }
+    const seen = new Set<string>();
+    const result: SiteLocationOption[] = [];
+    for (const item of list) {
+      const key = item.location.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(item);
+      }
+    }
+    return result;
+  }, [dbLocations, form.firmId]);
 
   function handleOpenEdit() {
     if (!asset) return;
@@ -287,6 +333,26 @@ export default function AssetDetail() {
           <Link
             to="/asset/assets"
             className="text-xs text-primary mt-2 inline-block hover:underline"
+          >
+            ← Back to Assets
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasAccessToAsset) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-foreground">Access Restricted</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+            You do not have permission to access assets belonging to this project/firm.
+          </p>
+          <Link
+            to="/asset/assets"
+            className="text-xs text-primary mt-3 inline-block hover:underline"
           >
             ← Back to Assets
           </Link>
@@ -715,7 +781,7 @@ export default function AssetDetail() {
 
       {/* Edit Asset Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <Pencil className="h-4 w-4 text-primary" /> Edit Asset
@@ -725,8 +791,8 @@ export default function AssetDetail() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 text-xs">
-            <div className="space-y-1 sm:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2 text-xs">
+            <div className="space-y-1 md:col-span-2">
               <label className="text-[11px] font-semibold text-muted-foreground">
                 Product Name *
               </label>
@@ -743,7 +809,7 @@ export default function AssetDetail() {
                 value={form.category}
                 onValueChange={(val) => setForm((f) => ({ ...f, category: val as AssetCategory }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -762,7 +828,7 @@ export default function AssetDetail() {
                 value={form.status}
                 onValueChange={(val) => setForm((f) => ({ ...f, status: val as AssetStatus }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -781,7 +847,7 @@ export default function AssetDetail() {
                 value={form.type}
                 onValueChange={(val) => setForm((f) => ({ ...f, type: val as AssetType }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -920,7 +986,7 @@ export default function AssetDetail() {
                 value={form.paymentMode || undefined}
                 onValueChange={(val) => setForm((f) => ({ ...f, paymentMode: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Payment Mode" />
                 </SelectTrigger>
                 <SelectContent>
@@ -941,7 +1007,7 @@ export default function AssetDetail() {
                 value={form.depMethod || 'Straight Line'}
                 onValueChange={(val) => setForm((f) => ({ ...f, depMethod: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Depreciation Method" />
                 </SelectTrigger>
                 <SelectContent>
@@ -953,20 +1019,62 @@ export default function AssetDetail() {
 
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground">Location</label>
-              <Input
-                placeholder="Location"
-                value={form.location}
-                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-              />
+              <Select
+                value={form.location || undefined}
+                onValueChange={(val) => {
+                  if (val === '_clear') {
+                    setForm((f) => ({ ...f, location: '' }));
+                  } else {
+                    const match = dbLocations.find((l) => l.location === val);
+                    setForm((f) => ({
+                      ...f,
+                      location: val,
+                      firmId: (!f.firmId || f.firmId === 'none') && match?.firmId ? String(match.firmId) : f.firmId,
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_clear">Clear (None)</SelectItem>
+                  {availableLocations.map((l) => (
+                    <SelectItem key={l.id} value={l.location}>
+                      {l.location}
+                      {(!form.firmId || form.firmId === 'none') && l.firmName ? ` (${l.firmName})` : ''}
+                    </SelectItem>
+                  ))}
+                  {form.location && !availableLocations.some((l) => l.location === form.location) && (
+                    <SelectItem value={form.location}>{form.location}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground">Department</label>
-              <Input
-                placeholder="Department"
-                value={form.department}
-                onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-              />
+              <Select
+                value={form.department || undefined}
+                onValueChange={(val) =>
+                  setForm((f) => ({ ...f, department: val === '_clear' ? '' : val }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_clear">Clear (None)</SelectItem>
+                  {dbDepartments.map((d) => (
+                    <SelectItem key={d.id} value={d.name}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                  {form.department && !dbDepartments.some((d) => d.name === form.department) && (
+                    <SelectItem value={form.department}>{form.department}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -975,11 +1083,26 @@ export default function AssetDetail() {
               </label>
               <Select
                 value={form.firmId || 'none'}
-                onValueChange={(val) =>
-                  setForm((f) => ({ ...f, firmId: val === 'none' ? '' : val }))
-                }
+                onValueChange={(val) => {
+                  const newFirmId = val === 'none' ? '' : val;
+                  setForm((f) => {
+                    const belongs =
+                      !f.location ||
+                      !newFirmId ||
+                      dbLocations.some(
+                        (l) =>
+                          l.location.toLowerCase() === f.location.toLowerCase() &&
+                          String(l.firmId) === newFirmId
+                      );
+                    return {
+                      ...f,
+                      firmId: newFirmId,
+                      location: belongs ? f.location : '',
+                    };
+                  });
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Project (Firm)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1003,7 +1126,7 @@ export default function AssetDetail() {
                   setForm((f) => ({ ...f, assignedTo: value === '_clear' ? '' : value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Assigned To" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1030,7 +1153,7 @@ export default function AssetDetail() {
                   setForm((f) => ({ ...f, responsiblePerson: value === '_clear' ? '' : value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Responsible To" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1058,7 +1181,7 @@ export default function AssetDetail() {
                   setForm((f) => ({ ...f, warrantyAvailable: val as 'Yes' | 'No' }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Warranty" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1090,7 +1213,7 @@ export default function AssetDetail() {
                   setForm((f) => ({ ...f, maintenanceRequired: val as 'Yes' | 'No' }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Maintenance" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1109,7 +1232,7 @@ export default function AssetDetail() {
                   setForm((f) => ({ ...f, priority: val as 'Low' | 'Medium' | 'High' }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
