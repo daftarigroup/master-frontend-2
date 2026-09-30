@@ -168,28 +168,28 @@ export default function MakePayment() {
     // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
     // payments.pdf/po_master.pdf used to hold a stored PO PDF URL; the PO PDF is now
     // regenerated fresh from po_master + master data on every "View PO" click instead.
-    const handleViewPo = async (poNumber: string, indentNo?: string) => {
+    const handleViewPo = async (poNumber: string, vendorName?: string) => {
         if (!poNumber) return;
         try {
             setViewingPoNumber(poNumber);
             const permittedFirms = effectivePermittedFirms;
             const freshPoMaster = await fetchPoMaster(permittedFirms);
             // Resolve a disambiguation context from the fresh data so that duplicate
-            // PO numbers that exist across different firms / dates / indents resolve correctly.
+            // PO numbers that exist across different firms / dates / vendors resolve correctly.
             const matchRow = freshPoMaster.find((r: any) => {
                 const poMatches = (r.poNumber || r.po_number) === poNumber;
                 if (!poMatches) return false;
-                if (indentNo) {
-                    const rowIndent = (r.internalCode || r.internal_code || '').trim().toLowerCase();
-                    if (rowIndent && rowIndent === indentNo.trim().toLowerCase()) return true;
+                if (vendorName) {
+                    const rowVendor = (r.partyName || r.party_name || '').trim().toLowerCase();
+                    if (rowVendor && rowVendor === vendorName.trim().toLowerCase()) return true;
                 }
                 return true;
             }) as any | undefined;
             const context: PoFilterContext | undefined = matchRow ? {
                 firmId: matchRow.firm_id != null ? matchRow.firm_id : undefined,
                 firmName: matchRow.firmNameMatch || matchRow.firm_name || undefined,
+                vendorName: vendorName || matchRow.partyName || matchRow.party_name || undefined,
                 date: matchRow.po_created_date || matchRow.poCreatedDate || matchRow.timestamp || undefined,
-                indentNumber: indentNo || matchRow.internalCode || matchRow.internal_code || undefined,
             } : undefined;
             await openPoPdfPreview(poNumber, freshPoMaster, context);
         } catch (error) {
@@ -1020,7 +1020,7 @@ export default function MakePayment() {
                                 className="h-7 w-7 text-amber-600"
                                 title="View PO"
                                 disabled={isGeneratingPo}
-                                onClick={() => handleViewPo(poNumber, row.original.indentNo)}
+                                onClick={() => handleViewPo(poNumber, row.original.vendorName)}
                             >
                                 {isGeneratingPo ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

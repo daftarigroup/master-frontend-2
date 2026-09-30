@@ -94,8 +94,8 @@ export default function Order() {
             const context: PoFilterContext = {
                 firmId: po.firmId ?? undefined,
                 firmName: po.firmName || undefined,
+                vendorName: po.vendorName || undefined,
                 date: po.timestamp || undefined,
-                indentNumber: po.indentNumber || undefined,
             };
             await openPoPdfPreview(po.poNumber, undefined, context);
         } catch (err) {
@@ -166,8 +166,8 @@ export default function Order() {
                     return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
                 };
                 const dateKey = safeDateKey(sheet.po_created_date) || safeDateKey(sheet.timestamp);
-                const indentKey = sheet.internal_code || sheet.internalCode || '';
-                const compositeKey = `${poNumber}__${firmKey}__${indentKey}__${dateKey}`;
+                const vendorKey = String(sheet.party_name || sheet.partyName || '').trim().toLowerCase();
+                const compositeKey = `${poNumber}__${firmKey}__${vendorKey}__${dateKey}`;
                 if (!uniquePOMap.has(compositeKey)) {
                     uniquePOMap.set(compositeKey, sheet);
                 }

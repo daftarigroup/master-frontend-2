@@ -136,8 +136,8 @@ export default () => {
             const context: PoFilterContext = {
                 firmId: row.firm_id != null ? row.firm_id : undefined,
                 firmName: row.firmNameMatch || row.firm_name || undefined,
+                vendorName: row.partyName || row.party_name || undefined,
                 date: row.rawTimestamp || row.po_created_date || row.timestamp || undefined,
-                indentNumber: row.internalCode || row.internal_code || undefined,
             };
             await openPoPdfPreview(poNumber, freshRows, context);
         } catch (error) {

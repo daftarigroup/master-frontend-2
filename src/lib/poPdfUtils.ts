@@ -17,9 +17,11 @@ export interface PoFilterContext {
     firmId?: string | number;
     /** Fallback firm identifier when firm_id is not populated */
     firmName?: string;
+    /** Vendor / party name from po_master (party_name / partyName) */
+    vendorName?: string;
     /** ISO string or YYYY-MM-DD of the PO created date for disambiguation */
     date?: string;
-    /** Indent number (internalCode / internal_code) for exact indent matching */
+    /** Optional indent number (legacy/manual fallback) */
     indentNumber?: string;
 }
 
@@ -81,8 +83,7 @@ function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[]
 /**
  * Rebuilds the Purchase Order PDF props from the current po_master rows for a
  * given PO number, joined against live master data (company/vendor/firm details).
- * Because this re-reads live data, the PDF reflects the current state of those
- * records, not necessarily the exact document as originally issued.
+ * Disambiguates by PO number, firm ID, vendor name, and PO created date.
  */
 export async function buildPoPdfProps(
     poNumber: string,
@@ -93,26 +94,26 @@ export async function buildPoPdfProps(
     let targetRows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
 
     // Step 2: when a context is provided and there are still multiple candidate
-    // groups (duplicate po_numbers from different firms / dates), narrow further.
+    // groups (duplicate po_numbers from different firms / vendors / dates), narrow further.
     if (context && targetRows.length > 0) {
         const contextDateKey = toDateKey(context.date);
 
         const narrowed = targetRows.filter((r) => {
-            // --- firm matching ---
+            // --- 1. Firm matching ---
             if (context.firmId != null && r.firm_id != null) {
                 if (String(r.firm_id) !== String(context.firmId)) return false;
             } else if (context.firmName && r.firmNameMatch) {
                 if (r.firmNameMatch.trim().toLowerCase() !== context.firmName.trim().toLowerCase()) return false;
             }
 
-            // --- indent number matching ---
-            if (context.indentNumber) {
-                const targetIndent = context.indentNumber.trim().toLowerCase();
-                const rowIndent = String(r.internalCode || (r as any).internal_code || '').trim().toLowerCase();
-                if (rowIndent && targetIndent && rowIndent !== targetIndent) return false;
+            // --- 2. Vendor name matching ---
+            if (context.vendorName) {
+                const targetVendor = context.vendorName.trim().toLowerCase();
+                const rowVendor = String(r.partyName || (r as any).party_name || '').trim().toLowerCase();
+                if (rowVendor && targetVendor && rowVendor !== targetVendor) return false;
             }
 
-            // --- date matching ---
+            // --- 3. Date matching ---
             if (contextDateKey) {
                 const rowDateKey = toDateKey((r as any).po_created_date || r.poCreatedDate || r.timestamp);
                 if (rowDateKey && rowDateKey !== contextDateKey) return false;

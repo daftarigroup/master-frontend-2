@@ -169,7 +169,7 @@ export default function Dashboard() {
             timestamp: string;
             firmName: string;
             firmId?: number;
-            indentNumber?: string;
+            vendorName?: string;
             deliveryDate: string;
             paymentTerms: string;
             totalPoAmount: number;
@@ -179,15 +179,16 @@ export default function Dashboard() {
         selectedVendorItems.forEach((item) => {
             const poNo = item.poNumber || item.internalCode || 'N/A';
             const firmKey = item.firm_id != null ? String(item.firm_id) : (item.firmNameMatch || '');
-            const indentKey = item.internalCode || (item as any).internal_code || '';
-            const key = `${poNo}__${firmKey}__${indentKey}`;
+            const vendorKey = (item.partyName || (item as any).party_name || selectedVendorForDetails || '').trim().toLowerCase();
+            const dateKey = item.timestamp ? String(item.timestamp).slice(0, 10) : '';
+            const key = `${poNo}__${firmKey}__${vendorKey}__${dateKey}`;
             if (!map.has(key)) {
                 map.set(key, {
                     poNumber: poNo,
                     timestamp: item.timestamp,
                     firmName: item.firmNameMatch || '',
                     firmId: item.firm_id != null ? Number(item.firm_id) : undefined,
-                    indentNumber: indentKey || undefined,
+                    vendorName: item.partyName || (item as any).party_name || selectedVendorForDetails || '',
                     deliveryDate: item.deliveryDate || '',
                     paymentTerms: item.paymentTerms || '',
                     totalPoAmount: Number(item.totalPoAmount) || 0,
@@ -1235,8 +1236,8 @@ export default function Dashboard() {
                                                     onClick={() => openPoPdfPreview(order.poNumber, poMasterData, {
                                                         firmId: order.firmId,
                                                         firmName: order.firmName || undefined,
+                                                        vendorName: order.vendorName || undefined,
                                                         date: order.timestamp || undefined,
-                                                        indentNumber: order.indentNumber || order.items[0]?.internalCode || undefined,
                                                     })}
                                                 >
                                                     <Eye size={13} />
