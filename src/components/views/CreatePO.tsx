@@ -45,6 +45,8 @@ import {
     fetchMasterData,
     insertPoRecords,
     updateIndentsAfterPoCreation,
+    createPOWithQueue,
+    fetchNextPoNumber,
 } from '@/services/poService';
 import { upsertSiteEngineer, fetchTermsAndConditions } from '@/services/masterService';
 import { emailApi } from '@/lib/apiClient';
@@ -668,6 +670,7 @@ const CreatePO = () => {
 
     // Mode change effect
     useEffect(() => {
+        let isMounted = true;
         if (mode === 'revise') {
             form.reset({
                 poNumber: '',
@@ -685,46 +688,42 @@ const CreatePO = () => {
                 description: '',
             });
         } else {
-            if (poMasterSheet && poMasterSheet.length > 0) {
-                const poNumbers = poMasterSheet
-                    .map((p) => p.poNumber)
-                    .filter((po) => po && po.trim() !== '');
-                const newPoNumber = generatePoNumber(poNumbers);
-                form.reset({
-                    poNumber: newPoNumber,
-                    poDate: new Date(),
-                    supplierName: '',
-                    supplierAddress: '',
-                    gstin: '',
-                    companyEmail: '',
-                    ourEnqNo: '',
-                    enquiryDate: undefined as any,
-                    indents: [],
-                    terms: [],
-                    deliveryDate: new Date(),
-                    deliveryDays: undefined,
-                    deliveryType: undefined,
-                    description: '',
-                });
-            } else {
-                form.reset({
-                    poNumber: `${getFinancialYear()}/01`,
-                    poDate: new Date(),
-                    supplierName: '',
-                    supplierAddress: '',
-                    gstin: '',
-                    companyEmail: '',
-                    ourEnqNo: '',
-                    enquiryDate: undefined as any,
-                    indents: [],
-                    terms: [],
-                    deliveryDate: new Date(),
-                    deliveryDays: undefined,
-                    deliveryType: undefined,
-                    description: '',
-                });
-            }
+            const poNumbers = (poMasterSheet || [])
+                .map((p) => p.poNumber)
+                .filter((po) => po && po.trim() !== '');
+            const fallbackPoNumber =
+                poNumbers.length > 0 ? generatePoNumber(poNumbers) : `${getFinancialYear()}/01`;
+
+            form.reset({
+                poNumber: fallbackPoNumber,
+                poDate: new Date(),
+                supplierName: '',
+                supplierAddress: '',
+                gstin: '',
+                companyEmail: '',
+                ourEnqNo: '',
+                enquiryDate: undefined as any,
+                indents: [],
+                terms: [],
+                deliveryDate: new Date(),
+                deliveryDays: undefined,
+                deliveryType: undefined,
+                description: '',
+            });
+
+            // Fetch the authoritative latest sequence number from server
+            fetchNextPoNumber()
+                .then((serverPo) => {
+                    if (isMounted && serverPo && mode === 'create') {
+                        form.setValue('poNumber', serverPo);
+                    }
+                })
+                .catch(() => {});
         }
+
+        return () => {
+            isMounted = false;
+        };
     }, [mode, poMasterSheet, details, form]);
 
     // REVISE MODE - Load PO data when PO number is selected
@@ -1083,7 +1082,7 @@ const CreatePO = () => {
 
     async function onSubmit(values: FormData) {
         try {
-            const poNumber =
+            const initialPoNumber =
                 mode === 'create'
                     ? values.poNumber
                     : incrementPoRevision(values.poNumber, poMasterSheet);
@@ -1119,96 +1118,6 @@ const CreatePO = () => {
                 })),
             ];
 
-            const pdfProps: POPdfProps = {
-                companyName: firmCompanyName,
-                companyAddress: firmCompanyAddress,
-                companyPhone: details?.companyPhone || '',
-                companyEmail: details?.companyEmail || '',
-                companyGstin: firmCompanyGstin,
-                companyPan: firmCompanyPan,
-                companyContactPerson: details?.companyContactPerson || '',
-                supplierName: values.supplierName,
-                supplierAddress: values.supplierAddress || selectedVendor?.address || '',
-                supplierGstin: values.gstin || selectedVendor?.gstin || '',
-                supplierContactPerson: selectedVendor?.personName || '',
-                supplierPhone: selectedVendor?.phone || '',
-                supplierEmail: values.companyEmail || '',
-                poNumber: poNumber,
-                poDate: formatDate(values.poDate),
-                deliveryDate: formatDate(values.deliveryDate),
-                projectName: projectName,
-                deliveryAddress: destinationAddress,
-                deliveryContactPerson: '',
-                deliveryPhone: '',
-                deliveryEmail: '',
-                siteEngineerName: values.siteEngineerName || '',
-                siteEngineerEmail: values.siteEngineerEmail || '',
-                siteEngineerPhoneNo: values.siteEngineerPhoneNo || '',
-                siteEngineerName2: values.siteEngineerName2 || '',
-                siteEngineerEmail2: values.siteEngineerEmail2 || '',
-                siteEngineerPhoneNo2: values.siteEngineerPhoneNo2 || '',
-                subtotal,
-                totalGst,
-                items: values.indents.map((item) => {
-                    const indent = indentSheet.find((i: IndentSheetItem) => i.id === item.id);
-                    return {
-                        internalCode: item.indentNumber || indent?.indentNumber || '',
-                        quotationNo: item.quotationNumber || indent?.quotationNumber || '',
-                        product: item.productName || indent?.productName || '',
-                        paymentTerm: item.paymentTerm || '',
-                        qty: item.quantity || 0,
-                        unit: item.unit || '',
-                        rate: item.rate || 0,
-                        gst: item.gst || 0,
-                        discount: item.discount || 0,
-                        amount: calculateTotal(
-                            item.rate || 0,
-                            item.gst || 0,
-                            item.discount || 0,
-                            item.quantity || 0
-                        ),
-                    };
-                }),
-                totalAmount: grandTotal,
-                terms: parsedTerms,
-                logo: logoBase64 || '/logo.png',
-            };
-
-            // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
-            // The PO PDF used to be rendered once at creation time and uploaded to storage here,
-            // with the resulting URL saved into po_master.pdf. Viewing now regenerates the PDF
-            // fresh from po_master + master data on every "View PDF" click (see src/lib/poPdfUtils.ts),
-            // so this generation/upload step is no longer needed at creation time.
-            // const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
-            // const file = new File([blob], `PO-${poNumber}.pdf`, {
-            //     type: 'application/pdf',
-            // });
-
-            // const email = (details as MasterDetails)?.vendors?.find((v) => v.vendorName === values.supplierName)?.email;
-
-            // const uploadParams: {
-            //     file: File;
-            //     folderId: string;
-            //     uploadType?: 'upload' | 'email';
-            //     email?: string;
-            //     emailSubject?: string;
-            //     emailBody?: string;
-            // } = {
-            //     file,
-            //     folderId: 'po_image',
-            //     uploadType: 'upload',
-            // };
-
-            // if (email && email.trim() && email.includes('@')) {
-            //     uploadParams.uploadType = 'email';
-            //     uploadParams.email = email;
-            //     uploadParams.emailSubject = `Purchase Order - ${poNumber}`;
-            //     uploadParams.emailBody = `Please find attached Purchase Order ${poNumber}`;
-            // }
-
-            // const url = await uploadFile(uploadParams);
-            const url = '';
-
             const missingFirmId = values.indents.some((v) => {
                 const indent = indentSheet.find(
                     (i: IndentSheetItem) => i.indentNumber === v.indentNumber
@@ -1225,21 +1134,21 @@ const CreatePO = () => {
                 ...localTerms.map((t) => `${t.title}: ${t.name}`),
             ].filter(Boolean);
 
+            const safePoDateStr =
+                values.poDate instanceof Date && !isNaN(values.poDate.getTime())
+                    ? values.poDate.toISOString()
+                    : values.poDate
+                      ? parseCustomDate(values.poDate).toISOString()
+                      : new Date().toISOString();
+
+            const formattedPoCreatedDate = values.poDate
+                ? formatDate(values.poDate)
+                : formatDate(new Date());
+
             const rows: PoMasterSheet[] = values.indents.map((v) => {
                 const indent = indentSheet.find(
                     (i: IndentSheetItem) => i.indentNumber === v.indentNumber
                 );
-
-                const safePoDateStr =
-                    values.poDate instanceof Date && !isNaN(values.poDate.getTime())
-                        ? values.poDate.toISOString()
-                        : values.poDate
-                          ? parseCustomDate(values.poDate).toISOString()
-                          : new Date().toISOString();
-
-                const formattedPoCreatedDate = values.poDate
-                    ? formatDate(values.poDate)
-                    : formatDate(new Date());
 
                 return {
                     discountPercent: v.discount || 0,
@@ -1247,7 +1156,7 @@ const CreatePO = () => {
                     timestamp: safePoDateStr,
                     po_created_date: formattedPoCreatedDate,
                     partyName: values.supplierName,
-                    poNumber,
+                    poNumber: initialPoNumber,
                     internalCode: v.indentNumber || '',
                     product: v.productName || indent?.productName || '',
                     description: values.description || '',
@@ -1264,7 +1173,7 @@ const CreatePO = () => {
                         v.quantity || 0
                     ),
                     totalPoAmount: grandTotal,
-                    pdf: url,
+                    pdf: '',
                     quotationNumber: v.quotationNumber || '',
                     quotationDate: '',
                     enquiryNumber: values.ourEnqNo || '',
@@ -1308,15 +1217,84 @@ const CreatePO = () => {
                 };
             });
 
-            await insertPoRecords(rows);
-
-            // Update indents to mark PO as created (set actual4 and delivery_date)
+            // Submit to the server-side FIFO queue for atomic sequence assignment & creation
             const indentIds = values.indents.map((v) => v.id).filter((id) => id > 0);
-            // Use ISO string for database compatibility to avoid "out of range" error
             const databaseDeliveryDate = values.deliveryDate.toISOString();
-            if (indentIds.length > 0) {
-                await updateIndentsAfterPoCreation(indentIds, databaseDeliveryDate, poNumber);
+
+            const createResult = await createPOWithQueue({
+                mode,
+                poNumber: initialPoNumber,
+                poDate: values.poDate,
+                rows,
+                indentIds,
+                deliveryDate: databaseDeliveryDate,
+                actualDate: safePoDateStr,
+            });
+
+            const finalPoNumber = createResult.poNumber;
+
+            if (createResult.wasReassigned) {
+                toast.info(
+                    `Assigned next PO number in queue: ${finalPoNumber} (${initialPoNumber} was taken by another user)`,
+                    { duration: 7000 }
+                );
             }
+
+            // Build PDF props with the final authoritative PO number
+            const pdfProps: POPdfProps = {
+                companyName: firmCompanyName,
+                companyAddress: firmCompanyAddress,
+                companyPhone: details?.companyPhone || '',
+                companyEmail: details?.companyEmail || '',
+                companyGstin: firmCompanyGstin,
+                companyPan: firmCompanyPan,
+                companyContactPerson: details?.companyContactPerson || '',
+                supplierName: values.supplierName,
+                supplierAddress: values.supplierAddress || selectedVendor?.address || '',
+                supplierGstin: values.gstin || selectedVendor?.gstin || '',
+                supplierContactPerson: selectedVendor?.personName || '',
+                supplierPhone: selectedVendor?.phone || '',
+                supplierEmail: values.companyEmail || '',
+                poNumber: finalPoNumber,
+                poDate: formatDate(values.poDate),
+                deliveryDate: formatDate(values.deliveryDate),
+                projectName: projectName,
+                deliveryAddress: destinationAddress,
+                deliveryContactPerson: '',
+                deliveryPhone: '',
+                deliveryEmail: '',
+                siteEngineerName: values.siteEngineerName || '',
+                siteEngineerEmail: values.siteEngineerEmail || '',
+                siteEngineerPhoneNo: values.siteEngineerPhoneNo || '',
+                siteEngineerName2: values.siteEngineerName2 || '',
+                siteEngineerEmail2: values.siteEngineerEmail2 || '',
+                siteEngineerPhoneNo2: values.siteEngineerPhoneNo2 || '',
+                subtotal,
+                totalGst,
+                items: values.indents.map((item) => {
+                    const indent = indentSheet.find((i: IndentSheetItem) => i.id === item.id);
+                    return {
+                        internalCode: item.indentNumber || indent?.indentNumber || '',
+                        quotationNo: item.quotationNumber || indent?.quotationNumber || '',
+                        product: item.productName || indent?.productName || '',
+                        paymentTerm: item.paymentTerm || '',
+                        qty: item.quantity || 0,
+                        unit: item.unit || '',
+                        rate: item.rate || 0,
+                        gst: item.gst || 0,
+                        discount: item.discount || 0,
+                        amount: calculateTotal(
+                            item.rate || 0,
+                            item.gst || 0,
+                            item.discount || 0,
+                            item.quantity || 0
+                        ),
+                    };
+                }),
+                totalAmount: grandTotal,
+                terms: parsedTerms,
+                logo: logoBase64 || '/logo.png',
+            };
 
             // Send generated PO PDF via email to selected vendor
             const vendorEmail =
@@ -1326,14 +1304,14 @@ const CreatePO = () => {
                     const blob = await pdf(<POPdf {...pdfProps} />).toBlob();
                     const base64Content = await blobToBase64(blob);
 
-                    const emailSubject = `Purchase Order - ${poNumber}`;
+                    const emailSubject = `Purchase Order - ${finalPoNumber}`;
                     const emailHtml = `
                         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                            <h2 style="color: #1e293b;">Purchase Order ${poNumber}</h2>
+                            <h2 style="color: #1e293b;">Purchase Order ${finalPoNumber}</h2>
                             <p>Dear ${values.supplierName},</p>
-                            <p>Please find attached the Purchase Order <strong>${poNumber}</strong> from <strong>${firmCompanyName || 'our company'}</strong>.</p>
+                            <p>Please find attached the Purchase Order <strong>${finalPoNumber}</strong> from <strong>${firmCompanyName || 'our company'}</strong>.</p>
                             <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                                <p style="margin: 4px 0;"><strong>PO Number:</strong> ${poNumber}</p>
+                                <p style="margin: 4px 0;"><strong>PO Number:</strong> ${finalPoNumber}</p>
                                 <p style="margin: 4px 0;"><strong>PO Date:</strong> ${formatDate(values.poDate)}</p>
                                 <p style="margin: 4px 0;"><strong>Delivery Date:</strong> ${formatDate(values.deliveryDate)}</p>
                                 <p style="margin: 4px 0;"><strong>Total Amount:</strong> ₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
@@ -1350,7 +1328,7 @@ const CreatePO = () => {
                         html: emailHtml,
                         attachments: [
                             {
-                                filename: `PO-${poNumber.replace(/\//g, '_')}.pdf`,
+                                filename: `PO-${finalPoNumber.replace(/\//g, '_')}.pdf`,
                                 content: base64Content,
                             },
                         ],
@@ -1363,15 +1341,26 @@ const CreatePO = () => {
                     );
                 }
             } else {
-                toast.success(`Successfully ${mode}d purchase order (Vendor email missing)`);
+                toast.success(`Successfully ${mode}d purchase order ${finalPoNumber}`);
             }
 
             form.reset();
 
-            // Refresh data from Supabase using loadData()
+            // Refresh data using loadData()
             await loadData();
             updateAll(true);
+
+            // Fetch latest sequence number for the next entry
+            try {
+                const nextPo = await fetchNextPoNumber();
+                if (nextPo && mode === 'create') {
+                    form.setValue('poNumber', nextPo);
+                }
+            } catch {
+                // Ignore
+            }
         } catch (e) {
+            console.error('Failed to submit PO:', e);
             toast.error(`Failed to ${mode} purchase order`);
         }
     }

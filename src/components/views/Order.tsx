@@ -13,7 +13,7 @@ import { hasNoFirmAccess, normalizeFirmAccess } from '@/lib/firmAccess';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { resetPoStage } from '@/services/poService';
-import { openPoPdfPreview } from '@/lib/poPdfUtils';
+import { openPoPdfPreview, type PoFilterContext } from '@/lib/poPdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
 
@@ -26,6 +26,10 @@ interface HistoryData {
     totalAmount: number;
     status: 'Revised' | 'Not Received' | 'Received';
     timestamp: string;
+    /** Composite-key disambiguators for duplicate PO numbers */
+    firmId?: number | null;
+    firmName?: string;
+    indentNumber?: string;
 }
 
 interface POMasterRecord {
@@ -82,10 +86,18 @@ export default function Order() {
     const [openingPo, setOpeningPo] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<HistoryData | null>(null);
 
-    const handleOpenPdf = async (poNumber: string) => {
+    const handleOpenPdf = async (po: HistoryData) => {
         try {
-            setOpeningPo(poNumber);
-            await openPoPdfPreview(poNumber);
+            setOpeningPo(po.poNumber);
+            // Build a disambiguation context from the row's firm and date so that
+            // duplicate PO numbers (e.g. back-dated imports) resolve to the correct records.
+            const context: PoFilterContext = {
+                firmId: po.firmId ?? undefined,
+                firmName: po.firmName || undefined,
+                date: po.timestamp || undefined,
+                indentNumber: po.indentNumber || undefined,
+            };
+            await openPoPdfPreview(po.poNumber, undefined, context);
         } catch (err) {
             console.error('Error opening PO PDF:', err);
             toast.error('Failed to open PO PDF');
@@ -140,12 +152,24 @@ export default function Order() {
                     .filter(Boolean)
             );
 
-            // Get unique PO numbers
+            // Deduplicate by composite key: po_number + firm_id (or firm_name) + po_created_date
+            // This ensures that identical PO numbers from different firms or dates each get
+            // their own distinct row in the history table.
             const uniquePOMap = new Map<string, any>();
             (poMasterData || []).forEach((sheet: any) => {
                 const poNumber = sheet?.po_number;
-                if (poNumber && !uniquePOMap.has(poNumber)) {
-                    uniquePOMap.set(poNumber, sheet);
+                if (!poNumber) return;
+                const firmKey = sheet.firm_id != null ? String(sheet.firm_id) : (sheet.firm_name || '');
+                const safeDateKey = (raw: any): string => {
+                    if (!raw) return '';
+                    const d = new Date(raw);
+                    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+                };
+                const dateKey = safeDateKey(sheet.po_created_date) || safeDateKey(sheet.timestamp);
+                const indentKey = sheet.internal_code || sheet.internalCode || '';
+                const compositeKey = `${poNumber}__${firmKey}__${indentKey}__${dateKey}`;
+                if (!uniquePOMap.has(compositeKey)) {
+                    uniquePOMap.set(compositeKey, sheet);
                 }
             });
 
@@ -171,6 +195,9 @@ export default function Order() {
                     vendorName: sheet.party_name || '',
                     status: status,
                     timestamp: sheet.po_created_date || sheet.timestamp || '',
+                    firmId: sheet.firm_id != null ? Number(sheet.firm_id) : null,
+                    firmName: sheet.firm_name || '',
+                    indentNumber: sheet.internal_code || sheet.internalCode || '',
                 };
             });
 
@@ -218,13 +245,12 @@ export default function Order() {
             header: 'PO Copy',
             cell: ({ row }) => {
                 const poNum = row.original.poNumber;
-                const rawAttachment = row.original.poCopy;
                 const isOpening = openingPo === poNum;
 
                 return (
                     <button
                         type="button"
-                        onClick={() => handleOpenPdf(poNum)}
+                        onClick={() => handleOpenPdf(row.original)}
                         disabled={isOpening}
                         className="text-primary hover:underline font-medium cursor-pointer disabled:opacity-50"
                     >
@@ -318,14 +344,28 @@ export default function Order() {
                 isPermanentDelete={false}
                 indentNumber={deleteTarget?.poNumber}
                 productName={deleteTarget?.vendorName}
-                customMessage={`Are you sure you want to delete PO ${deleteTarget?.poNumber}? This will remove the PO record and revert linked indents back to Pending PO to Make.`}
+                customMessage={`Are you sure you want to delete PO ${deleteTarget?.poNumber}${deleteTarget?.vendorName ? ` for vendor ${deleteTarget.vendorName}` : ''}${deleteTarget?.firmName ? ` (${deleteTarget.firmName})` : ''}? This will remove this specific PO record and revert its linked indents back to Pending PO to Make.`}
                 onConfirm={async () => {
                     if (!deleteTarget) return;
-                    const poNum = deleteTarget.poNumber;
-                    await resetPoStage(poNum);
+                    const target = deleteTarget;
+                    const poNum = target.poNumber;
+                    await resetPoStage(poNum, {
+                        firmId: target.firmId ?? undefined,
+                        vendorName: target.vendorName ?? undefined,
+                        poCreatedDate: target.timestamp ?? undefined,
+                    });
                     toast.success(`PO ${poNum} deleted and reset successfully`);
                     setDeleteTarget(null);
-                    setHistoryData(prev => prev.filter(r => r.poNumber !== poNum));
+                    setHistoryData(prev =>
+                        prev.filter(
+                            r =>
+                                !(
+                                    r.poNumber === poNum &&
+                                    (target.firmId != null ? r.firmId === target.firmId : true) &&
+                                    (target.vendorName ? r.vendorName === target.vendorName : true)
+                                )
+                        )
+                    );
                     await fetchPOHistory();
                 }}
             />

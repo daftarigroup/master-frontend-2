@@ -168,6 +168,8 @@ export default function Dashboard() {
             poNumber: string;
             timestamp: string;
             firmName: string;
+            firmId?: number;
+            indentNumber?: string;
             deliveryDate: string;
             paymentTerms: string;
             totalPoAmount: number;
@@ -176,18 +178,23 @@ export default function Dashboard() {
 
         selectedVendorItems.forEach((item) => {
             const poNo = item.poNumber || item.internalCode || 'N/A';
-            if (!map.has(poNo)) {
-                map.set(poNo, {
+            const firmKey = item.firm_id != null ? String(item.firm_id) : (item.firmNameMatch || '');
+            const indentKey = item.internalCode || (item as any).internal_code || '';
+            const key = `${poNo}__${firmKey}__${indentKey}`;
+            if (!map.has(key)) {
+                map.set(key, {
                     poNumber: poNo,
                     timestamp: item.timestamp,
                     firmName: item.firmNameMatch || '',
+                    firmId: item.firm_id != null ? Number(item.firm_id) : undefined,
+                    indentNumber: indentKey || undefined,
                     deliveryDate: item.deliveryDate || '',
                     paymentTerms: item.paymentTerms || '',
                     totalPoAmount: Number(item.totalPoAmount) || 0,
                     items: [],
                 });
             }
-            map.get(poNo)!.items.push(item);
+            map.get(key)!.items.push(item);
         });
 
         return Array.from(map.values());
@@ -1225,7 +1232,12 @@ export default function Dashboard() {
                                                     variant="outline"
                                                     size="sm"
                                                     className="h-8 text-xs gap-1.5 border-blue-200 text-blue-600 hover:bg-blue-50 shrink-0"
-                                                    onClick={() => openPoPdfPreview(order.poNumber, poMasterData)}
+                                                    onClick={() => openPoPdfPreview(order.poNumber, poMasterData, {
+                                                        firmId: order.firmId,
+                                                        firmName: order.firmName || undefined,
+                                                        date: order.timestamp || undefined,
+                                                        indentNumber: order.indentNumber || order.items[0]?.internalCode || undefined,
+                                                    })}
                                                 >
                                                     <Eye size={13} />
                                                     Preview PDF

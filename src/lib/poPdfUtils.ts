@@ -6,6 +6,31 @@ import { getLogoBase64 } from '@/lib/issuePdfUtils';
 import { calculateGrandTotal, calculateSubtotal, calculateTotal, calculateTotalGst, formatDate } from '@/lib/utils';
 import { fetchMasterData, fetchPoMasterByPoNumber, type PoMasterRecord } from '@/services/poService';
 
+/**
+ * Context that disambiguates a PO when multiple historical records share the
+ * same po_number (e.g. back-dated imports for different firms).
+ * Providing firmId and/or date narrows the filter so only the correct rows
+ * are used for PDF generation.
+ */
+export interface PoFilterContext {
+    /** firm_id from the po_master row – preferred over firmName when available */
+    firmId?: string | number;
+    /** Fallback firm identifier when firm_id is not populated */
+    firmName?: string;
+    /** ISO string or YYYY-MM-DD of the PO created date for disambiguation */
+    date?: string;
+    /** Indent number (internalCode / internal_code) for exact indent matching */
+    indentNumber?: string;
+}
+
+/** Normalise any date-like value to a YYYY-MM-DD string for comparison. */
+function toDateKey(value: string | undefined): string {
+    if (!value) return '';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+}
+
 function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[] {
     const terms: { num: string; text: string }[] = [];
 
@@ -59,10 +84,51 @@ function buildTermsFromRow(row: PoMasterRecord): { num: string; text: string }[]
  * Because this re-reads live data, the PDF reflects the current state of those
  * records, not necessarily the exact document as originally issued.
  */
-export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[]): Promise<POPdfProps> {
-    // Only ever build a PDF from rows that actually belong to this PO — never fall back to
-    // an unrelated batch of rows, or the PDF ends up showing another PO's items.
-    const targetRows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
+export async function buildPoPdfProps(
+    poNumber: string,
+    allRows: PoMasterRecord[],
+    context?: PoFilterContext,
+): Promise<POPdfProps> {
+    // Step 1: match by po_number / internal_code
+    let targetRows = allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber);
+
+    // Step 2: when a context is provided and there are still multiple candidate
+    // groups (duplicate po_numbers from different firms / dates), narrow further.
+    if (context && targetRows.length > 0) {
+        const contextDateKey = toDateKey(context.date);
+
+        const narrowed = targetRows.filter((r) => {
+            // --- firm matching ---
+            if (context.firmId != null && r.firm_id != null) {
+                if (String(r.firm_id) !== String(context.firmId)) return false;
+            } else if (context.firmName && r.firmNameMatch) {
+                if (r.firmNameMatch.trim().toLowerCase() !== context.firmName.trim().toLowerCase()) return false;
+            }
+
+            // --- indent number matching ---
+            if (context.indentNumber) {
+                const targetIndent = context.indentNumber.trim().toLowerCase();
+                const rowIndent = String(r.internalCode || (r as any).internal_code || '').trim().toLowerCase();
+                if (rowIndent && targetIndent && rowIndent !== targetIndent) return false;
+            }
+
+            // --- date matching ---
+            if (contextDateKey) {
+                const rowDateKey = toDateKey((r as any).po_created_date || r.poCreatedDate || r.timestamp);
+                if (rowDateKey && rowDateKey !== contextDateKey) return false;
+            }
+
+            return true;
+        });
+
+        // Only apply the narrowed set when it actually returned rows — this prevents
+        // old back-dated records (where po_created_date may be null) from silently
+        // vanishing when the context date can't match them.
+        if (narrowed.length > 0) {
+            targetRows = narrowed;
+        }
+    }
+
     if (targetRows.length === 0) {
         throw new Error(`No PO Master records found for PO number or Indent ${poNumber}`);
     }
@@ -163,7 +229,11 @@ export async function buildPoPdfProps(poNumber: string, allRows: PoMasterRecord[
  * and opens it in a new browser tab. Mirrors openIssuePdfPreview's UX (pre-opened
  * tab with a loading state to dodge popup blockers).
  */
-export const openPoPdfPreview = async (poNumber: string, allRows?: PoMasterRecord[]) => {
+export const openPoPdfPreview = async (
+    poNumber: string,
+    allRows?: PoMasterRecord[],
+    context?: PoFilterContext,
+) => {
     const win = window.open('', '_blank');
     if (win) {
         win.document.write(`
@@ -220,6 +290,25 @@ export const openPoPdfPreview = async (poNumber: string, allRows?: PoMasterRecor
             ? allRows.filter((r) => r.poNumber === poNumber || r.internalCode === poNumber)
             : [];
 
+        // When context is provided, try to narrow the in-memory rows to the exact
+        // batch that belongs to this firm + date before fetching from the server.
+        if (context && rows.length > 0) {
+            const contextDateKey = toDateKey(context.date);
+            const narrowed = rows.filter((r) => {
+                if (context.firmId != null && r.firm_id != null) {
+                    if (String(r.firm_id) !== String(context.firmId)) return false;
+                } else if (context.firmName && r.firmNameMatch) {
+                    if (r.firmNameMatch.trim().toLowerCase() !== context.firmName.trim().toLowerCase()) return false;
+                }
+                if (contextDateKey) {
+                    const rowDateKey = toDateKey((r as any).po_created_date || r.poCreatedDate || r.timestamp);
+                    if (rowDateKey && rowDateKey !== contextDateKey) return false;
+                }
+                return true;
+            });
+            if (narrowed.length > 0) rows = narrowed;
+        }
+
         if (rows.length === 0) {
             rows = await fetchPoMasterByPoNumber(poNumber);
         }
@@ -230,7 +319,7 @@ export const openPoPdfPreview = async (poNumber: string, allRows?: PoMasterRecor
             return;
         }
 
-        const props = await buildPoPdfProps(poNumber, rows);
+        const props = await buildPoPdfProps(poNumber, rows, context);
         const blob = await pdf(React.createElement(POPdf, props) as React.ReactElement<DocumentProps>).toBlob();
         const blobUrl = URL.createObjectURL(blob);
 

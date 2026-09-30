@@ -5,7 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { formatDate } from '@/lib/utils';
 import DataTable from '../element/DataTable';
 import { useAuth } from '@/context/AuthContext';
-import { openPoPdfPreview } from '@/lib/poPdfUtils';
+import { openPoPdfPreview, type PoFilterContext } from '@/lib/poPdfUtils';
 import { toast } from 'sonner';
 
 interface PendingIndentsData {
@@ -126,11 +126,20 @@ export default () => {
     // TODO(migration): PDF is now generated on-demand, no longer stored — remove after verification
     // Previously this pulled the stored po_master.pdf URL and opened it directly.
     // Now it re-fetches fresh po_master/master data and regenerates the PDF on every click.
-    const handleViewPdf = async (poNumber: string) => {
+    const handleViewPdf = async (row: any) => {
+        const poNumber = row.poNumber || row.po_number || '';
         try {
             setGeneratingPoNumber(poNumber);
             const freshRows = await fetchPoMaster(permittedFirms);
-            await openPoPdfPreview(poNumber, freshRows);
+            // Build a disambiguation context so duplicate PO numbers across firms/dates
+            // resolve only the rows that belong to this specific entry.
+            const context: PoFilterContext = {
+                firmId: row.firm_id != null ? row.firm_id : undefined,
+                firmName: row.firmNameMatch || row.firm_name || undefined,
+                date: row.rawTimestamp || row.po_created_date || row.timestamp || undefined,
+                indentNumber: row.internalCode || row.internal_code || undefined,
+            };
+            await openPoPdfPreview(poNumber, freshRows, context);
         } catch (error) {
             console.error('Error generating PO PDF:', error);
             toast.error('Failed to generate Purchase Order PDF');
@@ -199,7 +208,7 @@ export default () => {
                 return (
                     <button
                         type="button"
-                        onClick={() => handleViewPdf(poNumber)}
+                        onClick={() => handleViewPdf(row.original)}
                         disabled={isGenerating}
                         className="text-blue-600 hover:text-blue-800 underline disabled:text-gray-400 disabled:no-underline inline-flex items-center gap-1"
                     >

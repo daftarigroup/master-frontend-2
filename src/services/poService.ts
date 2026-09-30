@@ -564,6 +564,110 @@ export async function fetchMasterData(forceRefresh = false) {
     return masterDataPromise;
 }
 
+export async function fetchNextPoNumber(fy?: string): Promise<string> {
+    try {
+        const res: any = await apiClient.get('/store/po/next-number', { params: fy ? { fy } : {} });
+        return res?.data?.nextPoNumber || res?.nextPoNumber || '';
+    } catch (error) {
+        console.warn('Failed to fetch next PO number from server, falling back to local computation:', error);
+        return '';
+    }
+}
+
+export interface CreatePOWithQueuePayload {
+    mode?: 'create' | 'revise';
+    poNumber?: string;
+    poDate?: Date | string;
+    financialYear?: string;
+    rows: any[];
+    indentIds?: number[];
+    deliveryDate?: string;
+    actualDate?: string;
+}
+
+export interface CreatePOResult {
+    success: boolean;
+    poNumber: string;
+    wasReassigned: boolean;
+    originalPoNumber?: string;
+    count?: number;
+}
+
+export async function createPOWithQueue(payload: CreatePOWithQueuePayload): Promise<CreatePOResult> {
+    try {
+        if (!payload.rows || payload.rows.length === 0) {
+            throw new Error('Cannot create PO without items');
+        }
+        if (payload.rows.some((record) => !record.firm_id)) {
+            throw new Error('Project ID is required for PO records');
+        }
+
+        const mappedRecords = payload.rows.map((record) => ({
+            timestamp: record.timestamp,
+            po_created_date: record.po_created_date || record.timestamp || new Date().toISOString(),
+            party_name: record.partyName || '',
+            po_number: record.poNumber || '',
+            internal_code: record.internalCode || '',
+            product: record.product || '',
+            description: record.description || '',
+            quantity: String(record.quantity || 0),
+            unit: record.unit || '',
+            rate: String(record.rate || 0),
+            gst: String(record.gstPercent || record.gst || 0),
+            discount: String(record.discountPercent || record.discount || 0),
+            amount: String(record.amount || 0),
+            total_po_amount: String(record.totalPoAmount || 0),
+            pdf: record.pdf || '',
+            quotation_number: record.quotationNumber || '',
+            quotation_date: record.quotationDate || '',
+            enquiry_number: record.enquiryNumber || '',
+            enquiry_date: record.enquiryDate || '',
+            delivery_date: record.deliveryDate || '',
+            payment_terms: record.paymentTerms || '',
+            number_of_days: String(record.numberOfDays || 0),
+            delivery_days: String(record.deliveryDays || 0),
+            delivery_type: record.deliveryType || '',
+            firm_name: record.firmNameMatch || '',
+            firm_id: record.firm_id,
+            company_email: record.companyEmail || '',
+            advance_percent: record.advancePercent || 0,
+            advance_amount: record.advanceAmount || 0,
+            terms: typeof record.terms === 'string'
+                ? record.terms
+                : (record.terms ? JSON.stringify(record.terms) : ''),
+            site_engineer_name: record.siteEngineerName || '',
+            site_engineer_email: record.siteEngineerEmail || '',
+            site_engineer_phoneNo: record.siteEngineerPhoneNo || '',
+            site_engineer_name_2: record.siteEngineerName2 || record.site_engineer_name_2 || '',
+            site_engineer_email_2: record.siteEngineerEmail2 || record.site_engineer_email_2 || '',
+            site_engineer_phoneNo_2: record.siteEngineerPhoneNo2 || record.site_engineer_phoneNo_2 || '',
+        }));
+
+        const res: any = await apiClient.post('/store/po/create', {
+            mode: payload.mode || 'create',
+            poNumber: payload.poNumber,
+            poDate: payload.poDate,
+            financialYear: payload.financialYear,
+            rows: mappedRecords,
+            indentIds: payload.indentIds || [],
+            deliveryDate: payload.deliveryDate,
+            actualDate: payload.actualDate,
+        });
+
+        const data = res?.data || res;
+        return {
+            success: Boolean(data?.success),
+            poNumber: data?.poNumber || payload.poNumber || '',
+            wasReassigned: Boolean(data?.wasReassigned),
+            originalPoNumber: data?.originalPoNumber || payload.poNumber,
+            count: data?.count || mappedRecords.length,
+        };
+    } catch (error) {
+        console.error('Error creating PO with queue:', error);
+        throw error;
+    }
+}
+
 export async function insertPoRecords(poRecords: any[]) {
     try {
         if (poRecords.some((record) => !record.firm_id)) {
@@ -640,19 +744,32 @@ export async function updateIndentsAfterPoCreation(ids: number[], deliveryDate?:
     }
 }
 
+export interface ResetPoStageScope {
+    firmId?: number | null;
+    vendorName?: string;
+    poCreatedDate?: string;
+}
+
 /**
  * Reset/Delete PO Stage:
  * Clears PO assignment from linked indents, removes downstream store_in records (if any),
- * and deletes records from po_master.
+ * and deletes records from po_master. Can be scoped to a specific firm/vendor/date to safely
+ * delete only one duplicate PO instance without affecting others sharing the same PO number.
  * @param poNumber The PO number to reset/delete
+ * @param scope Optional scope (firmId, vendorName, poCreatedDate) for disambiguation
  */
-export async function resetPoStage(poNumber: string): Promise<boolean> {
+export async function resetPoStage(poNumber: string, scope?: ResetPoStageScope): Promise<boolean> {
     try {
         if (!poNumber || !poNumber.trim()) {
             throw new Error('PO Number is required for stage reset');
         }
 
-        await apiClient.post('/store/stage-reset/po', { poNumber: poNumber.trim() });
+        await apiClient.post('/store/stage-reset/po', {
+            poNumber: poNumber.trim(),
+            firmId: scope?.firmId != null ? scope.firmId : undefined,
+            vendorName: scope?.vendorName ? scope.vendorName.trim() : undefined,
+            poCreatedDate: scope?.poCreatedDate ? scope.poCreatedDate.trim() : undefined,
+        });
         return true;
     } catch (error) {
         console.error(`Error resetting PO '${poNumber}':`, error);
