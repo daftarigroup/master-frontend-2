@@ -666,8 +666,21 @@ export default () => {
             indentNo: z.string(),
             productName: z.string(),
             qty: z.number(),
-            receivedQty: z.coerce.number().min(1, 'Received quantity is required'),
+            receivedQty: z.coerce.number({ invalid_type_error: 'Received quantity is required' }).refine(
+                (val) => !isNaN(val) && val >= 0,
+                { message: 'Received quantity must be 0 or greater' }
+            ),
         })),
+    }).superRefine((val, ctx) => {
+        val.items.forEach((item, idx) => {
+            if (val.status === 'Received' && item.receivedQty <= 0) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'Received quantity must be greater than 0',
+                    path: ['items', idx, 'receivedQty'],
+                });
+            }
+        });
     });
 
     type FormValues = z.infer<typeof schema>;
@@ -988,6 +1001,14 @@ export default () => {
         if (e.qty) {
             toast.error(e.qty.message || 'Received quantity cannot exceed lifting quantity');
             return;
+        }
+        if (e.items) {
+            const itemErrors = Array.isArray(e.items) ? e.items : Object.values(e.items);
+            const firstItemError: any = itemErrors.find((it: any) => it?.receivedQty?.message);
+            if (firstItemError?.receivedQty?.message) {
+                toast.error(firstItemError.receivedQty.message);
+                return;
+            }
         }
         toast.error('Please fill all required fields');
     }
