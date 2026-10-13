@@ -50,6 +50,7 @@ export interface NavItem {
   path: string;
   icon: LucideIcon;
   gateKey?: string;
+  hidden?: boolean;
 }
 
 export interface NavGroup {
@@ -140,7 +141,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         items: [
           { name: 'Store Check', path: '/store/receipts/store-in', icon: CheckCircle2, gateKey: 'storeIn' },
           { name: 'HOD Check', path: '/store/receipts/hod-check', icon: UserCheck, gateKey: 'hodStoreApproval' },
-          { name: 'Transport Log Book', path: '/store/procurement/transport-log-book', icon: Truck, gateKey: 'ordersView' },
+          { name: 'Transport Log Book', path: '/store/procurement/transport-log-book', icon: Truck, gateKey: 'ordersView', hidden: true },
           { name: 'Reject For GRN', path: '/store/receipts/grn-rejection', icon: FileX, gateKey: 'insteadOfQualityCheckInReceivedItem' },
           { name: 'Bill Not Received', path: '/store/receipts/bill-pending', icon: FileWarning, gateKey: 'billNotReceived' },
         ],

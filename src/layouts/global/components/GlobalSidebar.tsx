@@ -284,7 +284,7 @@ export const GlobalSidebar: React.FC = () => {
                             const isPrimary = system.id === effectiveActiveSystemId;
                             const Icon = system.icon;
                             const systemPendingTotal = system.groups.reduce((acc, grp) => {
-                                return acc + grp.items.reduce((itemAcc, it) => itemAcc + getBadgeCount(it.path), 0);
+                                return acc + grp.items.filter((it) => !it.hidden).reduce((itemAcc, it) => itemAcc + getBadgeCount(it.path), 0);
                             }, 0);
 
                             return (
@@ -358,7 +358,7 @@ export const GlobalSidebar: React.FC = () => {
                                                 <SidebarMenu className="space-y-0.5 pl-3 my-0.5">
                                                     {system.groups
                                                         .flatMap((grp) => grp.items)
-                                                        .filter((item) => isPermitted(item.gateKey))
+                                                        .filter((item) => !item.hidden && isPermitted(item.gateKey))
                                                         .map((item) => {
                                                             const count = getBadgeCount(item.path);
                                                             const isSelected =

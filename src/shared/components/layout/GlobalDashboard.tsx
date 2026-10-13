@@ -146,7 +146,7 @@ export const GlobalDashboard: React.FC = () => {
           {systems.map((system, idx) => {
             const isViewOnly = user?.modify_access === 'VIEW';
             const isCardDisabled = system.disabled ?? false;
-            const viewsCount = system.groups.reduce((acc, g) => acc + g.items.length, 0);
+            const viewsCount = system.groups.reduce((acc, g) => acc + g.items.filter((it) => !it.hidden).length, 0);
             const accent = getAccentStyle(system.accentClassName);
 
             let badgeText = `${viewsCount} ${viewsCount === 1 ? 'View' : 'Views'}`;
