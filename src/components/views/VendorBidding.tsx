@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchQuotationByToken, updateVendorRate } from '@/services/quotationService';
-import { fetchMasterRecords } from '@/services/masterService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
@@ -29,32 +28,13 @@ export default function VendorBidding() {
         const loadQuotation = async () => {
             if (!token) return;
             try {
-                const data = await fetchQuotationByToken(token);
+                const { rows: data, vendor, firm } = await fetchQuotationByToken(token);
                 if (data && data.length > 0) {
                     setQuotation(data);
-                    
-                    // Fetch details from Master
-                    const vendorName = data[0].supplierName;
-                    const firmName = data[0].firm;
-                    try {
-                        const masterRecords = await fetchMasterRecords();
-                        
-                        // Look up Vendor
-                        const vendorDetails = masterRecords.find(r => r.vendor_name === vendorName);
-                        if (vendorDetails) setMasterVendor(vendorDetails);
 
-                        // Look up Firm/Project - prioritize record with actual address data
-                        const firmDetails = masterRecords.find(r => 
-                            r.firm_name === firmName && (r.billing_address || r.destination_address)
-                        ) || masterRecords.find(r => r.firm_name === firmName);
-                        
-                        if (firmDetails) {
-                            setMasterFirm(firmDetails);
-                        }
-
-                    } catch (err) {
-                        console.error('Error fetching master details:', err);
-                    }
+                    // Vendor and project details come with the quotation (this page has no login, so it cannot read the master registry)
+                    if (vendor) setMasterVendor(vendor);
+                    if (firm) setMasterFirm(firm);
 
                     // Check if already submitted
                     const hasResponded = data.some((item: any) => 

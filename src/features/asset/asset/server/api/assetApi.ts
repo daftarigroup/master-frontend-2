@@ -9,6 +9,7 @@ export const getAssets = async (params?: {
   search?: string;
   status?: string;
   department?: string;
+  ownership?: 'OWNED' | 'RENTED';
 }): Promise<Asset[]> => {
   const res = await api.get('/assets', { params });
   return res.data.data;

@@ -1,7 +1,7 @@
 import Heading from '../element/Heading';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Pill } from '../ui/pill';
-import { Store, Settings2, ArrowRightLeft, Send, Package, Building2, Info, AlertCircle, Search, Download } from 'lucide-react';
+import { Store, Settings2, ArrowRightLeft, Send, Package, Building2, Info, AlertCircle, Search, FileSpreadsheet } from 'lucide-react';
 import DataTable from '../element/DataTable';
 import { useSheets } from '@/context/SheetsContext';
 import { useAuth } from '@/context/AuthContext';
@@ -9,7 +9,8 @@ import { toast } from 'sonner';
 import { storeApi } from '@/lib/apiClient';
 import type { InventoryRecord } from '@/services/inventoryService';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { calculateRealInventory } from '@/lib/inventoryUtils';
+import { calculateRealInventory, resolveInventoryTransactionDetails } from '@/lib/inventoryUtils';
+import { InventoryExportModal } from './InventoryExportModal';
 import type { InventorySheet } from '@/types/sheets';
 import {
     Dialog,
@@ -23,6 +24,7 @@ import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
@@ -350,324 +352,29 @@ export default () => {
         quantity: 0,
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [exportModalOpen, setExportModalOpen] = useState(false);
 
     const handleDetailClick = useCallback((type: string, itemName: string, value: number) => {
         if (value === 0) return;
 
-        let rows: DetailRow[] = [];
-        let title = selectedParty !== 'All'
+        const title = selectedParty !== 'All'
             ? `${type} History (${selectedParty}): ${itemName}`
             : `${type} History: ${itemName}`;
 
-        // Get the current item's fallback rate / avgPrice
-        const matchedItem = inventorySheet?.find(i => i.itemName === itemName);
-        const itemFallbackRate = Number(matchedItem?.avgPrice || (matchedItem as any)?.individualRate || 0);
+        const rows = resolveInventoryTransactionDetails({
+            type,
+            itemName,
+            partyFilteredIndents,
+            partyFilteredStoreIns,
+            partyFilteredIssues,
+            partyFilteredTransfers,
+            inventorySheet,
+            poMasterSheet,
+            selectedProjectId,
+            selectedParty,
+        });
 
-        const normalize = (val?: string) => (val || '').trim().toLowerCase();
-        const isSameProduct = (prod?: string) => normalize(prod) === normalize(itemName);
-        const isLifted = (s: any) => {
-            const raw = s.materialDate ?? s.material_date;
-            if (!raw) return false;
-            const str = String(raw).trim().toLowerCase();
-            return str !== '' && str !== 'null' && str !== 'undefined' && str !== '-' && str !== 'n/a';
-        };
-
-        switch (type) {
-            case 'Indented':
-                rows = partyFilteredIndents
-                    .filter((i: any) => isSameProduct(i.productName || i.product))
-                    .map((i: any) => {
-                        const targetPo = i.poNumber || i.po_number;
-                        const poMatch = poMasterSheet?.find((p: any) =>
-                            Boolean(targetPo && p.poNumber && String(p.poNumber).trim() === String(targetPo).trim()) &&
-                            isSameProduct(p.product || p.productName)
-                        );
-                        const rate = Number(
-                            poMatch?.rate ||
-                            i.approvedRate ||
-                            i.approved_rate ||
-                            i.rate ||
-                            i.rate1 ||
-                            i.negotiated_rate ||
-                            i.price ||
-                            itemFallbackRate ||
-                            0
-                        );
-                        const quantity = Number(i.quantity || 0);
-                        const party = (selectedParty !== 'All' && i.indenterName?.trim().toLowerCase() === selectedParty.trim().toLowerCase())
-                            ? (i.indenterName || 'N/A')
-                            : (i.approvedVendorName || i.approved_vendor_name || i.vendor || i.vendor_name || i.indenterName || 'N/A');
-                        return {
-                            date: i.timestamp,
-                            refNo: i.indentNumber,
-                            quantity,
-                            rate,
-                            amount: Number((quantity * rate).toFixed(2)),
-                            party,
-                            projectName: i.firmName || 'N/A',
-                            siteLocation: i.siteLocation || i.site_location || i.areaOfUse || i.area_of_use || i.location || 'N/A'
-                        };
-                    });
-                break;
-            case 'Approved':
-                rows = partyFilteredIndents
-                    .filter((i: any) => isSameProduct(i.productName || i.product) && Number(i.approvedQuantity || 0) > 0)
-                    .map((i: any) => {
-                        const targetPo = i.poNumber || i.po_number;
-                        const poMatch = poMasterSheet?.find((p: any) =>
-                            Boolean(targetPo && p.poNumber && String(p.poNumber).trim() === String(targetPo).trim()) &&
-                            isSameProduct(p.product || p.productName)
-                        );
-                        const rate = Number(
-                            poMatch?.rate ||
-                            i.approvedRate ||
-                            i.approved_rate ||
-                            i.rate ||
-                            i.rate1 ||
-                            i.negotiated_rate ||
-                            i.price ||
-                            itemFallbackRate ||
-                            0
-                        );
-                        const quantity = Number(i.approvedQuantity || 0);
-                        const party = (selectedParty !== 'All' && i.indenterName?.trim().toLowerCase() === selectedParty.trim().toLowerCase())
-                            ? (i.indenterName || 'N/A')
-                            : (i.approvedVendorName || i.approved_vendor_name || i.vendor || i.vendor_name || i.indenterName || 'N/A');
-                        return {
-                            date: i.timestamp,
-                            refNo: i.indentNumber,
-                            quantity,
-                            rate,
-                            amount: Number((quantity * rate).toFixed(2)),
-                            party,
-                            projectName: i.firmName || 'N/A',
-                            siteLocation: i.siteLocation || i.site_location || i.areaOfUse || i.area_of_use || i.location || 'N/A'
-                        };
-                    });
-                break;
-            case 'Lifting Quantity':
-                rows = partyFilteredStoreIns
-                    .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.receivedQuantity || 0) > 0 && isLifted(s))
-                    .map((s: any) => {
-                        // Find indent specifically for this product and indent/PO
-                        const matchedIndent: any = (partyFilteredIndents || []).find((ind: any) => {
-                            const prodMatch = isSameProduct(ind.productName || ind.product);
-                            const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
-                            const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
-                            return prodMatch && (indentMatch || poMatchNum);
-                        });
-
-                        // Find PO created for this indent/lift data and product
-                        const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
-                        const poMatch = poMasterSheet?.find((p: any) => {
-                            const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
-                            const prodMatch = isSameProduct(p.product || p.productName);
-                            return poNumMatch && prodMatch;
-                        });
-
-                        // Take rate strictly from the PO created for this indent/lift data
-                        const poRate = Number(
-                            poMatch?.rate ||
-                            matchedIndent?.approvedRate ||
-                            matchedIndent?.approved_rate ||
-                            s.priceAsPerPo ||
-                            s.rate ||
-                            matchedIndent?.rate ||
-                            matchedIndent?.rate1 ||
-                            itemFallbackRate ||
-                            0
-                        );
-                        const quantity = Number(s.receivedQuantity || 0);
-                        return {
-                            date: s.materialDate || s.material_date || '',
-                            refNo: s.billNo || s.liftNumber,
-                            quantity,
-                            rate: poRate,
-                            amount: Number((quantity * poRate).toFixed(2)),
-                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
-                            projectName: s.firmNameMatch || 'N/A',
-                            siteLocation: s.location || 'N/A'
-                        };
-                    });
-                break;
-            case 'In Transit':
-                rows = partyFilteredStoreIns
-                    .filter((s: any) => {
-                        const liftedQty = isLifted(s) ? Number(s.receivedQuantity || 0) : 0;
-                        return isSameProduct(s.productName || s.product) && (Number(s.qty || 0) - liftedQty) > 0;
-                    })
-                    .map((s: any) => {
-                        const matchedIndent: any = (partyFilteredIndents || []).find((ind: any) => {
-                            const prodMatch = isSameProduct(ind.productName || ind.product);
-                            const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
-                            const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
-                            return prodMatch && (indentMatch || poMatchNum);
-                        });
-
-                        const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
-                        const poMatch = poMasterSheet?.find((p: any) => {
-                            const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
-                            const prodMatch = isSameProduct(p.product || p.productName);
-                            return poNumMatch && prodMatch;
-                        });
-
-                        const poRate = Number(
-                            poMatch?.rate ||
-                            matchedIndent?.approvedRate ||
-                            matchedIndent?.approved_rate ||
-                            s.priceAsPerPo ||
-                            s.rate ||
-                            matchedIndent?.rate ||
-                            matchedIndent?.rate1 ||
-                            itemFallbackRate ||
-                            0
-                        );
-                        const liftedQty = isLifted(s) ? Number(s.receivedQuantity || 0) : 0;
-                        const quantity = Number(s.qty || 0) - liftedQty;
-                        return {
-                            date: s.timestamp,
-                            refNo: s.billNo || s.liftNumber,
-                            quantity,
-                            rate: poRate,
-                            amount: Number((quantity * poRate).toFixed(2)),
-                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
-                            projectName: s.firmNameMatch || 'N/A',
-                            siteLocation: s.location || 'N/A'
-                        };
-                    });
-                break;
-            case 'Issued':
-                rows = partyFilteredIssues
-                    .filter((is: any) => isSameProduct(is.productName || is.product) && Number(is.givenQty || 0) > 0)
-                    .map((is: any) => {
-                        const quantity = Number(is.givenQty || 0);
-                        return {
-                            date: is.planned1 || is.timestamp,
-                            refNo: is.issueNo,
-                            quantity,
-                            rate: itemFallbackRate,
-                            amount: Number((quantity * itemFallbackRate).toFixed(2)),
-                            party: is.constructorName || is.constructor_name || is.issuePersonName || is.issue_person_name || is.issueTo || is.party || 'N/A',
-                            projectName: is.projectName || is.firm_name || 'N/A',
-                            siteLocation: is.siteLocation || is.site_location || is.location || 'N/A'
-                        };
-                    });
-                break;
-            case 'Issue Return':
-                rows = partyFilteredIssues
-                    .filter((is: any) => isSameProduct(is.productName || is.product) && Number(is.rejected_damage_qty || 0) > 0)
-                    .map((is: any) => {
-                        const quantity = Number(is.rejected_damage_qty || 0);
-                        return {
-                            date: is.timestamp,
-                            refNo: is.issueNo,
-                            quantity,
-                            rate: itemFallbackRate,
-                            amount: Number((quantity * itemFallbackRate).toFixed(2)),
-                            party: is.returnPersonName || is.return_person_name || is.constructorName || is.party || 'N/A',
-                            projectName: is.projectName || is.firm_name || 'N/A',
-                            siteLocation: is.siteLocation || 'N/A'
-                        };
-                    });
-                break;
-            case 'Purchase Return':
-                rows = partyFilteredStoreIns
-                    .filter((s: any) => isSameProduct(s.productName || s.product) && Number(s.returnQuantity || 0) > 0)
-                    .map((s: any) => {
-                        const matchedIndent: any = (partyFilteredIndents || []).find((ind: any) => {
-                            const prodMatch = isSameProduct(ind.productName || ind.product);
-                            const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
-                            const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
-                            return prodMatch && (indentMatch || poMatchNum);
-                        });
-
-                        const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
-                        const poMatch = poMasterSheet?.find((p: any) => {
-                            const poNumMatch = Boolean(targetPoNumber && p.poNumber && String(p.poNumber).trim() === String(targetPoNumber).trim());
-                            const prodMatch = isSameProduct(p.product || p.productName);
-                            return poNumMatch && prodMatch;
-                        });
-
-                        const poRate = Number(
-                            poMatch?.rate ||
-                            matchedIndent?.approvedRate ||
-                            matchedIndent?.approved_rate ||
-                            s.priceAsPerPo ||
-                            s.rate ||
-                            matchedIndent?.rate ||
-                            matchedIndent?.rate1 ||
-                            itemFallbackRate ||
-                            0
-                        );
-                        const quantity = Number(s.returnQuantity || 0);
-                        return {
-                            date: s.timestamp,
-                            refNo: s.billNo || s.liftNumber,
-                            quantity,
-                            rate: poRate,
-                            amount: Number((quantity * poRate).toFixed(2)),
-                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
-                            projectName: s.firmNameMatch || 'N/A',
-                            siteLocation: s.location || 'N/A'
-                        };
-                    });
-                break;
-            case 'Stock Transfer Receiving':
-                // Combine transfers from both dedicated table and old store_in 'Transfer' status
-                const legacyTransfers = partyFilteredStoreIns
-                    .filter((s: any) => isSameProduct(s.productName || s.product) && s.receivingStatus === 'Transfer')
-                    .map((s: any) => {
-                        const qty = Number(s.receivedQuantity || 0);
-                        return {
-                            date: s.timestamp,
-                            refNo: s.billNo || s.liftNumber,
-                            quantity: qty,
-                            rate: itemFallbackRate,
-                            amount: Number((qty * itemFallbackRate).toFixed(2)),
-                            party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
-                            projectName: s.firmNameMatch || 'N/A',
-                            siteLocation: s.location || 'N/A'
-                        };
-                    });
-
-                const newTransfersReceiving = partyFilteredTransfers
-                    .filter((t: any) => isSameProduct(t.productName || t.product) && (selectedProjectId === 'All' || Number(t.to_firm_id || t.toFirmId) === Number(selectedProjectId)))
-                    .map((t: any) => {
-                        const qty = Number(t.quantity || 0);
-                        return {
-                            date: t.timestamp,
-                            refNo: t.transferNo,
-                            quantity: qty,
-                            rate: itemFallbackRate,
-                            amount: Number((qty * itemFallbackRate).toFixed(2)),
-                            party: t.fromProject,
-                            projectName: t.toProject || 'N/A',
-                            siteLocation: t.siteLocation || t.site_location || t.location || 'N/A'
-                        };
-                    });
-
-                rows = [...legacyTransfers, ...newTransfersReceiving];
-                break;
-            case 'Stock Transfer Given':
-                rows = partyFilteredTransfers
-                    .filter((t: any) => isSameProduct(t.productName || t.product) && (selectedProjectId === 'All' || Number(t.from_firm_id || t.fromFirmId) === Number(selectedProjectId)))
-                    .map((t: any) => {
-                        const qty = Number(t.quantity || 0);
-                        return {
-                            date: t.timestamp,
-                            refNo: t.transferNo,
-                            quantity: qty,
-                            rate: itemFallbackRate,
-                            amount: Number((qty * itemFallbackRate).toFixed(2)),
-                            party: t.fromProject,
-                            projectName: t.toProject || 'N/A',
-                            siteLocation: t.siteLocation || t.site_location || t.location || 'N/A'
-                        };
-                    });
-                break;
-        }
-
-        setDetailDialog({ open: true, title, rows: rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) });
+        setDetailDialog({ open: true, title, rows });
     }, [partyFilteredIndents, partyFilteredStoreIns, partyFilteredIssues, partyFilteredTransfers, inventorySheet, poMasterSheet, selectedProjectId, selectedParty]);
 
     const ClickableCell = useMemo(() => ({ value, label, row }: { value: number; label: string; row: any }) => (
@@ -807,118 +514,6 @@ export default () => {
         },
     ], [ClickableCell]);
 
-    const handleExportCSV = useCallback(() => {
-        if (!tableData || tableData.length === 0) {
-            toast.error("No inventory data to export");
-            return;
-        }
-
-        const getStatusLabel = (item: any) => {
-            const code = (item.status || '').toLowerCase();
-            if ((item.current || 0) === 0) return 'Out of Stock';
-            if (code === 'red') return 'Low Stock';
-            if (code === 'purple') return 'Excess';
-            return 'In Stock';
-        };
-
-        const escapeCSV = (val: any) => {
-            if (val === null || val === undefined) return '';
-            const str = String(val);
-            if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-                return '"' + str.replace(/"/g, '""') + '"';
-            }
-            return str;
-        };
-
-        const headers = [
-            'Item',
-            'Group Head',
-            'UOM',
-            'Status',
-            'Indented',
-            'Approved',
-            'Purchase Return',
-            'Lifting Quantity',
-            'In Transit',
-            'Issue Return',
-            'Issued',
-            'S.T. To',
-            'S.T. From',
-            'Quantity',
-            'Avg Price',
-            'Total Price'
-        ];
-
-        const rows = tableData.map(item => [
-            escapeCSV(item.itemName),
-            escapeCSV(item.groupHead),
-            escapeCSV(item.uom),
-            escapeCSV(getStatusLabel(item)),
-            escapeCSV(item.indented || 0),
-            escapeCSV(item.approved || 0),
-            escapeCSV(item.purchaseReturn || 0),
-            escapeCSV(item.liftingQty || 0),
-            escapeCSV(item.inTransit || 0),
-            escapeCSV(item.issueReturn || 0),
-            escapeCSV(item.outQuantity || 0),
-            escapeCSV(item.stockTransferGiven || 0),
-            escapeCSV(item.stockTransferReceiving || 0),
-            escapeCSV(item.current || 0),
-            escapeCSV(item.avgPrice || 0),
-            escapeCSV(item.totalPrice || 0)
-        ]);
-
-        const totalIndented = tableData.reduce((sum, i) => sum + (i.indented || 0), 0);
-        const totalApproved = tableData.reduce((sum, i) => sum + (i.approved || 0), 0);
-        const totalPurchaseReturn = tableData.reduce((sum, i) => sum + (i.purchaseReturn || 0), 0);
-        const totalLiftingQty = tableData.reduce((sum, i) => sum + (i.liftingQty || 0), 0);
-        const totalInTransit = tableData.reduce((sum, i) => sum + (i.inTransit || 0), 0);
-        const totalIssueReturn = tableData.reduce((sum, i) => sum + (i.issueReturn || 0), 0);
-        const totalIssued = tableData.reduce((sum, i) => sum + (i.outQuantity || 0), 0);
-        const totalStTo = tableData.reduce((sum, i) => sum + (i.stockTransferGiven || 0), 0);
-        const totalStFrom = tableData.reduce((sum, i) => sum + (i.stockTransferReceiving || 0), 0);
-        const totalQuantity = tableData.reduce((sum, i) => sum + (i.current || 0), 0);
-        const grandTotalPrice = tableData.reduce((sum, i) => sum + (i.totalPrice || 0), 0);
-
-        const round2 = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
-
-        const totalRow = [
-            'TOTAL',
-            '',
-            '',
-            '',
-            round2(totalIndented),
-            round2(totalApproved),
-            round2(totalPurchaseReturn),
-            round2(totalLiftingQty),
-            round2(totalInTransit),
-            round2(totalIssueReturn),
-            round2(totalIssued),
-            round2(totalStTo),
-            round2(totalStFrom),
-            round2(totalQuantity),
-            '',
-            round2(grandTotalPrice).toFixed(2)
-        ].map(escapeCSV);
-
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(r => r.join(',')),
-            totalRow.join(',')
-        ].join('\r\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `inventory_export_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success("Inventory exported successfully as CSV");
-    }, [tableData]);
-
     return (
         <div>
             <Heading
@@ -928,11 +523,11 @@ export default () => {
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-4 w-full sm:w-auto">
                         <Button
                             variant="outline"
-                            onClick={handleExportCSV}
-                            className="border-emerald-600/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center gap-2 h-9 text-xs sm:text-sm rounded-xl w-full sm:w-auto"
+                            onClick={() => setExportModalOpen(true)}
+                            className="border-emerald-600/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center gap-2 h-9 text-xs sm:text-sm rounded-xl w-full sm:w-auto font-medium shadow-xs"
                         >
-                            <Download className="size-4 text-emerald-600" />
-                            <span>Export CSV</span>
+                            <FileSpreadsheet className="size-4 text-emerald-600" />
+                            <span>Export Excel</span>
                         </Button>
                         <Button
                             onClick={() => setTransferDialog(prev => ({ ...prev, open: true, fromProject: '', toProject: '', itemName: '', quantity: 0 }))}
@@ -1353,6 +948,21 @@ export default () => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <InventoryExportModal
+                open={exportModalOpen}
+                onOpenChange={setExportModalOpen}
+                tableData={tableData}
+                partyFilteredIndents={partyFilteredIndents}
+                partyFilteredStoreIns={partyFilteredStoreIns}
+                partyFilteredIssues={partyFilteredIssues}
+                partyFilteredTransfers={partyFilteredTransfers}
+                inventorySheet={inventorySheet}
+                poMasterSheet={poMasterSheet}
+                selectedProjectId={selectedProjectId}
+                selectedParty={selectedParty}
+                projectName={selectedFirm?.name || 'All Projects'}
+            />
         </div>
     );
 };

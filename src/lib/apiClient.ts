@@ -9,8 +9,28 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor to automatically remove default Content-Type header for FormData
+export const AUTH_REJECTED_EVENT = 'auth:rejected';
+
+// Public calls that must never carry a (possibly stale) token.
+const NO_TOKEN_PATHS = ['/store/users/authenticate'];
+
+// The backend answers 403 to an expired token, so an expired one is never attached.
+function isTokenFresh(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp !== 'number' || payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+// Request interceptor: attach the login token, and remove the default Content-Type header for FormData
 apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token') || localStorage.getItem('checklistToken');
+  if (token && isTokenFresh(token) && !NO_TOKEN_PATHS.some((p) => (config.url || '').includes(p))) {
+    config.headers = config.headers || {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
   if (config.data instanceof FormData) {
     if (config.headers) {
       delete config.headers['Content-Type'];
@@ -25,7 +45,14 @@ apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
     const message = error.response?.data?.message || error.message || 'API Request failed';
-    return Promise.reject(new Error(message));
+    const err: Error & { status?: number } = new Error(message);
+    err.status = error.response?.status;
+    // 401 = login required, 403 on a token = expired / invalid: tell the app to sign out (AuthContext listens).
+    const rejectedToken = err.status === 403 && /invalid or expired token/i.test(message);
+    if (err.status === 401 || rejectedToken) {
+      window.dispatchEvent(new Event(AUTH_REJECTED_EVENT));
+    }
+    return Promise.reject(err);
   }
 );
 

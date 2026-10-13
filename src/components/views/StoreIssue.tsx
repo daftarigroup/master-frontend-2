@@ -42,6 +42,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
 import { useProject } from '@/context/ProjectContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
+import { hasPageAccess } from '@/lib/permissions';
+import { IssueKindPicker, ISSUE_KIND_LABEL, type IssueKind } from '@/components/element/IssueKindPicker';
+import MaintenanceIssueForm from '@/components/views/MaintenanceIssueForm';
+import { useSearchParams } from 'react-router-dom';
+import { AssetDieselIssueForm } from '@/components/views/AssetDieselIssueForm';
 
 interface ProductItemRowProps {
     index: number;
@@ -268,6 +273,22 @@ function ProductItemRow({
 
 export default () => {
     const { user } = useAuth();
+
+    // Order type (Material issue = the form below, unchanged). The other kinds appear only for users who hold their page key
+    // and show a "coming soon" card until their forms are released (Asset: diesel, Maintenance & repair: parts).
+    // "Issue from Store" on a repair work order opens this page as /store/inventory/issue?kind=MAINTENANCE&woId=...
+    const [searchParams] = useSearchParams();
+    const linkedWorkOrderId = searchParams.get('woId') ?? undefined;
+    const orderKinds = useMemo<IssueKind[]>(() => {
+        const kinds: IssueKind[] = ['MATERIAL'];
+        if (hasPageAccess(user, 'store_issue_maintenance', 'EDIT', 'storeIssueMaintenance')) kinds.push('MAINTENANCE');
+        if (hasPageAccess(user, 'store_issue_asset', 'EDIT', 'storeIssueAsset')) kinds.push('ASSET_DIESEL');
+        return kinds;
+    }, [user]);
+    const [orderType, setOrderType] = useState<IssueKind>(() => {
+        const wanted = searchParams.get('kind');
+        return wanted === 'MAINTENANCE' || wanted === 'ASSET_DIESEL' ? wanted : 'MATERIAL';
+    });
     const {
         inventorySheet,
         indentSheet,
@@ -700,12 +721,36 @@ export default () => {
         <div className="pb-10">
             <Heading
                 heading="Store Management"
-                subtext="Create material issues"
+                subtext={orderType === 'MATERIAL' ? 'Create material issues' : `${ISSUE_KIND_LABEL[orderType]} issue`}
             >
                 <ClipboardList size={50} className="text-primary" />
             </Heading>
 
             <div className="max-w-6xl mx-auto px-4">
+                {orderKinds.length > 1 && <IssueKindPicker value={orderType} onChange={setOrderType} kinds={orderKinds} />}
+                {orderType === 'ASSET_DIESEL' ? (
+                    <AssetDieselIssueForm
+                        options={options}
+                        firms={projectOptions.map((f: any) => ({ id: f.id, name: f.name }))}
+                        defaultFirmId={isSpecificProjectSelected && typeof globalSelectedProject?.id === 'number' ? globalSelectedProject.id : undefined}
+                        userName={(user as any)?.name}
+                        onCreated={() => {
+                            fetchData();
+                            updateAll(true);
+                        }}
+                    />
+                ) : orderType === 'MAINTENANCE' ? (
+                    <MaintenanceIssueForm
+                        firms={projectOptions.map((f: any) => ({ id: f.id, name: f.name }))}
+                        defaultFirmId={isSpecificProjectSelected && typeof globalSelectedProject?.id === 'number' ? globalSelectedProject.id : undefined}
+                        initialWorkOrderId={linkedWorkOrderId}
+                        userName={(user as any)?.name}
+                        onCreated={() => {
+                            fetchData();
+                            updateAll(true);
+                        }}
+                    />
+                ) : (
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-8">
                         <Card className="border-slate-200 shadow-sm overflow-hidden">
@@ -908,6 +953,7 @@ export default () => {
                         </div>
                     </form>
                 </Form>
+                )}
             </div>
         </div>
     );

@@ -251,6 +251,8 @@ export type Vendor = {
     address: string;
     email: string;
     paymentTerm: string;
+    phone?: string;
+    personName?: string;
 };
 
 
@@ -343,6 +345,8 @@ export type UserPermissions = {
     poHistory: boolean;
     storeIssue: boolean;
     storeIssueReturn: boolean;
+    storeIssueAsset: boolean;
+    storeIssueMaintenance: boolean;
     issueData: boolean;
     inventory: boolean;
     pendingPo: boolean;
@@ -381,6 +385,12 @@ export type UserPermissions = {
     // Asset System Permissions
     assetDash?: boolean;
     assetAll?: boolean;
+    assetDailyEntry?: boolean;
+    assetDieselLedger?: boolean;
+    assetCost?: boolean;
+    assetWorkLogs?: boolean;
+    assetWorkLogApprove?: boolean;
+    assetDocuments?: boolean;
 
     // Maintenance System Permissions
     maintDash?: boolean;
@@ -388,6 +398,9 @@ export type UserPermissions = {
     maintAddMachine?: boolean;
     maintPlans?: boolean;
     maintTasks?: boolean;
+    maintWorkOrders?: boolean;
+    maintRecords?: boolean;
+    maintAssignments?: boolean;
     maintAssignTask?: boolean;
     maintPending?: boolean;
     maintBreakdowns?: boolean;
@@ -492,6 +505,8 @@ export const allPermissionKeys = [
     "poHistory",
     "storeIssue",
     "storeIssueReturn",
+    "storeIssueAsset",
+    "storeIssueMaintenance",
     "issueData",
     "inventory",
     "pendingPo",
@@ -522,8 +537,17 @@ export const allPermissionKeys = [
     "pettyCashSettings",
     "assetDash",
     "assetAll",
+    "assetDailyEntry",
+    "assetDieselLedger",
+    "assetCost",
+    "assetWorkLogs",
+    "assetWorkLogApprove",
+    "assetDocuments",
     "maintDash",
     "maintMachines",
+    "maintWorkOrders",
+    "maintRecords",
+    "maintAssignments",
     "maintAddMachine",
     "maintPlans",
     "maintTasks",
@@ -588,6 +612,17 @@ export type IssueSheet = {
     return_slip?: string;
     issuePersonName?: string;
     firm_id?: number;
+    // store_issue_kind_v1: MATERIAL (default) | MAINTENANCE | ASSET_DIESEL; machine fields only for the machine kinds
+    issueKind?: 'MATERIAL' | 'MAINTENANCE' | 'ASSET_DIESEL';
+    machineId?: string;
+    workOrderId?: string;
+    workOrderCode?: string;
+    workOrderTitle?: string;
+    workOrderStatus?: string;
+    workOrderRepairParts?: Array<{ partName: string; quantity: number }>;
+    meterReading?: number;
+    machineName?: string;
+    machineUnit?: 'KM' | 'HOURS' | 'NONE';
 }
 
 export type StoreInSheet = {

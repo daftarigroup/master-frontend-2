@@ -30,8 +30,8 @@ export function useMaintenanceProSidebarCountsQuery(): {
   const results = useQueries({
     queries: [
       {
-        queryKey: ['maintenance', 'work-orders', { status: 'PENDING_APPROVAL', limit: 100 }],
-        queryFn: () => fetchWorkOrders({ status: 'PENDING_APPROVAL', limit: 100 }),
+        queryKey: ['maintenance', 'work-orders', { status: 'PENDING_APPROVAL', pendingMyApproval: true, limit: 100 }],
+        queryFn: () => fetchWorkOrders({ status: 'PENDING_APPROVAL', pendingMyApproval: true, limit: 100 }),
         staleTime: 30_000,
       },
       {

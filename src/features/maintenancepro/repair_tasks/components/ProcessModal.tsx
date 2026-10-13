@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { uploadFile } from '@/lib/fetchers';
+import { useWorkOrderUpload } from '@/features/asset/documents/lib/useWorkOrderUpload';
 import { getPublicFileUrl } from '@/lib/utils';
 import { useRequireCompanySelected } from '@/features/organization/hooks/useRequireCompanySelected';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -74,19 +74,30 @@ function ProcessModal({
   wo,
   onClose,
   onSuccess,
+  presetType,
 }: {
   wo: WorkOrder;
   onClose: () => void;
   onSuccess: () => void;
+  /** opened from the repair steps (work type already chosen): start on "Completed" with this type */
+  presetType?: 'in_house' | 'out_source';
 }) {
+  // an in-house repair that has been decided ("material required?" answered) stays in-house here
+  const typeLocked = (wo as any).materialRequired === true || (wo as any).materialRequired === false;
   const requireCompanySelected = useRequireCompanySelected();
   const existing = getRepairProcess(wo);
   const isMobile = useIsMobile();
+
+  const indentSuggestedVendor =
+    (wo as any).parts?.suggestedVendor ??
+    (wo as any).parts?.lines?.find((l: any) => l.vendorName)?.vendorName ??
+    '';
 
   const initialVendor =
     existing?.parts?.[0]?.vendorName ??
     existing?.vendorName ??
     (wo as any).repairParts?.[0]?.vendorName ??
+    indentSuggestedVendor ??
     '';
   const initialBillAmount =
     (existing?.maintenanceCost ?? existing?.billAmount ?? (wo as any).cost) != null
@@ -102,14 +113,30 @@ function ProcessModal({
     workDoneBy: string;
     typeOfWork: string;
   }>({
-    status: (wo.status === 'COMPLETED' || wo.status === 'COMPLETED_LATE') ? 'completed' : 'in_progress',
+    status: (wo.status === 'COMPLETED' || wo.status === 'COMPLETED_LATE' || presetType) ? 'completed' : 'in_progress',
     workDone: existing?.workDone ?? wo.completionNote ?? '',
     vendorName: initialVendor,
     billAmount: initialBillAmount,
     remarks: existing?.remarks ?? '',
     workDoneBy: existing?.workDoneBy ?? '',
-    typeOfWork: existing?.typeOfWork ?? (wo as any).typeOfWork ?? '',
+    typeOfWork: presetType ?? existing?.typeOfWork ?? (wo as any).typeOfWork ?? '',
   });
+  const indentLines: any[] = (wo as any).parts?.lines || [];
+
+  const getIndentLineForPart = (partName?: string, partId?: string) => {
+    if (!indentLines.length) return null;
+    const cleanName = (partName || '').trim().toLowerCase();
+    if (cleanName) {
+      const match = indentLines.find((l: any) => l.itemName && l.itemName.trim().toLowerCase() === cleanName);
+      if (match) return match;
+    }
+    if (partId) {
+      const match = indentLines.find((l: any) => l.itemId === partId || l.id === partId || l.machinePartId === partId);
+      if (match) return match;
+    }
+    return null;
+  };
+
   const [parts, setParts] = useState<PartRow[]>(() => {
     const partsList = (existing?.parts && existing.parts.length > 0) ? existing.parts : (wo as any).repairParts;
     if (partsList && partsList.length > 0) {
@@ -122,8 +149,41 @@ function ProcessModal({
         warrantyToDate: p.warrantyToDate ?? '',
       }));
     }
+    if (indentLines.length > 0) {
+      return indentLines.map((l: any) => ({
+        partId: l.machinePartId ?? '',
+        partName: l.itemName ?? '',
+        quantity: String(l.issued != null && l.issued > 0 ? l.issued : (l.quantity ?? 1)),
+        hasWarranty: false,
+        warrantyFromDate: '',
+        warrantyToDate: '',
+      }));
+    }
     return [emptyPartRow()];
   });
+
+  useEffect(() => {
+    if (!form.vendorName && indentSuggestedVendor) {
+      setForm((prev) => ({ ...prev, vendorName: indentSuggestedVendor }));
+    }
+  }, [indentSuggestedVendor]);
+
+  useEffect(() => {
+    if (indentLines.length > 0) {
+      setParts((prev) => {
+        const isDefaultEmpty = prev.length === 1 && !prev[0].partName && !prev[0].partId;
+        if (!isDefaultEmpty) return prev;
+        return indentLines.map((l: any) => ({
+          partId: l.machinePartId ?? '',
+          partName: l.itemName ?? '',
+          quantity: String(l.issued != null && l.issued > 0 ? l.issued : (l.quantity ?? 1)),
+          hasWarranty: false,
+          warrantyFromDate: '',
+          warrantyToDate: '',
+        }));
+      });
+    }
+  }, [(wo as any).parts?.lines]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [billFile, setBillFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(existing?.photoUrl ?? (wo as any).photoUrl ?? null);
@@ -132,6 +192,23 @@ function ProcessModal({
   const queryClient = useQueryClient();
   const mutation = useProcessRepairWorkOrder();
   const { data: machineParts = [] } = useMachineParts(wo.machineId);
+
+  useEffect(() => {
+    if (!machineParts || machineParts.length === 0) return;
+    setParts((prev) =>
+      prev.map((row) => {
+        if (!row.partId && row.partName) {
+          const match = machineParts.find((mp) => mp.name.trim().toLowerCase() === row.partName.trim().toLowerCase());
+          if (match) {
+            return { ...row, partId: match.id, partName: match.name };
+          }
+        }
+        return row;
+      })
+    );
+  }, [machineParts]);
+  const photoUpload = useWorkOrderUpload(wo.machineId, 'MAINTENANCE_PHOTOS');
+  const billUpload = useWorkOrderUpload(wo.machineId, 'VENDOR_BILL');
   const { useVendors } = useRepairSystem();
   const { data: allVendors = [] } = useVendors();
   const serviceVendors = allVendors.length > 0
@@ -176,6 +253,28 @@ function ProcessModal({
           warrantyToDate: row.hasWarranty && row.warrantyToDate ? row.warrantyToDate : undefined,
         }));
 
+      // At complete repair phase, quantity cannot exceed the parts issued from Store
+      if (form.status === 'completed' && indentLines.length > 0) {
+        for (const row of submittedParts) {
+          const indentLine = getIndentLineForPart(row.partName, row.partId);
+          if (indentLine) {
+            const issuedQty = Number(indentLine.issued ?? 0);
+            if (row.quantity > issuedQty) {
+              toast.error(
+                `Quantity for "${row.partName}" (${row.quantity}) cannot exceed parts issued from Store (${issuedQty}).`
+              );
+              setIsUploadingFiles(false);
+              return;
+            }
+          }
+          if (row.quantity <= 0) {
+            toast.error(`Quantity for "${row.partName}" must be greater than zero.`);
+            setIsUploadingFiles(false);
+            return;
+          }
+        }
+      }
+
       if (submittedParts.length === 0 && (form.vendorName.trim() || form.billAmount.trim())) {
         submittedParts.push({
           partId: undefined,
@@ -192,13 +291,9 @@ function ProcessModal({
 
       if (photoFile) {
         try {
-          photoUrl = await uploadFile({
-            file: photoFile,
-            folderId: 'repair-tasks',
-            subFolder: 'photos',
-          });
+          photoUrl = (await photoUpload.uploadImage(photoFile)).url;
         } catch (uploadErr) {
-          toast.error('Failed to upload photo to S3');
+          toast.error(uploadErr instanceof Error ? uploadErr.message : 'Failed to upload the photo');
           setIsUploadingFiles(false);
           return;
         }
@@ -206,13 +301,9 @@ function ProcessModal({
 
       if (billFile) {
         try {
-          billUrl = await uploadFile({
-            file: billFile,
-            folderId: 'repair-tasks',
-            subFolder: 'bills',
-          });
+          billUrl = (await billUpload.uploadImage(billFile)).url;
         } catch (uploadErr) {
-          toast.error('Failed to upload bill copy to S3');
+          toast.error(uploadErr instanceof Error ? uploadErr.message : 'Failed to upload the bill copy');
           setIsUploadingFiles(false);
           return;
         }
@@ -240,8 +331,10 @@ function ProcessModal({
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
       onSuccess();
       onClose();
-    } catch (_e) {
-      // error handled by mutation state
+    } catch (e) {
+      // the server explains why (for example: parts not issued by the Store yet)
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(err?.response?.data?.message || err?.message || 'Could not save the repair');
     } finally {
       setIsUploadingFiles(false);
     }
@@ -477,6 +570,8 @@ function ProcessModal({
                 <select
                   id="proc-tow"
                   value={form.typeOfWork}
+                  disabled={typeLocked}
+                  title={typeLocked ? 'The work type was chosen in the repair steps' : undefined}
                   onChange={(e) => setForm((p) => ({ ...p, typeOfWork: e.target.value }))}
                   style={{
                     width: '100%',
@@ -552,12 +647,20 @@ function ProcessModal({
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {parts.map((row, index) => (
+                  {parts.map((row, index) => {
+                    const indentLine = getIndentLineForPart(row.partName, row.partId);
+                    const issuedQty = indentLine ? Number(indentLine.issued ?? 0) : undefined;
+                    const rowQty = Number.parseFloat(row.quantity) || 0;
+                    const isExceeded = indentLine != null && issuedQty != null && rowQty > issuedQty;
+                    const isUnderQty = indentLine != null && issuedQty != null && rowQty > 0 && rowQty < issuedQty;
+                    const unusedRemaining = indentLine != null && issuedQty != null ? Math.max(0, Math.round((issuedQty - rowQty) * 1000) / 1000) : 0;
+
+                    return (
                     <div
                       // biome-ignore lint/suspicious/noArrayIndexKey: rows have no stable id until saved
                       key={index}
                       style={{
-                        border: `1px solid ${T.border}`,
+                        border: `1px solid ${isExceeded ? T.danger : T.border}`,
                         borderRadius: 10,
                         padding: 12,
                         background: T.muted,
@@ -588,13 +691,25 @@ function ProcessModal({
                           </div>
                           <select
                             aria-label="Part"
-                            value={row.partId}
+                            value={
+                              row.partId ||
+                              machineParts.find((p) => p.name.trim().toLowerCase() === row.partName.trim().toLowerCase())?.id ||
+                              row.partName
+                            }
                             onChange={(e) => {
-                              const selected = machineParts.find((p) => p.id === e.target.value);
-                              updatePartRow(index, {
-                                partId: e.target.value,
-                                partName: selected?.name ?? '',
-                              });
+                              const val = e.target.value;
+                              const selected = machineParts.find((p) => p.id === val);
+                              if (selected) {
+                                updatePartRow(index, {
+                                  partId: selected.id,
+                                  partName: selected.name,
+                                });
+                              } else {
+                                updatePartRow(index, {
+                                  partId: '',
+                                  partName: val,
+                                });
+                              }
                             }}
                             style={{
                               width: '100%',
@@ -611,6 +726,14 @@ function ProcessModal({
                             }}
                           >
                             <option value="">Select part...</option>
+                            {row.partName &&
+                              !machineParts.some(
+                                (p) => p.id === row.partId || p.name.trim().toLowerCase() === row.partName.trim().toLowerCase()
+                              ) && (
+                                <option value={row.partName}>
+                                  {row.partName} (from indent)
+                                </option>
+                              )}
                             {machineParts.map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.name}
@@ -627,13 +750,22 @@ function ProcessModal({
                               fontWeight: 700,
                               textTransform: 'uppercase' as const,
                               marginBottom: 3,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
                             }}
                           >
-                            Qty
+                            <span>Qty</span>
+                            {indentLine != null && (
+                              <span style={{ fontSize: 10, color: isExceeded ? T.danger : T.primary, fontWeight: 600 }}>
+                                Max: {indentLine.issued}
+                              </span>
+                            )}
                           </div>
                           <input
                             type="number"
                             min={1}
+                            max={indentLine ? indentLine.issued : undefined}
                             aria-label="Quantity"
                             value={row.quantity}
                             onChange={(e) => updatePartRow(index, { quantity: e.target.value })}
@@ -641,7 +773,7 @@ function ProcessModal({
                               width: '100%',
                               boxSizing: 'border-box' as const,
                               background: T.card,
-                              border: `1px solid ${T.border}`,
+                              border: `1px solid ${isExceeded ? T.danger : T.border}`,
                               borderRadius: 8,
                               padding: '8px 10px',
                               fontSize: 12,
@@ -650,6 +782,16 @@ function ProcessModal({
                               outline: 'none',
                             }}
                           />
+                          {isExceeded && (
+                            <div style={{ fontSize: 10, color: T.danger, marginTop: 3, fontWeight: 600 }}>
+                              Cannot exceed {indentLine.issued} issued
+                            </div>
+                          )}
+                          {!isExceeded && isUnderQty && form.status === 'completed' && (
+                            <div style={{ fontSize: 10, color: '#2563eb', marginTop: 3 }}>
+                              {unusedRemaining} unused part{unusedRemaining !== 1 ? 's' : ''} to return to Store
+                            </div>
+                          )}
                         </div>
                         {parts.length > 1 && (
                           <button
@@ -790,7 +932,8 @@ function ProcessModal({
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
 

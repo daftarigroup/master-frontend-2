@@ -68,6 +68,7 @@ export interface RepairProcessData {
 export interface WorkOrder {
   id: string;
   workOrderCode?: string;
+  title?: string;
   tenantId: string;
   planId: string | null;
   machineId: string;
@@ -99,6 +100,13 @@ export interface WorkOrder {
     repairProcess?: RepairProcessData;
     repairProcessHistory?: (RepairProcessData & { savedStatus?: string })[];
   } | null;
+  checklistItems?: Array<{
+    id: string;
+    text: string;
+    done?: boolean;
+    state?: 'PENDING' | 'DONE' | 'ISSUE';
+    note?: string | null;
+  }>;
   slaBreach: boolean;
   createdAt: string;
   machine: {

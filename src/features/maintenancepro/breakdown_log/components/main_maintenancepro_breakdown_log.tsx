@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
 import { useProject } from '@/context/ProjectContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { toFirmParam } from '../../shared/lib/common';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ResolveBreakdownForm } from './ResolveBreakdownForm';
 import { CompanySelectField } from '@/features/organization/components/CompanySelectField';
 import { useCompanyPinForCreate } from '@/features/organization/hooks/useCompanyPinForCreate';
 import { usePagination } from '@/hooks/usePagination';
@@ -164,7 +166,9 @@ export default function BreakdownLogPage() {
   const [filterFirm, setFilterFirm] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  const { effectivePermittedFirms } = useProject();
+  const { selectedProject, effectivePermittedFirms } = useProject();
+  const projectFirmId = toFirmParam(selectedProject);
+  const activeFirmId = filterFirm !== 'all' ? filterFirm : projectFirmId;
 
   const { data: firmsResponse } = useQuery({
     queryKey: ['breakdown', 'firms', 'list'],
@@ -193,6 +197,7 @@ export default function BreakdownLogPage() {
 
   const { data: bdData, isLoading } = useBreakdowns({
     machineId: filterMachine !== 'all' ? filterMachine : undefined,
+    firmId: activeFirmId,
     page,
     limit,
   });
@@ -200,11 +205,12 @@ export default function BreakdownLogPage() {
   // over the full matching set server-side), independent of the current page.
   const { data: openBdData } = useBreakdowns({
     machineId: filterMachine !== 'all' ? filterMachine : undefined,
+    firmId: activeFirmId,
     isResolved: false,
     limit: 1,
   });
-  const { data: machines, isLoading: machinesLoading } = useBreakdownMachines(pinnedCompany?.id);
-  const { data: users, isLoading: usersLoading } = useAvailableTechnicians(pinnedCompany?.id);
+  const { data: machines, isLoading: machinesLoading } = useBreakdownMachines(pinnedCompany?.id || activeFirmId);
+  const { data: users, isLoading: usersLoading } = useAvailableTechnicians(pinnedCompany?.id || activeFirmId);
   const createMutation = useCreateBreakdown();
 
   useEffect(() => {
@@ -943,6 +949,9 @@ export default function BreakdownLogPage() {
                         {selectedBd.remarks}
                       </p>
                     </div>
+                  )}
+                  {!selectedBd.isResolved && (
+                    <ResolveBreakdownForm breakdownId={selectedBd.id} onResolved={() => setSelectedBd(null)} />
                   )}
                   <div className="border-t border-border pt-4 text-xs text-muted-foreground font-medium flex items-center justify-between">
                     <span>

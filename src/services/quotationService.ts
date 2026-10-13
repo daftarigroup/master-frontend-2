@@ -96,12 +96,11 @@ export async function insertQuotationHistory(records: any[]) {
 /**
  * Fetch quotation details by token
  */
-export async function fetchQuotationByToken(token: string) {
+export async function fetchQuotationByToken(token: string): Promise<{ rows: any[]; vendor: any; firm: any }> {
     try {
-        const res: any = await apiClient.get('/store/entity/quotation_history', {
-            params: { token },
-        });
-        return res.data || [];
+        // Public page (vendor has no login): the token endpoint returns only that token's rows plus the vendor and project details.
+        const res: any = await apiClient.get(`/store/vendor-bid/${encodeURIComponent(token)}`);
+        return { rows: res.data || [], vendor: res.vendor || null, firm: res.firm || null };
     } catch (error) {
         console.error('Error fetching quotation by token:', error);
         throw error;
@@ -113,28 +112,11 @@ export async function fetchQuotationByToken(token: string) {
  */
 export async function updateVendorRate(token: string, indentNo: string, product: string, rate: number) {
     try {
-        // Fetch the record first to get its ID
-        const res: any = await apiClient.get('/store/entity/quotation_history', {
-            params: { token, indentNo },
-        });
-        const records: any[] = res.data || [];
-
-        // Filter by product
-        const target = records.find((r: any) =>
-            r.product?.trim().toLowerCase() === product?.trim().toLowerCase()
-        );
-
-        if (!target) {
-            return false;
-        }
-
-        await storeApi.update('quotation_history', target.id, {
-            vendor_rate: rate,
-            responded_at: new Date().toISOString(),
-        });
-
+        // The server finds the line (token + indent + product) and writes only vendor_rate and responded_at.
+        await apiClient.patch(`/store/vendor-bid/${encodeURIComponent(token)}`, { indentNo, product, rate });
         return true;
     } catch (error) {
+        if ((error as { status?: number })?.status === 404) return false;
         console.error('Error updating vendor rate:', error);
         throw error;
     }

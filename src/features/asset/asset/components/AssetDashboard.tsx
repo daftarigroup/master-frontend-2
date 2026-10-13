@@ -26,6 +26,10 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useProject } from '@/context/ProjectContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { OwnershipBadge } from '@/features/asset/fleet/components/OwnershipBadge';
+import { FleetSnapshotCard } from '@/features/asset/equipment/components/FleetSnapshotCard';
+import { DocumentAlertsCard } from '@/features/asset/documents/components/DocumentAlertsCard';
+import { FleetAlertsCard } from '@/features/asset/fleet/components/FleetAlertsCard';
 import { useAssets } from '../server/tanstackQuery/useAssetQueries';
 import { CATEGORY_COLORS, formatCurrency, STATUS_COLORS, type Asset, type AssetCategory } from '../types/types';
 
@@ -143,13 +147,19 @@ export default function AssetDashboard() {
   const underRepair = assets.filter((a) => a.status === 'Under Repair').length;
   const inactive = assets.filter((a) => a.status === 'Inactive').length;
   const maintenanceDue = assets.filter((a) => a.maintenanceRequired === 'Yes').length;
-  const totalValue = assets.reduce((s, a) => s + a.assetValue, 0);
-  const totalCost = assets.reduce((s, a) => s + a.cost, 0);
+  const ownedAssets = assets.filter((a) => a.ownershipType !== 'RENTED');
+  const owned = ownedAssets.length;
+  const rented = total - owned;
+  // Rented assets carry no cost/book value, so value and cost are owned-only.
+  const costVisible = assets.some((a) => a.cost !== undefined); // the API omits cost for users without cost access
+  const totalValue = costVisible ? ownedAssets.reduce((s, a) => s + (a.assetValue ?? 0), 0) : undefined;
+  const totalCost = costVisible ? ownedAssets.reduce((s, a) => s + (a.cost ?? 0), 0) : undefined;
+  const startOfToday = new Date(new Date().toDateString());
   const warrantyExpiring = assets.filter(
     (a) =>
       a.warrantyAvailable === 'Yes' &&
       a.warrantyEnd &&
-      new Date(a.warrantyEnd) < new Date('2027-06-01')
+      new Date(a.warrantyEnd) >= startOfToday
   ).length;
 
   const categoryMap: Record<string, number> = {};
@@ -177,7 +187,11 @@ export default function AssetDashboard() {
     .filter((a) => a.maintenanceRequired === 'Yes' && a.nextService)
     .slice(0, 3);
   const repairAlerts = assets.filter((a) => a.status === 'Under Repair');
-  const warrantyAlerts = assets.filter((a) => a.warrantyAvailable === 'Yes').slice(0, 2);
+  // only warranties that end within the next 60 days (an already-ended or far-off one is not an alert)
+  const in60Days = new Date(startOfToday.getTime() + 60 * 86_400_000);
+  const warrantyAlerts = assets
+    .filter((a) => a.warrantyAvailable === 'Yes' && a.warrantyEnd && new Date(a.warrantyEnd) >= startOfToday && new Date(a.warrantyEnd) <= in60Days)
+    .slice(0, 2);
   const hasAlerts =
     maintenanceAlerts.length > 0 || repairAlerts.length > 0 || warrantyAlerts.length > 0;
 
@@ -245,12 +259,12 @@ export default function AssetDashboard() {
         variants={wrap}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+        className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6"
       >
         <StatCard
           label="Total Assets"
           value={total}
-          sub={`${formatCurrency(totalCost)} total cost`}
+          sub={`${owned} owned · ${rented} rented · ${formatCurrency(totalCost)} cost`}
           icon={Package}
           tone="blue"
         />
@@ -271,11 +285,30 @@ export default function AssetDashboard() {
         <StatCard
           label="Total Value"
           value={formatCurrency(totalValue)}
-          sub="Depreciated book value"
+          sub="Owned assets, depreciated book value"
           icon={IndianRupee}
           tone="violet"
         />
+        <StatCard
+          label="Rented"
+          value={rented}
+          sub={`${owned} owned`}
+          icon={Box}
+          tone="amber"
+        />
       </motion.div>
+
+      <div className="mb-4">
+        <FleetSnapshotCard firmId={queryFirmId} />
+      </div>
+
+      <div className="mb-4">
+        <FleetAlertsCard />
+      </div>
+
+      <div className="mb-4">
+        <DocumentAlertsCard />
+      </div>
 
       <motion.div
         variants={wrap}
@@ -504,6 +537,7 @@ export default function AssetDashboard() {
                             {asset.productName}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <OwnershipBadge value={asset.ownershipType} />
                             <span className="text-[11px] font-mono text-muted-foreground">
                               {asset.sn}
                             </span>

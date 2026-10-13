@@ -12,6 +12,7 @@ export const fetchBreakdowns = async (params?: {
   machineId?: string;
   isResolved?: boolean;
   severity?: string;
+  firmId?: string;
   page?: number;
   limit?: number;
 }): Promise<{

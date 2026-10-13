@@ -3,7 +3,10 @@ export type MaintenanceStatus = 'Yes' | 'No';
 export type AssetCategory = 'IT' | 'Electronics' | 'Furniture' | 'Machinery' | 'Tools' | 'Vehicle';
 export type AssetType = 'Asset' | 'Non-Consumable' | 'Consumable';
 
+export type OwnershipType = 'OWNED' | 'RENTED';
+
 export interface Asset {
+  ownershipType?: OwnershipType;
   id: string;
   sn: string;
   productName: string;
@@ -18,11 +21,12 @@ export interface Asset {
   status: AssetStatus;
   assetDate: string;
   invoiceNo: string;
-  cost: number;
+  // cost / supplier / repair-spend fields below are absent (not zero) for users without cost access
+  cost?: number;
   quantity: number;
-  supplierName: string;
-  supplierPhone: string;
-  paymentMode: string;
+  supplierName?: string;
+  supplierPhone?: string;
+  paymentMode?: string;
   location: string;
   department: string;
   firmId?: string | null;
@@ -42,12 +46,12 @@ export interface Asset {
   priority: 'Low' | 'Medium' | 'High' | '';
   repairCount: number;
   lastRepairDate: string;
-  repairCost: number;
+  repairCost?: number;
   partChanged: 'Yes' | 'No';
   partNames: string[];
-  totalRepairCost: number;
-  assetValue: number;
-  depMethod: string;
+  totalRepairCost?: number;
+  assetValue?: number;
+  depMethod?: string;
   createdBy: string;
 }
 
@@ -91,11 +95,16 @@ export const STATUS_COLORS: Record<AssetStatus, { bg: string; text: string; bord
   Disposed: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
 };
 
-export function formatCurrency(val: number): string {
+/** Compact rupees. A missing amount (cost hidden from this user) is "—", never "₹0". */
+export function formatCurrency(val: number | undefined): string {
+  if (val === undefined) return '—';
   if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
   if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
   return `₹${val}`;
 }
+
+/** Full-precision rupees with grouping, or "—" when the amount was not sent. */
+export const formatRupees = (val: number | undefined): string => (val === undefined ? '—' : `₹${val.toLocaleString()}`);
 
 export function formatDateOnly(value: unknown): string {
   if (!value) return '—';

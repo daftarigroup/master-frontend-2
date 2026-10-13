@@ -10,7 +10,6 @@ import {
   FileText,
   Hammer,
   HelpCircle,
-  IndianRupee,
   MapPin,
   Package,
   Printer,
@@ -40,15 +39,6 @@ function formatDisplayDate(dateStr?: string | null) {
   } catch {
     return dateStr;
   }
-}
-
-function formatCurrencyINR(amount?: number | null) {
-  if (amount === undefined || amount === null || isNaN(amount)) return '—';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 export const PublicAssetDetail: React.FC = () => {
@@ -281,12 +271,6 @@ export const PublicAssetDetail: React.FC = () => {
               </p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Assigned To</p>
-              <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 mt-0.5 truncate">
-                {asset.assignedTo || 'Unassigned'}
-              </p>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Warranty</p>
               <p
                 className={cn(
@@ -375,24 +359,6 @@ export const PublicAssetDetail: React.FC = () => {
                   {asset.department || '—'}
                 </span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Assigned Person</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.assignedTo || 'Unassigned'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Responsible Person</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.responsiblePerson || '—'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-500">Operating Firm</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.firmName || '—'}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -452,51 +418,7 @@ export const PublicAssetDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* Financial & Purchase Info */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
-              <IndianRupee className="h-4 w-4 text-amber-600" />
-              <span>Financial & Purchase Info</span>
-            </h2>
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Purchase Date</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {formatDisplayDate(asset.assetDate)}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Invoice No</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.invoiceNo || '—'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Purchase Cost</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">
-                  {formatCurrencyINR(asset.cost)}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Quantity</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.quantity || 1}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Supplier Name</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.supplierName || '—'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-500">Payment Mode</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {asset.paymentMode || '—'}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Purchase cost, invoice, supplier and payment details are deliberately not shown on the public page. */}
         </div>
 
         {/* Footer info note */}

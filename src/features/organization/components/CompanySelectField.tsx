@@ -50,47 +50,37 @@ export function CompanySelectField({
 
   const selectedId = value !== undefined ? value : internalSelectedId;
 
-  // Keep selection and notify parent when firms load or selection is missing
+  // Dynamically prefill / update when a specific project is selected in the top bar
   useEffect(() => {
     if (firms.length === 0) return;
-
-    // If current selectedId is already in firms, don't re-select
-    if (selectedId) {
-      const match = firms.find((f) => String(f.id) === String(selectedId));
-      if (match) return;
+    if (selectedProject && selectedProject.id !== 'all') {
+      const match = firms.find((f) => String(f.id) === String(selectedProject.id));
+      if (match && String(selectedId) !== String(match.id)) {
+        setInternalSelectedId(String(match.id));
+        onSelect?.({ id: String(match.id), name: match.name });
+      }
     }
+  }, [selectedProject?.id, firms, selectedId, onSelect]);
 
-    // Try defaultValue if provided
+  // Handle initial defaultValue if provided and no selection exists
+  useEffect(() => {
+    if (firms.length === 0 || selectedId) return;
     if (defaultValue) {
       const match = firms.find((f) => String(f.id) === String(defaultValue));
       if (match) {
         setInternalSelectedId(String(match.id));
         onSelect?.({ id: String(match.id), name: match.name });
-        return;
       }
     }
-
-    // Try global active project if selected and valid
-    if (selectedProject && selectedProject.id !== 'all') {
-      const match = firms.find((f) => String(f.id) === String(selectedProject.id));
-      if (match) {
-        setInternalSelectedId(String(match.id));
-        onSelect?.({ id: String(match.id), name: match.name });
-        return;
-      }
-    }
-
-    // Default to the first firm in the list
-    const first = firms[0];
-    if (first) {
-      setInternalSelectedId(String(first.id));
-      onSelect?.({ id: String(first.id), name: first.name });
-    }
-  }, [firms, selectedId, defaultValue, selectedProject, onSelect]);
+  }, [defaultValue, firms, selectedId, onSelect]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newId = e.target.value;
     setInternalSelectedId(newId);
+    if (!newId) {
+      onSelect?.({ id: '', name: '' });
+      return;
+    }
     const chosen = firms.find((f) => String(f.id) === String(newId));
     if (chosen) {
       onSelect?.({ id: String(chosen.id), name: chosen.name });
@@ -117,6 +107,9 @@ export function CompanySelectField({
           <option value="" disabled>
             No projects/firms available
           </option>
+        )}
+        {firms.length > 0 && (
+          <option value="">Select firm</option>
         )}
         {firms.map((firm) => (
           <option key={firm.id} value={String(firm.id)}>

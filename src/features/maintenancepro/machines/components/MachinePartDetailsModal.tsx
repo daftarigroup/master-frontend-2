@@ -162,7 +162,7 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  {(part.workOrders as any[]).map((wo) => (
  <TableRow key={wo.id} className="hover:bg-muted/30">
  <TableCell className="font-mono text-[11px] font-bold text-muted-foreground">
- {formatDate(wo.completedAt)}
+ {formatDate(wo.completedAt || wo.scheduledDate || wo.createdAt)}
  </TableCell>
  <TableCell>
  <Badge
@@ -176,12 +176,12 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  <span className="flex items-center gap-1.5">
  <User className="h-3 w-3 shrink-0" />{' '}
  <span className="truncate">
- {wo.completedBy?.name || 'System'}
+ {wo.completedBy?.name || wo.currentAssignee?.name || wo.responsible?.name || 'System'}
  </span>
  </span>
  </TableCell>
  <TableCell className="text-right text-[11px] text-muted-foreground italic max-w-[200px] truncate">
- "{wo.completionNote || 'Component serviced'}"
+ "{wo.completionNote || wo.description || 'Component serviced'}"
  </TableCell>
  </TableRow>
  ))}
@@ -195,7 +195,7 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  <div key={wo.id} className="p-3 space-y-2">
  <div className="flex items-center justify-between gap-2">
  <span className="font-mono text-[11px] font-bold text-muted-foreground truncate">
- {formatDate(wo.completedAt)}
+ {formatDate(wo.completedAt || wo.scheduledDate || wo.createdAt)}
  </span>
  <Badge
  variant="outline"
@@ -206,10 +206,10 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  </div>
  <div className="flex items-center gap-1.5 text-xs font-bold min-w-0">
  <User className="h-3 w-3 shrink-0" />
- <span className="truncate">{wo.completedBy?.name || 'System'}</span>
+ <span className="truncate">{wo.completedBy?.name || wo.currentAssignee?.name || wo.responsible?.name || 'System'}</span>
  </div>
  <p className="text-[11px] text-muted-foreground italic break-words">
- "{wo.completionNote || 'Component serviced'}"
+ "{wo.completionNote || wo.description || 'Component serviced'}"
  </p>
  </div>
  ))}
@@ -255,17 +255,17 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  {(part.breakdowns as any[]).map((br) => (
  <TableRow key={br.id} className="hover:bg-muted/30">
  <TableCell className="font-mono text-[11px] font-bold text-muted-foreground">
- {formatDate(br.reportedAt)}
+ {formatDate(br.reportedAt || br.createdAt)}
  </TableCell>
  <TableCell className="text-xs font-bold max-w-[200px] truncate">
- {br.title}
+ {br.title || br.description || br.breakdownNumber || 'Breakdown Incident'}
  </TableCell>
  <TableCell>
  <Badge
  variant="outline"
  className="text-[11px] font-semibold uppercase py-0 border-rose-100 text-rose-600 bg-rose-50"
  >
- {br.severity}
+ {br.severity || 'Normal'}
  </Badge>
  </TableCell>
  <TableCell className="text-right">
@@ -290,7 +290,9 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  {(part.breakdowns as any[]).map((br) => (
  <div key={br.id} className="p-3 space-y-2">
  <div className="flex items-start justify-between gap-2">
- <p className="text-xs font-bold min-w-0 truncate">{br.title}</p>
+ <p className="text-xs font-bold min-w-0 truncate">
+ {br.title || br.description || br.breakdownNumber || 'Breakdown Incident'}
+ </p>
  <span
  className={`shrink-0 text-[10px] font-semibold uppercase ${
  br.isResolved ? 'text-emerald-600' : 'text-rose-600'
@@ -301,13 +303,13 @@ export function MachinePartDetailsModal({ partId, isOpen, onClose }: MachinePart
  </div>
  <div className="flex items-center justify-between gap-2">
  <span className="font-mono text-[11px] font-bold text-muted-foreground truncate">
- {formatDate(br.reportedAt)}
+ {formatDate(br.reportedAt || br.createdAt)}
  </span>
  <Badge
  variant="outline"
  className="text-[11px] font-semibold uppercase py-0 border-rose-100 text-rose-600 bg-rose-50 shrink-0"
  >
- {br.severity}
+ {br.severity || 'Normal'}
  </Badge>
  </div>
  </div>

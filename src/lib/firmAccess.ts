@@ -41,8 +41,8 @@ export function filterByFirmAccess<T>(
     rows: T[],
     firms?: (string | number)[],
     accessors: { 
-        id?: (row: T) => number | string | undefined; 
-        name?: (row: T) => string | undefined; 
+        id?: (row: T) => number | string | null | undefined; 
+        name?: (row: T) => string | null | undefined; 
     } = {}
 ) {
     const allowed = normalizeFirmAccess(firms);
@@ -60,8 +60,19 @@ export function filterByFirmAccess<T>(
         const firmName = accessors.name
             ? accessors.name(row)
             : (row.firm_name ?? row.firmName ?? row.firmNameMatch ?? row.firm?.name ?? row.firm?.firm_name ?? row.machine?.firmName ?? row.machine?.firm?.name ?? row.machine?.firm?.firm_name ?? row.projectName ?? (row.name && !row.productName && !row.category && !row.assetCode ? row.name : undefined));
-        
-        return isAllowedFirm({ id: firmId, name: firmName }, allowed);
+
+        const matchesDirect = isAllowedFirm({ id: firmId, name: firmName }, allowed);
+        if (matchesDirect) return true;
+
+        // Also check if machine has an active assignment to a permitted project/firm
+        const assignedFirmId = row.assignment?.firmId ?? row.assignment?.firm?.id ?? row.assignments?.find((a: any) => !a.endedAt)?.firmId ?? row.machine?.assignment?.firmId ?? row.machine?.assignment?.firm?.id ?? row.machine?.assignments?.find((a: any) => !a.endedAt)?.firmId;
+        const assignedFirmName = row.assignment?.firmName ?? row.assignment?.firm?.name ?? row.assignment?.firm?.firm_name ?? row.assignments?.find((a: any) => !a.endedAt)?.firm?.firm_name ?? row.machine?.assignment?.firmName ?? row.machine?.assignment?.firm?.firm_name ?? row.machine?.assignments?.find((a: any) => !a.endedAt)?.firm?.firm_name;
+
+        if (assignedFirmId || assignedFirmName) {
+            return isAllowedFirm({ id: assignedFirmId, name: assignedFirmName }, allowed);
+        }
+
+        return false;
     });
 }
 

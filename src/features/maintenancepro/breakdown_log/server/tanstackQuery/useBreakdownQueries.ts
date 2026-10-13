@@ -20,6 +20,7 @@ export const useBreakdowns = (params?: {
   machineId?: string;
   isResolved?: boolean;
   severity?: string;
+  firmId?: string;
   page?: number;
   limit?: number;
 }) => {
@@ -62,7 +63,10 @@ export const useCreateBreakdown = () => {
   return useMutation({
     mutationFn: ({ dto, actAsTenantId }: { dto: CreateBreakdownDto; actAsTenantId?: string }) =>
       createBreakdown(dto, actAsTenantId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: BD_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BD_KEY });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+    },
   });
 };
 
@@ -71,7 +75,10 @@ export const useResolveBreakdown = () => {
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: ResolveBreakdownDto }) =>
       resolveBreakdown(id, dto),
-    onSuccess: () => qc.invalidateQueries({ queryKey: BD_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BD_KEY });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+    },
   });
 };
 
@@ -80,6 +87,9 @@ export const useUpdateBreakdownStatus = () => {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: BreakdownStatus }) =>
       updateBreakdownStatus(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: BD_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BD_KEY });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+    },
   });
 };

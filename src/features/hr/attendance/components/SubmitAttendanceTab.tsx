@@ -121,6 +121,10 @@ export default function SubmitAttendanceTab({ employees }: Props) {
           photoUrl,
           latitude: geoPhoto.latitude,
           longitude: geoPhoto.longitude,
+          submittedBy:
+            localStorage.getItem('token') || localStorage.getItem('checklistToken')
+              ? undefined
+              : 'Public Kiosk',
         },
         {
           onSuccess: () => {

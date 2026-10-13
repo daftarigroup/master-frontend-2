@@ -23,6 +23,8 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
+    --color-danger: var(--danger);
+    --color-danger-foreground: var(--danger-foreground);
     --color-success: var(--success);
     --color-success-foreground: var(--success-foreground);
     --color-border: var(--border);
@@ -71,6 +73,8 @@
     --accent: oklch(0.967 0.001 286.375);
     --accent-foreground: oklch(0.21 0.006 285.885);
     --destructive: oklch(70.4% 0.191 22.216);
+    --danger: var(--destructive);
+    --danger-foreground: #fff;
     --success: oklch(0.62 0.17 145);
     --success-foreground: oklch(0.98 0.02 145);
     --border: oklch(0.92 0.004 286.32);
@@ -94,6 +98,36 @@
     --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
     --sidebar-border: oklch(0.92 0.004 286.32);
     --sidebar-ring: oklch(0.623 0.214 259.815);
+}
+
+/* Dark theme tokens. Inert until a "dark" class is put on <html> (the app has no theme toggle yet); the new Equipment screens
+   carry dark: variants and use only these tokens, so they follow as soon as one is added. */
+.dark {
+    --background: oklch(0.141 0.005 285.823);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.21 0.006 285.885);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.21 0.006 285.885);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.623 0.214 259.815);
+    --primary-foreground: oklch(0.97 0.014 254.604);
+    --secondary: oklch(0.274 0.006 286.033);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.274 0.006 286.033);
+    --muted-foreground: oklch(0.705 0.015 286.067);
+    --accent: oklch(0.274 0.006 286.033);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --danger: var(--destructive);
+    --danger-foreground: #fff;
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.623 0.214 259.815);
+    --sidebar: oklch(0.21 0.006 285.885);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.274 0.006 286.033);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
 }
 
 @layer base {

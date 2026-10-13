@@ -22,6 +22,7 @@ interface SearchableSelectProps {
     emptyText?: string;
     disabled?: boolean;
     className?: string;
+    modal?: boolean;
 }
 
 /**
@@ -125,6 +126,7 @@ export function SearchableSelect({
     emptyText = 'No options found',
     disabled = false,
     className,
+    modal = true,
 }: SearchableSelectProps) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -143,7 +145,7 @@ export function SearchableSelect({
     }, [options, search]);
 
     return (
-        <Popover open={open} onOpenChange={handleOpenChange}>
+        <Popover open={open} onOpenChange={handleOpenChange} modal={modal}>
             <PopoverTrigger asChild>
                 <Button
                     variant="outline"
@@ -170,7 +172,10 @@ export function SearchableSelect({
                         placeholder={searchPlaceholder}
                         className="h-9 text-xs"
                     />
-                    <CommandList className="max-h-60 overflow-y-auto">
+                    <CommandList
+                        className="max-h-60 overflow-y-auto"
+                        onWheel={(e) => e.stopPropagation()}
+                    >
                         {filteredOptions.length === 0 ? (
                             <div className="py-4 text-center text-xs text-muted-foreground">
                                 {emptyText}

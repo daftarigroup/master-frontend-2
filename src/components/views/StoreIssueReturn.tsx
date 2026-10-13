@@ -30,6 +30,10 @@ import { useSheets } from '@/context/SheetsContext';
 import { useProject } from '@/context/ProjectContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 import { isAllowedFirm } from '@/lib/firmAccess';
+import { IssueKindPicker, type IssueKind } from '@/components/element/IssueKindPicker';
+import { MaintenanceIssueReturnForm } from '@/components/views/MaintenanceIssueReturnForm';
+import { useSearchParams } from 'react-router-dom';
+import { hasPageAccess } from '@/lib/permissions';
 
 
 export default () => {
@@ -45,6 +49,28 @@ export default () => {
         updateStockTransferSheet,
         updateAll,
     } = useSheets();
+
+    const [searchParams] = useSearchParams();
+    const linkedWorkOrderId = searchParams.get('woId') ?? undefined;
+    const linkedIssueId = searchParams.get('issueId') ?? undefined;
+
+    const orderKinds = useMemo<IssueKind[]>(() => {
+        const kinds: IssueKind[] = ['MATERIAL'];
+        if (
+            hasPageAccess(user, 'store_issue_maintenance', 'EDIT', 'storeIssueMaintenance') ||
+            hasPageAccess(user, 'store_issue_return', 'EDIT', 'storeIssueReturn') ||
+            user?.role === 'ADMIN' ||
+            user?.role === 'SUPER_ADMIN'
+        ) {
+            kinds.push('MAINTENANCE');
+        }
+        return kinds;
+    }, [user]);
+
+    const [orderType, setOrderType] = useState<IssueKind>(() => {
+        const wanted = searchParams.get('kind');
+        return wanted === 'MAINTENANCE' ? 'MAINTENANCE' : 'MATERIAL';
+    });
 
     const [options, setOptions] = useState<MasterData | null>(null);
     const [dataLoading, setDataLoading] = useState(true);
@@ -234,6 +260,22 @@ export default () => {
             </Heading>
 
             <div className="max-w-6xl mx-auto px-4">
+                {orderKinds.length > 1 && (
+                    <IssueKindPicker value={orderType} onChange={setOrderType} kinds={orderKinds} />
+                )}
+
+                {orderType === 'MAINTENANCE' ? (
+                    <MaintenanceIssueReturnForm
+                        sheetIssues={sheetIssues}
+                        user={user}
+                        initialWorkOrderId={linkedWorkOrderId}
+                        initialIssueId={linkedIssueId}
+                        onSuccess={() => {
+                            fetchData();
+                            updateAll(true);
+                        }}
+                    />
+                ) : (
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-8">
                         <Card className="border-slate-200 shadow-sm overflow-hidden">
@@ -263,7 +305,9 @@ export default () => {
                                                                 const isFirmMatch = isAllowedFirm({ id: i.firm_id, name: i.projectName || i.firm_name }, user?.firm_access || []);
                                                                 const isIssued = i.actual1 && i.actual1 !== '';
                                                                 const isNotReturned = !(i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
-                                                                return isFirmMatch && isIssued && isNotReturned;
+                                                                // returns are for material issues only (store_issue_kind_v1)
+                                                                const isMaterial = !i.issueKind || i.issueKind === 'MATERIAL';
+                                                                return isFirmMatch && isIssued && isNotReturned && isMaterial;
                                                             })
                                                             .map((issue) => (
                                                                 <SelectItem key={issue.id} value={String(issue.id)}>
@@ -480,6 +524,7 @@ export default () => {
                         </div>
                     </form>
                 </Form>
+                )}
             </div>
         </div>
     );

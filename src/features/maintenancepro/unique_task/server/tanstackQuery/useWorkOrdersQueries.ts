@@ -93,7 +93,11 @@ export const useReportWorkOrder = () => {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ReportWorkOrderDto }) =>
       reportWorkOrder(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'breakdowns'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'records'] });
+    },
   });
 };
 
@@ -102,7 +106,11 @@ export const useApproveWorkOrder = () => {
   return useMutation({
     mutationFn: ({ id, reviewNote }: { id: string; reviewNote?: string }) =>
       approveWorkOrder(id, reviewNote),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'breakdowns'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'records'] });
+    },
   });
 };
 
@@ -111,7 +119,10 @@ export const useRejectWorkOrder = () => {
   return useMutation({
     mutationFn: ({ id, reviewNote }: { id: string; reviewNote?: string }) =>
       rejectWorkOrder(id, reviewNote),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'breakdowns'] });
+    },
   });
 };
 
@@ -120,7 +131,10 @@ export const useSkipWorkOrder = () => {
   return useMutation({
     mutationFn: ({ id, skipReason }: { id: string; skipReason: string }) =>
       skipWorkOrder(id, skipReason),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'breakdowns'] });
+    },
   });
 };
 
@@ -128,7 +142,10 @@ export const useDeleteWorkOrder = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteWorkOrder(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
+      qc.invalidateQueries({ queryKey: ['maintenance', 'breakdowns'] });
+    },
   });
 };
 

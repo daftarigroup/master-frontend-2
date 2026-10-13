@@ -33,6 +33,24 @@ export interface IssueRecord {
     firmNameMatch?: string;
     firm_name?: string;
     firm_id?: number;
+    // store_issue_kind_v1
+    issue_kind?: 'MATERIAL' | 'MAINTENANCE' | 'ASSET_DIESEL';
+    machine_id?: string;
+    work_order_id?: string;
+    requirement_id?: string; // the part line of the work order a maintenance issue is against
+    meter_reading?: number;
+    machine_name?: string;
+    work_order_code?: string; // the repair work order a maintenance issue is for
+    work_order_title?: string;
+    work_order_status?: string;
+    work_order_repair_parts?: Array<{ partName: string; quantity: number }>;
+    work_order?: {
+        workOrderCode?: string;
+        title?: string;
+        status?: string;
+        repairParts?: Array<{ partName: string; quantity: number }>;
+    };
+    machine_unit?: 'KM' | 'HOURS' | 'NONE';
 }
 
 // ==================== FETCH FUNCTIONS ====================
@@ -78,6 +96,15 @@ export async function fetchIssueRecords(permittedFirms?: string[]): Promise<Issu
             issue_slip: r.issue_slip || '',
             return_slip: r.return_slip || '',
             firmNameMatch: r.firm_name || '',
+            issue_kind: r.issue_kind || 'MATERIAL',
+            machine_id: r.machine_id || undefined,
+            work_order_id: r.work_order_id || undefined,
+            meter_reading: r.meter_reading !== null && r.meter_reading !== undefined ? Number(r.meter_reading) : undefined,
+            machine_name: r.machine?.name || undefined,
+            work_order_code: r.work_order?.workOrderCode || undefined,
+            work_order_title: r.work_order?.title || undefined,
+            work_order_status: r.work_order?.status || undefined,
+            machine_unit: r.machine?.readingUnit || undefined,
         }));
 
         return filterByFirmAccess(mapped, permittedFirms, {
@@ -93,6 +120,8 @@ export async function fetchIssueRecords(permittedFirms?: string[]): Promise<Issu
 // ==================== UPDATE FUNCTIONS ====================
 
 /**
+ * @deprecated Not called any more: the server keeps inventory totals in step (stock.service.ts). Calling it after an approval
+ * double counts. Kept only so old imports do not break.
  * Update inventory record out_quantity and current stock when a store issue is approved.
  */
 export async function updateInventoryOnIssue(
@@ -163,17 +192,9 @@ export async function updateIssueApproval(
         if (updateData.issue_slip !== undefined) {
             payload.issue_slip = updateData.issue_slip;
         }
+        // The server re-syncs the stock of the item (out_quantity, current, colour) on this bulk update (P0.4), so the old
+        // client-side inventory patch is gone: running it too would count the issue twice.
         await storeApi.updateWhere('issue', { issue_no }, payload);
-
-        if (updateData.status === 'Approved' && updateData.given_qty && updateData.given_qty > 0 && updateData.product_name) {
-            await updateInventoryOnIssue(
-                updateData.product_name,
-                updateData.firm_id,
-                updateData.firm_name,
-                updateData.given_qty,
-                updateData.previous_given_qty || 0
-            );
-        }
 
         return true;
     } catch (error) {
@@ -225,7 +246,7 @@ export async function createIssueRecords(rows: Partial<IssueRecord>[]) {
             planned1: r.planned1,
             actual1: r.actual1,
             status: r.status || 'Pending',
-            given_qty: r.given_qty || 0,
+            given_qty: r.given_qty !== undefined ? r.given_qty : 0,
             constructor_name: r.constructor_name || '',
             site_location: r.site_location || '',
             firm_name: r.firm_name || '',
@@ -236,6 +257,8 @@ export async function createIssueRecords(rows: Partial<IssueRecord>[]) {
             issue_person_name: r.issue_person_name || '',
             issue_slip: r.issue_slip || '',
             return_slip: r.return_slip || '',
+            // store_issue_kind_v1: omitted for a material issue (the server defaults it)
+            ...(r.issue_kind && r.issue_kind !== 'MATERIAL' ? { issue_kind: r.issue_kind, machine_id: r.machine_id, work_order_id: r.work_order_id, requirement_id: r.requirement_id, meter_reading: r.meter_reading } : {}),
         }));
 
         const res: any = await apiClient.post('/store/entity/issue', mappedRows);

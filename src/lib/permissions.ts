@@ -44,6 +44,15 @@ export function hasSystemAccess(
     user: UserPermissions | null | undefined,
     systemId: string
 ): boolean {
+    if (hasSystemAccessDirect(user, systemId)) return true;
+    // Repair was merged into Maintenance & Repair: access to either opens the merged system.
+    return systemId === 'maintenance' && hasSystemAccessDirect(user, 'repair');
+}
+
+function hasSystemAccessDirect(
+    user: UserPermissions | null | undefined,
+    systemId: string
+): boolean {
     if (!user) return false;
 
     // Super admin, admin or legacy administrate flag grants all systems
@@ -156,7 +165,48 @@ export function isSystemPermitted(
 /**
  * Unified helper function to check page-level permissions across JSON and legacy boolean structures
  */
+/**
+ * Pages added later that are also open to anyone who already had an older key, so an existing user never
+ * loses (or has to be re-granted) access to a screen that grew out of theirs.
+ */
+/** Every key that used to open a screen now folded into Work Orders. */
+const WORK_ORDER_KEYS: Array<keyof UserPermissions> = [
+    'maintTasks',
+    'maintPlans',
+    'maintAssignTask',
+    'repairTasks',
+    'repairSentMachine',
+    'repairStoreIn',
+    'repairPayment',
+];
+const KEY_FALLBACKS: Partial<Record<string, Array<keyof UserPermissions>>> = {
+    assetDailyEntry: ['assetAll', 'maintDailyLog'],
+    // Work Logs replaced Daily Entry and the Daily Machine Log: anyone who had either keeps access
+    assetWorkLogs: ['assetDailyEntry', 'assetAll', 'maintDailyLog'],
+    // Documents grew out of the machine and Maintenance Records screens: anyone who could open those keeps access
+    assetDocuments: ['assetAll', 'maintRecords', 'maintMachines'],
+    // Maintenance Records and Assignment Status grew out of the machine screens
+    maintRecords: ['maintMachines'],
+    maintAssignments: ['maintMachines'],
+    assetDieselLedger: ['assetAll'],
+    maintWorkOrders: WORK_ORDER_KEYS,
+    // repair-only users land on the dashboard after a redirect, so it opens for them too
+    maintDash: WORK_ORDER_KEYS,
+    maintReports: ['repairDailyReport', 'maintDailyReport'],
+};
+
 export function hasPageAccess(
+    user: UserPermissions | null | undefined,
+    pageId?: string,
+    requiredMode: 'VIEW' | 'EDIT' = 'VIEW',
+    legacyIdentifier?: keyof UserPermissions
+): boolean {
+    if (hasPageAccessDirect(user, pageId, requiredMode, legacyIdentifier)) return true;
+    const fallbacks = legacyIdentifier ? KEY_FALLBACKS[legacyIdentifier] : undefined;
+    return !!fallbacks?.some((fb) => hasPageAccessDirect(user, undefined, requiredMode, fb));
+}
+
+function hasPageAccessDirect(
     user: UserPermissions | null | undefined,
     pageId?: string,
     requiredMode: 'VIEW' | 'EDIT' = 'VIEW',

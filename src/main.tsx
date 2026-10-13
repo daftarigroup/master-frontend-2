@@ -2,6 +2,17 @@ import '@/index.css';
 import { Buffer } from 'buffer';
 if (typeof window !== 'undefined') {
     window.Buffer = Buffer;
+
+    // Automatically recover from stale chunks when a new deployment occurs on Vercel
+    window.addEventListener('vite:preloadError', () => {
+        const key = 'vite_chunk_reload_ts';
+        const lastRetry = sessionStorage.getItem(key);
+        const now = Date.now();
+        if (!lastRetry || now - Number(lastRetry) > 10000) {
+            sessionStorage.setItem(key, String(now));
+            window.location.reload();
+        }
+    });
 }
 
 
@@ -10,7 +21,7 @@ import { createRoot } from 'react-dom/client';
 import { AuthProvider, useAuth } from '@/context/AuthContext.tsx';
 import { ProjectProvider } from './context/ProjectContext';
 import ProjectGuard from './app/guards/ProjectGuard';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import App from './App';
 import { SheetsProvider } from './context/SheetsContext';
@@ -95,6 +106,7 @@ const HodStoreApproval = React.lazy(() => import('./components/views/HodStoreApp
 const MasterManagement = React.lazy(() => import('./components/views/MasterManagement'));
 const QuotationPage = React.lazy(() => import('./components/views/Quotation'));
 const VendorBidding = React.lazy(() => import('./components/views/VendorBidding'));
+const TransportLogBook = React.lazy(() => import('./components/views/TransportLogBook'));
 import { isAllowedFirm } from '@/lib/firmAccess';
 import GlobalDashboard from '@/shared/components/layout/GlobalDashboard';
 import StoreSystemLayout from '@/systems/store/layout/StoreSystemLayout';
@@ -153,6 +165,8 @@ import {
     HrFindEnquiryPage,
     HrEmployeePage,
     HrDeploymentPage,
+    HrMarkAttendancePage,
+    PublicAttendanceKioskPage,
     HrAttendancePage,
     HrLeavePage,
     HrGatePassPage,
@@ -170,9 +184,9 @@ import {
 
 // Asset Management System Components
 import AssetSystemLayout from '@/systems/asset/layout/AssetSystemLayout';
-import { AssetDashboardPage, AssetListPage, AssetDetailPage, PublicAssetDetailPage } from '@/systems/asset/pages';
+import { AssetDashboardPage, AssetListPage, AssetDetailPage, PublicAssetDetailPage, DieselLedgerPage, MachineLogbookPage, EquipmentMasterPage, CostTrackingPage, FleetCostsPage, WorkLogsPage, DocumentsRegisterPage, EquipmentDocumentsPage } from '@/systems/asset/pages';
 
-// Maintenance Management System Components
+// Maintenance & Repair (one merged system)
 import MaintenanceSystemLayout from '@/systems/maintenance/layout/MaintenanceSystemLayout';
 import {
     MaintenanceDashboardPage,
@@ -180,29 +194,28 @@ import {
     MachineDetailsPage,
     AddMachinePage,
     MachinePartsPage,
-    MaintenancePlansPage,
-    MaintenanceTasksPage,
-    AssignTaskPage,
+    WorkOrdersPage,
     BreakdownLogPage,
-    DailyMachineLogPage,
-    DailyReportPage,
-    MaintenanceCalendarPage,
     PendingApprovalPage,
     MaintenanceReportsPage,
+    MaintenanceRecordsPage,
+    MachineRecordPage,
+    AssignmentStatusPage,
 } from '@/systems/maintenance/pages';
 
-// Repair Management System Components
-import RepairSystemLayout from '@/systems/repair/layout/RepairSystemLayout';
-import {
-    RepairTasksPage,
-    PartAndVendorPage,
-    RepairStoreinPage,
-    RepairSentmachinePage,
-    RepairPaymentPage,
-    AMCPage,
-    RepairCalendarPage,
-    RepairDailyReportPage,
-} from '@/systems/repair/pages';
+const CandidateApplyPage = React.lazy(
+    () => import('@/features/hr/apply/components/CandidateApplyPage')
+);
+
+/** Old URL -> new URL. Optionally keeps the incoming query string (e.g. ?new=true) on top of the target's own. */
+function RedirectTo({ to, keepSearch = false }: { to: string; keepSearch?: boolean }) {
+    const location = useLocation();
+    if (!keepSearch || !location.search) return <Navigate to={to} replace />;
+    const [path, own = ''] = to.split('?');
+    const merged = new URLSearchParams(own);
+    new URLSearchParams(location.search).forEach((v, k) => merged.set(k, v));
+    return <Navigate to={{ pathname: path, search: '?' + merged.toString() }} replace />;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { loggedIn, loading } = useAuth();
@@ -1042,6 +1055,12 @@ if (rootElement) {
                                 <Route path="/bid/:token" element={<VendorBidding />} />
                                 <Route path="/product/:sn" element={<PublicAssetDetailPage />} />
                                 <Route path="/asset/public/:sn" element={<PublicAssetDetailPage />} />
+                                <Route path="/apply/:indentId" element={<CandidateApplyPage />} />
+                                <Route path="/apply/direct/:tenantId" element={<CandidateApplyPage />} />
+                                <Route path="/apply" element={<CandidateApplyPage />} />
+                                <Route path="/attendance/kiosk" element={<PublicAttendanceKioskPage />} />
+                                <Route path="/attendance/mark" element={<PublicAttendanceKioskPage />} />
+                                <Route path="/attendance/public" element={<PublicAttendanceKioskPage />} />
 
                                 {/* Project Selection Guarded Route */}
                                 <Route
@@ -1094,6 +1113,7 @@ if (rootElement) {
                                     <Route path="procurement/create-po" element={<GatedRoute identifier="createPo"><CreatePO /></GatedRoute>} />
                                     <Route path="procurement/po-history" element={<GatedRoute identifier="poHistory"><Order /></GatedRoute>} />
                                     <Route path="procurement/lifting" element={<GatedRoute identifier="ordersView"><GetLift /></GatedRoute>} />
+                                    <Route path="procurement/transport-log-book" element={<GatedRoute identifier="ordersView"><TransportLogBook /></GatedRoute>} />
 
                                     {/* Receipts Sub-Routes */}
                                     <Route path="receipts/store-in" element={<GatedRoute identifier="storeIn"><StoreIn /></GatedRoute>} />
@@ -1179,6 +1199,7 @@ if (rootElement) {
                                     <Route path="find-enquiry" element={<GatedRoute identifier="hrCandidate"><HrFindEnquiryPage /></GatedRoute>} />
                                     <Route path="employee" element={<GatedRoute identifier="hrEmployee"><HrEmployeePage /></GatedRoute>} />
                                     <Route path="deployment" element={<GatedRoute identifier="hrEmployee"><HrDeploymentPage /></GatedRoute>} />
+                                    <Route path="mark-attendance" element={<GatedRoute identifier="hrAttendance"><HrMarkAttendancePage /></GatedRoute>} />
                                     <Route path="attendance" element={<GatedRoute identifier="hrAttendance"><HrAttendancePage /></GatedRoute>} />
                                     <Route path="leave" element={<GatedRoute identifier="hrLeave"><HrLeavePage /></GatedRoute>} />
                                     <Route path="gate-pass" element={<GatedRoute identifier="hrGatePass"><HrGatePassPage /></GatedRoute>} />
@@ -1198,11 +1219,21 @@ if (rootElement) {
                                 <Route path="asset" element={<AssetSystemLayout />}>
                                     <Route index element={<Navigate to="/asset/dashboard" replace />} />
                                     <Route path="dashboard" element={<GatedRoute identifier="assetDash"><AssetDashboardPage /></GatedRoute>} />
+                                    <Route path="equipment" element={<GatedRoute identifier="assetAll"><EquipmentMasterPage /></GatedRoute>} />
+                                    <Route path="equipment/:id/cost" element={<GatedRoute identifier="assetCost"><CostTrackingPage /></GatedRoute>} />
+                                    <Route path="costs" element={<GatedRoute identifier="assetCost"><FleetCostsPage /></GatedRoute>} />
                                     <Route path="assets" element={<GatedRoute identifier="assetAll"><AssetListPage /></GatedRoute>} />
                                     <Route path="asset/:id" element={<GatedRoute identifier="assetAll"><AssetDetailPage /></GatedRoute>} />
+                                    <Route path="work-logs" element={<GatedRoute identifier="assetWorkLogs"><WorkLogsPage /></GatedRoute>} />
+                                    <Route path="documents" element={<GatedRoute identifier="assetDocuments"><DocumentsRegisterPage /></GatedRoute>} />
+                                    <Route path="documents/:machineId" element={<GatedRoute identifier="assetDocuments"><EquipmentDocumentsPage /></GatedRoute>} />
+                                    {/* Daily Entry became Work Logs: old links (with ?machineId=) open the Add form */}
+                                    <Route path="daily-entry" element={<RedirectTo to="/asset/work-logs?new=1" keepSearch />} />
+                                    <Route path="diesel-ledger" element={<GatedRoute identifier="assetDieselLedger"><DieselLedgerPage /></GatedRoute>} />
+                                    <Route path="machines/:machineId/logbook" element={<GatedRoute identifier="assetAll"><MachineLogbookPage /></GatedRoute>} />
                                 </Route>
 
-                                {/* MAINTENANCE MANAGEMENT SYSTEM MODULE */}
+                                {/* MAINTENANCE & REPAIR (merged). Every old /repair/* and /maintenance/* URL redirects here. */}
                                 <Route path="maintenance" element={<MaintenanceSystemLayout />}>
                                     <Route index element={<Navigate to="/maintenance/dashboard" replace />} />
                                     <Route path="dashboard" element={<GatedRoute identifier="maintDash"><MaintenanceDashboardPage /></GatedRoute>} />
@@ -1210,50 +1241,54 @@ if (rootElement) {
                                     <Route path="machines/new" element={<GatedRoute identifier="maintAddMachine"><AddMachinePage /></GatedRoute>} />
                                     <Route path="machines/:id" element={<GatedRoute identifier="maintMachines"><MachineDetailsPage /></GatedRoute>} />
                                     <Route path="machines/:id/parts" element={<GatedRoute identifier="maintMachines"><MachinePartsPage /></GatedRoute>} />
-                                    <Route path="plans" element={<GatedRoute identifier="maintPlans"><MaintenancePlansPage /></GatedRoute>} />
-                                    <Route path="tasks" element={<GatedRoute identifier="maintTasks"><MaintenanceTasksPage /></GatedRoute>} />
-                                    <Route path="unique_task" element={<GatedRoute identifier="maintTasks"><MaintenanceTasksPage /></GatedRoute>} />
-                                    <Route path="assign-task" element={<GatedRoute identifier="maintAssignTask"><AssignTaskPage /></GatedRoute>} />
-                                    <Route path="assign_task" element={<GatedRoute identifier="maintAssignTask"><AssignTaskPage /></GatedRoute>} />
-                                    <Route path="breakdown-log" element={<GatedRoute identifier="maintBreakdowns"><BreakdownLogPage /></GatedRoute>} />
-                                    <Route path="daily-machine-log" element={<GatedRoute identifier="maintDailyLog"><DailyMachineLogPage /></GatedRoute>} />
-                                    <Route path="daily-report" element={<GatedRoute identifier="maintDailyReport"><DailyReportPage /></GatedRoute>} />
-                                    <Route path="calendar" element={<GatedRoute identifier="maintCalendar"><MaintenanceCalendarPage /></GatedRoute>} />
-                                    <Route path="pending" element={<GatedRoute identifier="maintPending"><PendingApprovalPage /></GatedRoute>} />
+                                    <Route path="work-orders" element={<GatedRoute identifier="maintWorkOrders"><WorkOrdersPage /></GatedRoute>} />
+                                    <Route path="approvals" element={<GatedRoute identifier="maintPending"><PendingApprovalPage /></GatedRoute>} />
+                                    <Route path="breakdowns" element={<RedirectTo to="/maintenance/work-orders?tab=breakdown" keepSearch />} />
+                                    <Route path="records" element={<GatedRoute identifier="maintRecords"><MaintenanceRecordsPage /></GatedRoute>} />
+                                    <Route path="records/:machineId" element={<GatedRoute identifier="maintRecords"><MachineRecordPage /></GatedRoute>} />
+                                    <Route path="assignments" element={<GatedRoute identifier="maintAssignments"><AssignmentStatusPage /></GatedRoute>} />
                                     <Route path="reports" element={<GatedRoute identifier="maintReports"><MaintenanceReportsPage /></GatedRoute>} />
-                                    <Route path="team-report" element={<Navigate to="/maintenance/dashboard" replace />} />
+
+                                    {/* old maintenance URLs */}
+                                    <Route path="tasks" element={<RedirectTo to="/maintenance/work-orders" keepSearch />} />
+                                    <Route path="unique_task" element={<RedirectTo to="/maintenance/work-orders" keepSearch />} />
+                                    <Route path="pending" element={<RedirectTo to="/maintenance/approvals" keepSearch />} />
+                                    <Route path="breakdown-log" element={<RedirectTo to="/maintenance/work-orders?tab=breakdown" keepSearch />} />
+                                    <Route path="daily-machine-log" element={<RedirectTo to="/asset/work-logs" />} />
+                                    <Route path="plans" element={<RedirectTo to="/maintenance/work-orders?tab=scheduled&new=1&type=SCHEDULED" keepSearch />} />
+                                    <Route path="assign-task" element={<RedirectTo to="/maintenance/work-orders?new=1" />} />
+                                    <Route path="assign_task" element={<RedirectTo to="/maintenance/work-orders?new=1" />} />
+                                    <Route path="calendar" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                    <Route path="daily-report" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                    <Route path="team-report" element={<RedirectTo to="/maintenance/dashboard" />} />
                                 </Route>
 
-                                {/* REPAIR MANAGEMENT SYSTEM MODULE */}
-                                <Route path="repair" element={<RepairSystemLayout />}>
-                                    <Route index element={<Navigate to="/repair/tasks" replace />} />
-                                    <Route path="tasks" element={<GatedRoute identifier="repairTasks"><RepairTasksPage /></GatedRoute>} />
-                                    <Route path="repair-tasks" element={<GatedRoute identifier="repairTasks"><RepairTasksPage /></GatedRoute>} />
-                                    <Route path="parts-vendors" element={<GatedRoute identifier="repairPartsVendors"><PartAndVendorPage /></GatedRoute>} />
-                                    <Route path="part-and-vendor" element={<GatedRoute identifier="repairPartsVendors"><PartAndVendorPage /></GatedRoute>} />
-                                    <Route path="storein" element={<GatedRoute identifier="repairStoreIn"><RepairStoreinPage /></GatedRoute>} />
-                                    <Route path="sentmachine" element={<GatedRoute identifier="repairSentMachine"><RepairSentmachinePage /></GatedRoute>} />
-                                    <Route path="payment" element={<GatedRoute identifier="repairPayment"><RepairPaymentPage /></GatedRoute>} />
-                                    <Route path="amc" element={<GatedRoute identifier="repairAmc"><AMCPage /></GatedRoute>} />
-                                    <Route path="calendar" element={<GatedRoute identifier="repairCalendar"><RepairCalendarPage /></GatedRoute>} />
-                                    <Route path="dailyreport" element={<GatedRoute identifier="repairDailyReport"><RepairDailyReportPage /></GatedRoute>} />
-                                    <Route path="breakdown" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
-                                    <Route path="breakdown/*" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
-                                </Route>
+                                {/* old Repair system URLs */}
+                                <Route path="repair" element={<Navigate to="/maintenance/dashboard" replace />} />
+                                <Route path="repair/tasks" element={<RedirectTo to="/maintenance/work-orders?type=REPAIR" keepSearch />} />
+                                <Route path="repair/repair-tasks" element={<RedirectTo to="/maintenance/work-orders?type=REPAIR" keepSearch />} />
+                                <Route path="repair/sentmachine" element={<RedirectTo to="/maintenance/work-orders?tab=outsourced&status=TO_SEND" />} />
+                                <Route path="repair/storein" element={<RedirectTo to="/maintenance/work-orders?tab=outsourced&status=SENT" />} />
+                                <Route path="repair/payment" element={<RedirectTo to="/maintenance/work-orders?tab=outsourced&status=RECEIVED" />} />
+                                <Route path="repair/breakdown" element={<RedirectTo to="/maintenance/work-orders?tab=breakdown&new=1&type=BREAKDOWN" />} />
+                                <Route path="repair/breakdown/*" element={<RedirectTo to="/maintenance/work-orders?tab=breakdown&new=1&type=BREAKDOWN" />} />
+                                <Route path="repair/parts-vendors" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                <Route path="repair/part-and-vendor" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                <Route path="repair/amc" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                <Route path="repair/calendar" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                <Route path="repair/dailyreport" element={<RedirectTo to="/maintenance/dashboard" />} />
+                                <Route path="repair/*" element={<RedirectTo to="/maintenance/dashboard" />} />
 
-                                {/* Backward compatibility alias for legacy maintenancepro and repair paths */}
-                                <Route path="repair/breakdown/report" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
-                                <Route path="repair/breakdown" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
-                                <Route path="repair/breakdown/*" element={<Navigate to="/maintenance/breakdown-log?new=true" replace />} />
-                                <Route path="maintenancepro/breakdown-log" element={<Navigate to="/maintenance/breakdown-log" replace />} />
-                                <Route path="maintenancepro/assign-task" element={<Navigate to="/maintenance/assign-task" replace />} />
-                                <Route path="maintenancepro/assign_task" element={<Navigate to="/maintenance/assign-task" replace />} />
-                                <Route path="maintenancepro/plans" element={<Navigate to="/maintenance/plans" replace />} />
+                                {/* legacy maintenancepro paths */}
+                                <Route path="maintenancepro/breakdown-log" element={<RedirectTo to="/maintenance/work-orders?tab=breakdown" keepSearch />} />
+                                <Route path="maintenancepro/assign-task" element={<RedirectTo to="/maintenance/work-orders?new=1" />} />
+                                <Route path="maintenancepro/assign_task" element={<RedirectTo to="/maintenance/work-orders?new=1" />} />
+                                <Route path="maintenancepro/plans" element={<RedirectTo to="/maintenance/work-orders?new=1" />} />
                                 <Route path="maintenancepro/machines" element={<Navigate to="/maintenance/machines" replace />} />
                                 <Route path="maintenancepro/machines/new" element={<Navigate to="/maintenance/machines/new" replace />} />
-                                <Route path="maintenancepro/tasks" element={<Navigate to="/maintenance/tasks" replace />} />
-                                <Route path="maintenancepro/repair-tasks" element={<Navigate to="/repair/tasks" replace />} />
-                                <Route path="maintenancepro/calendar" element={<Navigate to="/maintenance/calendar" replace />} />
+                                <Route path="maintenancepro/tasks" element={<RedirectTo to="/maintenance/work-orders" keepSearch />} />
+                                <Route path="maintenancepro/repair-tasks" element={<RedirectTo to="/maintenance/work-orders?type=REPAIR" keepSearch />} />
+                                <Route path="maintenancepro/calendar" element={<RedirectTo to="/maintenance/dashboard" />} />
                                 <Route path="maintenancepro/reports" element={<Navigate to="/maintenance/reports" replace />} />
                                 <Route path="maintenancepro/*" element={<Navigate to="/maintenance/dashboard" replace />} />
 
@@ -1275,6 +1310,8 @@ if (rootElement) {
                                 <Route path="create-po" element={<Navigate to="/store/procurement/create-po" replace />} />
                                 <Route path="po-history" element={<Navigate to="/store/procurement/po-history" replace />} />
                                 <Route path="get-lift" element={<Navigate to="/store/procurement/lifting" replace />} />
+                                <Route path="transport-log-book" element={<Navigate to="/store/procurement/transport-log-book" replace />} />
+                                <Route path="log-book" element={<Navigate to="/store/procurement/transport-log-book" replace />} />
                                 <Route path="store-in" element={<Navigate to="/store/receipts/store-in" replace />} />
                                 <Route path="hod-store-check" element={<Navigate to="/store/receipts/hod-check" replace />} />
                                 <Route path="Full-Kiting" element={<Navigate to="/store/finance/freight-payment" replace />} />

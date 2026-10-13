@@ -10,6 +10,7 @@ import {
   IconCalendar,
   IconCheck,
   IconClock,
+  IconCopy,
   IconExternalLink,
   IconFileText,
   IconLoader2,
@@ -1554,6 +1555,7 @@ const MainFindEnquiry = () => {
   const [isFormSettingsOpen, setIsFormSettingsOpen] = useState(false);
   const [showDirectQr, setShowDirectQr] = useState(false);
   const [directQrUrl, setDirectQrUrl] = useState('');
+  const [directQrCopied, setDirectQrCopied] = useState(false);
   const [isDocSettingsOpen, setIsDocSettingsOpen] = useState(false);
   const [docConfig, setDocConfig] = useState<Record<string, DocSetting>>(() => {
     try {
@@ -3173,9 +3175,33 @@ const MainFindEnquiry = () => {
               <p className="text-center text-[11px] text-muted-foreground">
                 Candidates scan this to fill their details · no specific job posting required
               </p>
-              <p className="max-w-full break-all rounded-lg border border-border bg-muted px-3 py-2 text-center font-mono text-[10px] text-muted-foreground">
-                {directQrUrl}
-              </p>
+              <div className="relative flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted/60 px-3 py-2 transition-colors hover:bg-muted">
+                <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-muted-foreground select-all text-left">
+                  {directQrUrl}
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!directQrUrl) return;
+                    try {
+                      await navigator.clipboard.writeText(directQrUrl);
+                      setDirectQrCopied(true);
+                      setTimeout(() => setDirectQrCopied(false), 2000);
+                    } catch (err) {
+                      console.error('Failed to copy direct QR URL:', err);
+                    }
+                  }}
+                  title={directQrCopied ? 'Copied to clipboard!' : 'Copy apply link'}
+                  aria-label={directQrCopied ? 'Copied' : 'Copy apply link'}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground shadow-xs transition-all hover:bg-muted hover:text-foreground active:scale-95"
+                >
+                  {directQrCopied ? (
+                    <IconCheck className="h-3.5 w-3.5 text-emerald-600 animate-in zoom-in-75 duration-150" />
+                  ) : (
+                    <IconCopy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/30 px-5 py-4">

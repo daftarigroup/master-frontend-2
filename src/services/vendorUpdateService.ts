@@ -54,6 +54,8 @@ export interface IndentQuote {
     indentNo: string;
     product: string;
     vendor_rate: number;
+    responded_at?: string;
+    gst?: string;
     firm_id?: number;
 }
 
@@ -200,10 +202,23 @@ export async function fetchIndentQuotes(indentNo: string, product: string): Prom
         const res: any = await apiClient.get('/store/entity/quotation_history', { params });
         const records: any[] = res.data || [];
 
-        // Filter by product (case-insensitive trim)
-        const filtered = records.filter(r =>
-            r.product?.trim().toLowerCase() === product?.trim().toLowerCase()
+        // Filter by product (case-insensitive trim) with fallback to partial/loose match
+        const normTargetProduct = (product || '').trim().toLowerCase();
+        let filtered = records.filter(r =>
+            (r.product || '').trim().toLowerCase() === normTargetProduct
         );
+
+        // Fallback: if no exact product match found but records exist for this indent, try substring match
+        if (filtered.length === 0 && records.length > 0 && normTargetProduct) {
+            filtered = records.filter(r => {
+                const p = (r.product || '').trim().toLowerCase();
+                return p.includes(normTargetProduct) || normTargetProduct.includes(p);
+            });
+            // If still empty but all records belong to this indent, fallback to all records for this indent
+            if (filtered.length === 0) {
+                filtered = records;
+            }
+        }
 
         return filtered.map(r => ({
             id: Number(r.id),
@@ -213,6 +228,8 @@ export async function fetchIndentQuotes(indentNo: string, product: string): Prom
             indentNo: r.indentNo || '',
             product: r.product || '',
             vendor_rate: Number(r.vendor_rate) || 0,
+            responded_at: r.responded_at || '',
+            gst: r.gst || '',
             firm_id: r.firm_id,
         }));
     } catch (error) {

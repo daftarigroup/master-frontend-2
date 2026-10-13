@@ -13,7 +13,7 @@ export const MaintenanceSystemLayout: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100">
-                Maintenance Management System
+                Maintenance & Repair System
               </h2>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-emerald-300 text-emerald-800 dark:text-emerald-200 bg-emerald-100/60 dark:bg-emerald-950/60">
                 EMMS Active
@@ -22,7 +22,7 @@ export const MaintenanceSystemLayout: React.FC = () => {
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5 font-medium">
               <span>Platform</span>
               <ChevronRight className="size-3 opacity-60" />
-              <span className="text-foreground font-semibold">Maintenance Management</span>
+              <span className="text-foreground font-semibold">Maintenance & Repair</span>
             </div>
           </div>
         </div>

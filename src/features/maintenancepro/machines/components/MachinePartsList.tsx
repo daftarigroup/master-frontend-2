@@ -1,5 +1,6 @@
 'use client';
 
+import { isAdminUser } from '../../shared/lib/common';
 import {
   AlertCircle,
   ExternalLink,
@@ -30,9 +31,7 @@ export function MachinePartsList({ machineId: propMachineId }: MachinePartsListP
   const { id: paramId } = useParams<{ id: string }>();
   const machineId = propMachineId || paramId || '';
   const currentUser = useAppSelector(selectUser);
-  const isAdmin =
-    (currentUser as { role?: string } | null)?.role === 'ADMIN' ||
-    (currentUser as { role?: string } | null)?.role === 'SUPERADMIN';
+  const isAdmin = isAdminUser(currentUser);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingPart, setEditingPart] = useState<MachinePart | null>(null);

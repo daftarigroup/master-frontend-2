@@ -55,6 +55,7 @@ export const StoreSystemManifest: SystemManifest = {
       items: [
         { id: 'store-in', name: 'Store Check (GRN)', path: '/store/receipts/store-in', gateKey: 'storeIn' },
         { id: 'hod-check', name: 'HOD Check', path: '/store/receipts/hod-check', gateKey: 'hodStoreApproval' },
+        { id: 'transport-log-book', name: 'Transport Log Book', path: '/store/procurement/transport-log-book', gateKey: 'ordersView' },
         { id: 'grn-rejection', name: 'Reject For GRN', path: '/store/receipts/grn-rejection', gateKey: 'insteadOfQualityCheckInReceivedItem' },
         { id: 'bill-pending', name: 'Bill Not Received', path: '/store/receipts/bill-pending', gateKey: 'billNotReceived' },
       ],

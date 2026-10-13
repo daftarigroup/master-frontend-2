@@ -12,6 +12,7 @@ export const fetchAllMachines = async (
     page?: number;
     limit?: number;
     needMaintenance?: boolean;
+    ownershipType?: 'OWNED' | 'RENTED';
   },
   _actAsTenantId?: string
 ): Promise<MachineListResponse> => {

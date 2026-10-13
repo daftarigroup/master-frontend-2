@@ -32,6 +32,7 @@ import { useProject } from '@/context/ProjectContext';
 import { openIssuePdfPreview, openGroupedIssuePdfPreview } from '@/lib/issuePdfUtils';
 import { canDeleteStoreStage } from '@/lib/roleAccess';
 import StageDeleteDialog from '../element/StageDeleteDialog';
+import { ISSUE_KIND_LABEL, type IssueKind } from '../element/IssueKindPicker';
 
 import {
     fetchIssueRecords,
@@ -161,6 +162,11 @@ export default function IssueData() {
     const [deleteTarget, setDeleteTarget] = useState<IssueRecord | null>(null);
     const [filterDate, setFilterDate] = useState<string>('');
     const [activeTab, setActiveTab] = useState<string>('pending');
+    // store_issue_kind_v1: filter by what the issue is for (rows without a kind are material issues)
+    const [kindFilter, setKindFilter] = useState<'ALL' | IssueKind>('ALL');
+    const kindOf = (i: IssueRecord): IssueKind => (i.issue_kind || 'MATERIAL') as IssueKind;
+    const hasMachineKinds = allData.some((i) => kindOf(i) !== 'MATERIAL');
+    const kindData = useMemo(() => (kindFilter === 'ALL' ? allData : allData.filter((i) => kindOf(i) === kindFilter)), [allData, kindFilter]);
 
     const fetchData = async () => {
         setDataLoading(true);
@@ -182,33 +188,34 @@ export default function IssueData() {
     }, [effectivePermittedFirms]);
 
     const returnData = useMemo(() => {
-        const filtered = allData.filter(i => i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
+        // returns are for material issues only (a machine-part return has its own flow)
+        const filtered = kindData.filter(i => kindOf(i) === 'MATERIAL' && (i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== '')));
         return filterByFirmAccess(
             filtered,
             effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );
-    }, [allData, effectivePermittedFirms]);
+    }, [kindData, effectivePermittedFirms]);
 
     const pendingData = useMemo(() => {
         const filteredData = filterByFirmAccess(
-            allData.filter((item) => !item.status || item.status === 'Pending' || item.status.toLowerCase() === 'pending'),
+            kindData.filter((item) => !item.status || item.status === 'Pending' || item.status.toLowerCase() === 'pending'),
             effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );
 
        return filteredData;
-    }, [allData, effectivePermittedFirms]);
+    }, [kindData, effectivePermittedFirms]);
 
     const historyData = useMemo(() => {
         const filteredData = filterByFirmAccess(
-            allData.filter((item) => ['Approved', 'Rejected', 'Yes', 'No'].includes(item.status)),
+            kindData.filter((item) => ['Approved', 'Rejected', 'Yes', 'No'].includes(item.status)),
             effectivePermittedFirms,
             { id: (i) => i.firm_id, name: (i) => i.firm_name }
         );
 
         return filteredData;
-    }, [allData, effectivePermittedFirms]);
+    }, [kindData, effectivePermittedFirms]);
 
     const damageData = useMemo(() => {
         const filteredData = filterByFirmAccess(
@@ -321,8 +328,8 @@ export default function IssueData() {
         );
     };
 
-    const columns: ColumnDef<IssueRecord>[] = [
-        ...(user.issueData
+    const columns: ColumnDef<IssueRecord>[] = useMemo(() => {
+        const actionCol: ColumnDef<IssueRecord>[] = user.issueData
             ? [
                 {
                     header: 'Action',
@@ -345,23 +352,15 @@ export default function IssueData() {
                     },
                 },
             ]
-            : []),
-        { accessorKey: 'issue_no', header: 'Issue No' },
-        { accessorKey: 'issue_to', header: 'Issue Remark' },
-        { accessorKey: 'group_head', header: 'Group Head' },
-        { accessorKey: 'uom', header: 'Uom' },
-        { accessorKey: 'product_name', header: 'Product Name' },
-        { accessorKey: 'quantity', header: 'Quantity' },
-        { accessorKey: 'location', header: 'Location' },
-        { accessorKey: 'constructor_name', header: 'Contractor Name' },
-        { accessorKey: 'site_location', header: 'Site Location' },
-        { accessorKey: 'firm_name', header: 'Project Name' },
-        {
+            : [];
+
+        const plannedDateCol: ColumnDef<IssueRecord> = {
             accessorKey: 'planned1',
             header: 'Planned Date',
             cell: ({ row }) => <EditablePlannedDate record={row.original} onSave={handleSavePlannedDate} />,
-        },
-        {
+        };
+
+        const issueSlipCol: ColumnDef<IssueRecord> = {
             accessorKey: 'issue_slip',
             header: 'Issue Slip',
             cell: ({ row }) => (
@@ -373,33 +372,107 @@ export default function IssueData() {
                     View
                 </button>
             ),
-        },
-    ];
+        };
 
-    const historyColumns: ColumnDef<IssueRecord>[] = [
-        { accessorKey: 'issue_no', header: 'Issue No' },
-        { accessorKey: 'issue_to', header: 'Issue Remark' },
-        { accessorKey: 'group_head', header: 'Group Head' },
-        { accessorKey: 'uom', header: 'Uom' },
-        { accessorKey: 'product_name', header: 'Product Name' },
-        { accessorKey: 'quantity', header: 'Quantity' },
-        { accessorKey: 'location', header: 'Location' },
-        { accessorKey: 'constructor_name', header: 'Contractor Name' },
-        { accessorKey: 'site_location', header: 'Site Location' },
-        { accessorKey: 'firm_name', header: 'Project Name' },
-        { accessorKey: 'status', header: 'Status' },
-        { accessorKey: 'given_qty', header: 'Given Qty' },
-        {
+        if (kindFilter === 'ASSET_DIESEL') {
+            return [
+                ...actionCol,
+                { accessorKey: 'issue_no', header: 'Issue No' },
+                { accessorKey: 'machine_name', header: 'Machine Name', cell: ({ row }) => row.original.machine_name || row.original.machine_id || '-' },
+                { accessorKey: 'site_location', header: 'Site Location', cell: ({ row }) => row.original.site_location || '-' },
+                { accessorKey: 'constructor_name', header: 'Receiver (Operator)', cell: ({ row }) => row.original.constructor_name || '-' },
+                { accessorKey: 'product_name', header: 'Product Name' },
+                { accessorKey: 'quantity', header: 'Quantity' },
+                { accessorKey: 'uom', header: 'UOM' },
+                { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+                { accessorKey: 'firm_name', header: 'Project / Firm' },
+                { accessorKey: 'issue_to', header: 'Remarks', cell: ({ row }) => row.original.issue_to || '-' },
+                plannedDateCol,
+                issueSlipCol,
+            ];
+        }
+
+        if (kindFilter === 'MAINTENANCE') {
+            return [
+                ...actionCol,
+                { accessorKey: 'issue_no', header: 'Issue No' },
+                { accessorKey: 'machine_name', header: 'Machine', cell: ({ row }) => row.original.machine_name || row.original.machine_id || '-' },
+                { accessorKey: 'product_name', header: 'Part / Product Name' },
+                { accessorKey: 'group_head', header: 'Group Head' },
+                { accessorKey: 'quantity', header: 'Quantity' },
+                { accessorKey: 'uom', header: 'UOM' },
+                { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+                { accessorKey: 'firm_name', header: 'Project / Firm' },
+                { accessorKey: 'issue_to', header: 'Remarks', cell: ({ row }) => row.original.issue_to || '-' },
+                plannedDateCol,
+                issueSlipCol,
+            ];
+        }
+
+        if (kindFilter === 'MATERIAL') {
+            return [
+                ...actionCol,
+                { accessorKey: 'issue_no', header: 'Issue No' },
+                { accessorKey: 'product_name', header: 'Product Name' },
+                { accessorKey: 'group_head', header: 'Group Head' },
+                { accessorKey: 'quantity', header: 'Quantity' },
+                { accessorKey: 'uom', header: 'UOM' },
+                { accessorKey: 'location', header: 'Location' },
+                { accessorKey: 'constructor_name', header: 'Contractor Name', cell: ({ row }) => row.original.constructor_name || '-' },
+                { accessorKey: 'site_location', header: 'Site Location', cell: ({ row }) => row.original.site_location || '-' },
+                { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+                { accessorKey: 'firm_name', header: 'Project Name' },
+                { accessorKey: 'issue_to', header: 'Issue Remark', cell: ({ row }) => row.original.issue_to || '-' },
+                plannedDateCol,
+                issueSlipCol,
+            ];
+        }
+
+        return [
+            ...actionCol,
+            { accessorKey: 'issue_no', header: 'Issue No' },
+            ...(hasMachineKinds
+                ? [
+                    {
+                        id: 'issue_kind',
+                        header: 'Kind',
+                        cell: ({ row }: { row: Row<IssueRecord> }) => {
+                            const k = kindOf(row.original);
+                            return <span className={k === 'MATERIAL' ? 'text-xs text-slate-600' : 'text-xs font-semibold text-primary'}>{ISSUE_KIND_LABEL[k]}</span>;
+                        },
+                    },
+                    { accessorKey: 'machine_name', header: 'Machine', cell: ({ row }: { row: Row<IssueRecord> }) => row.original.machine_name || row.original.machine_id || '-' },
+                ]
+                : []),
+            { accessorKey: 'issue_to', header: 'Issue Remark' },
+            { accessorKey: 'group_head', header: 'Group Head' },
+            { accessorKey: 'uom', header: 'Uom' },
+            { accessorKey: 'product_name', header: 'Product Name' },
+            { accessorKey: 'quantity', header: 'Quantity' },
+            { accessorKey: 'location', header: 'Location' },
+            { accessorKey: 'constructor_name', header: 'Contractor / Receiver', cell: ({ row }: { row: Row<IssueRecord> }) => row.original.constructor_name || '-' },
+            { accessorKey: 'site_location', header: 'Site Location', cell: ({ row }: { row: Row<IssueRecord> }) => row.original.site_location || '-' },
+            { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+            { accessorKey: 'firm_name', header: 'Project Name' },
+            plannedDateCol,
+            issueSlipCol,
+        ];
+    }, [user.issueData, kindFilter, hasMachineKinds]);
+
+    const historyColumns: ColumnDef<IssueRecord>[] = useMemo(() => {
+        const plannedDateCol: ColumnDef<IssueRecord> = {
             accessorKey: 'planned1',
             header: 'Planned Date',
             cell: ({ row }) => <EditablePlannedDate record={row.original} onSave={handleSavePlannedDate} />,
-        },
-        {
+        };
+
+        const actualDateCol: ColumnDef<IssueRecord> = {
             accessorKey: 'actual1',
             header: 'Actual Date',
             cell: ({ row }) => (row.original.actual1 ? formatDate(new Date(row.original.actual1)) : '-'),
-        },
-        {
+        };
+
+        const issueSlipCol: ColumnDef<IssueRecord> = {
             accessorKey: 'issue_slip',
             header: 'Issue Slip',
             cell: ({ row }) => (
@@ -411,8 +484,9 @@ export default function IssueData() {
                     View
                 </button>
             ),
-        },
-        {
+        };
+
+        const actionsCol: ColumnDef<IssueRecord> = {
             id: 'actions',
             header: 'Actions',
             cell: ({ row }) => {
@@ -435,8 +509,104 @@ export default function IssueData() {
                     </div>
                 );
             },
-        },
-    ];
+        };
+
+        if (kindFilter === 'ASSET_DIESEL') {
+            return [
+                { accessorKey: 'issue_no', header: 'Issue No' },
+                { accessorKey: 'machine_name', header: 'Machine Name', cell: ({ row }) => row.original.machine_name || row.original.machine_id || '-' },
+                { accessorKey: 'site_location', header: 'Site Location', cell: ({ row }) => row.original.site_location || '-' },
+                { accessorKey: 'constructor_name', header: 'Receiver (Operator)', cell: ({ row }) => row.original.constructor_name || '-' },
+                { accessorKey: 'product_name', header: 'Product Name' },
+                { accessorKey: 'quantity', header: 'Quantity' },
+                { accessorKey: 'uom', header: 'UOM' },
+                { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+                { accessorKey: 'firm_name', header: 'Project / Firm' },
+                { accessorKey: 'issue_to', header: 'Remarks', cell: ({ row }) => row.original.issue_to || '-' },
+                { accessorKey: 'status', header: 'Status' },
+                { accessorKey: 'given_qty', header: 'Given Qty' },
+                plannedDateCol,
+                actualDateCol,
+                issueSlipCol,
+                actionsCol,
+            ];
+        }
+
+        if (kindFilter === 'MAINTENANCE') {
+            return [
+                { accessorKey: 'issue_no', header: 'Issue No' },
+                { accessorKey: 'machine_name', header: 'Machine', cell: ({ row }) => row.original.machine_name || row.original.machine_id || '-' },
+                { accessorKey: 'product_name', header: 'Part / Product Name' },
+                { accessorKey: 'group_head', header: 'Group Head' },
+                { accessorKey: 'quantity', header: 'Quantity' },
+                { accessorKey: 'uom', header: 'UOM' },
+                { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+                { accessorKey: 'firm_name', header: 'Project / Firm' },
+                { accessorKey: 'issue_to', header: 'Remarks', cell: ({ row }) => row.original.issue_to || '-' },
+                { accessorKey: 'status', header: 'Status' },
+                { accessorKey: 'given_qty', header: 'Given Qty' },
+                plannedDateCol,
+                actualDateCol,
+                issueSlipCol,
+                actionsCol,
+            ];
+        }
+
+        if (kindFilter === 'MATERIAL') {
+            return [
+                { accessorKey: 'issue_no', header: 'Issue No' },
+                { accessorKey: 'product_name', header: 'Product Name' },
+                { accessorKey: 'group_head', header: 'Group Head' },
+                { accessorKey: 'quantity', header: 'Quantity' },
+                { accessorKey: 'uom', header: 'UOM' },
+                { accessorKey: 'location', header: 'Location' },
+                { accessorKey: 'constructor_name', header: 'Contractor Name', cell: ({ row }) => row.original.constructor_name || '-' },
+                { accessorKey: 'site_location', header: 'Site Location', cell: ({ row }) => row.original.site_location || '-' },
+                { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+                { accessorKey: 'firm_name', header: 'Project Name' },
+                { accessorKey: 'issue_to', header: 'Issue Remark', cell: ({ row }) => row.original.issue_to || '-' },
+                { accessorKey: 'status', header: 'Status' },
+                { accessorKey: 'given_qty', header: 'Given Qty' },
+                plannedDateCol,
+                actualDateCol,
+                issueSlipCol,
+                actionsCol,
+            ];
+        }
+
+        return [
+            { accessorKey: 'issue_no', header: 'Issue No' },
+            ...(hasMachineKinds
+                ? [
+                    {
+                        id: 'issue_kind',
+                        header: 'Kind',
+                        cell: ({ row }: { row: Row<IssueRecord> }) => {
+                            const k = kindOf(row.original);
+                            return <span className={k === 'MATERIAL' ? 'text-xs text-slate-600' : 'text-xs font-semibold text-primary'}>{ISSUE_KIND_LABEL[k]}</span>;
+                        },
+                    },
+                    { accessorKey: 'machine_name', header: 'Machine', cell: ({ row }: { row: Row<IssueRecord> }) => row.original.machine_name || row.original.machine_id || '-' },
+                ]
+                : []),
+            { accessorKey: 'issue_to', header: 'Issue Remark' },
+            { accessorKey: 'group_head', header: 'Group Head' },
+            { accessorKey: 'uom', header: 'Uom' },
+            { accessorKey: 'product_name', header: 'Product Name' },
+            { accessorKey: 'quantity', header: 'Quantity' },
+            { accessorKey: 'location', header: 'Location' },
+            { accessorKey: 'constructor_name', header: 'Contractor / Receiver', cell: ({ row }: { row: Row<IssueRecord> }) => row.original.constructor_name || '-' },
+            { accessorKey: 'site_location', header: 'Site Location', cell: ({ row }: { row: Row<IssueRecord> }) => row.original.site_location || '-' },
+            { accessorKey: 'issue_person_name', header: 'Issued By', cell: ({ row }) => row.original.issue_person_name || '-' },
+            { accessorKey: 'firm_name', header: 'Project Name' },
+            { accessorKey: 'status', header: 'Status' },
+            { accessorKey: 'given_qty', header: 'Given Qty' },
+            plannedDateCol,
+            actualDateCol,
+            issueSlipCol,
+            actionsCol,
+        ];
+    }, [user, kindFilter, hasMachineKinds]);
 
 
     const returnColumns: ColumnDef<IssueRecord>[] = [
@@ -594,11 +764,29 @@ export default function IssueData() {
                         </div>
                     )}
 
+                    {allData.length > 0 && (
+                        <div className="mx-3 sm:mx-5 mt-3 flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground">Kind:</span>
+                            {(['ALL', 'MATERIAL', 'MAINTENANCE', 'ASSET_DIESEL'] as const).map((k) => (
+                                <Button
+                                    key={k}
+                                    type="button"
+                                    size="sm"
+                                    variant={kindFilter === k ? 'default' : 'outline'}
+                                    className="h-7 px-3 text-xs"
+                                    onClick={() => setKindFilter(k)}
+                                >
+                                    {k === 'ALL' ? 'All' : ISSUE_KIND_LABEL[k]}
+                                </Button>
+                            ))}
+                        </div>
+                    )}
+
                     <TabsContent value="pending">
                         <DataTable
                             data={filteredPendingData}
                             columns={columns}
-                            searchFields={['product_name', 'issue_no', 'issue_to', 'constructor_name', 'site_location', 'firm_name']}
+                            searchFields={['product_name', 'issue_no', 'issue_to', 'constructor_name', 'site_location', 'firm_name', 'machine_name', 'work_order_code']}
                             dataLoading={dataLoading}
                             extraActions={
                                 <div className="flex items-center gap-2">
@@ -669,10 +857,18 @@ export default function IssueData() {
                                 className="grid gap-5"
                             >
                                 <DialogHeader className="grid gap-2">
-                                    <DialogTitle>Approve Indent</DialogTitle>
+                                    <DialogTitle>Approve issue</DialogTitle>
                                     <DialogDescription>
-                                        Approve indent{' '}
+                                        Approve issue{' '}
                                         <span className="font-medium">{selectedIssue.issue_no}</span>
+                                        {selectedIssue.machine_name && (
+                                            <span className="block text-xs text-muted-foreground">
+                                                {selectedIssue.machine_name}
+                                                {selectedIssue.work_order_code ? ` · ${selectedIssue.work_order_code}` : ''}
+                                                {selectedIssue.meter_reading != null ? ` · reading ${selectedIssue.meter_reading}${selectedIssue.machine_unit === 'HOURS' ? ' hrs' : selectedIssue.machine_unit === 'KM' ? ' km' : ''}` : ''}
+                                                {' · '}{selectedIssue.quantity} {selectedIssue.uom || ''} requested
+                                            </span>
+                                        )}
                                     </DialogDescription>
                                 </DialogHeader>
 

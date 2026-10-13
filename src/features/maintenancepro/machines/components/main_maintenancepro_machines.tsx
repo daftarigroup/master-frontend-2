@@ -12,6 +12,7 @@ import {
   FileText,
   MoreVertical,
   PauseCircle,
+  Pencil,
   Plus,
   QrCode,
   RefreshCw,
@@ -26,6 +27,8 @@ import { usePagination } from '@/hooks/usePagination';
 import { api } from '@/lib/axios';
 import { useProject } from '@/context/ProjectContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
+import { OwnershipBadge } from '@/features/asset/fleet/components/OwnershipBadge';
+import MachineEditDialog from './MachineEditDialog';
 import { useMachines } from '../server/tanstackQuery/useMachinesQueries';
 import type { Machine, MachineStatus } from '../types/types';
 import { MACHINE_STATUS_LABELS } from '../types/types';
@@ -101,6 +104,7 @@ export default function MachinesList() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [qrModalMachine, setQrModalMachine] = useState<Machine | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [editMachine, setEditMachine] = useState<Machine | null>(null);
 
   const { page: currentPage, limit: ITEMS_PER_PAGE, setPage: setCurrentPage } = usePagination(10);
 
@@ -124,6 +128,7 @@ export default function MachinesList() {
     status: statusFilter !== 'all' ? statusFilter : undefined,
     departmentId: departmentFilter !== 'all' ? departmentFilter : undefined,
     firmId: queryFirmId,
+    ownershipType: ownershipFilter === 'all' ? undefined : (ownershipFilter as 'OWNED' | 'RENTED'),
   });
   const rawMachines: Machine[] = useMemo(() => machinesResponse?.data ?? [], [machinesResponse?.data]);
   const machines: Machine[] = useMemo(() => {
@@ -187,14 +192,6 @@ export default function MachinesList() {
     return [...machines]
       .filter((m) => {
         if (categoryFilter !== 'all' && m.category !== categoryFilter) return false;
-        if (ownershipFilter !== 'all') {
-          const isHired =
-            m.ownershipType === 'RENTED' ||
-            m.ownershipType === 'HIRED' ||
-            (!m.firm && !!m.supplier);
-          if (ownershipFilter === 'HIRED' && !isHired) return false;
-          if (ownershipFilter === 'OWNED' && isHired) return false;
-        }
         return true;
       })
       .sort((a, b) => {
@@ -227,7 +224,7 @@ export default function MachinesList() {
           ? (aVal as number) - (bVal as number)
           : (bVal as number) - (aVal as number);
       });
-  }, [machines, categoryFilter, ownershipFilter, sortColumn, sortDirection]);
+  }, [machines, categoryFilter, sortColumn, sortDirection]);
 
   const paginatedMachines = filteredMachines;
 
@@ -265,7 +262,7 @@ export default function MachinesList() {
             className="inline-flex items-center px-5 py-2.5 text-sm font-semibold text-primary-foreground bg-primary rounded-xl shadow-sm hover:shadow transition-all active:scale-95 tracking-wide gap-2"
           >
             <Plus size={18} />
-            Add Machine
+            Add Equipment
           </Link>
         </div>
       </div>
@@ -322,104 +319,149 @@ export default function MachinesList() {
       </div>
 
       {/* Filter and Search */}
-      <div className="flex flex-col p-4 sm:p-5 space-y-3 bg-white rounded-2xl shadow-sm border border-gray-100 lg:space-y-0 dark:bg-gray-900 dark:border-gray-800">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex flex-col p-4 sm:p-5 gap-3.5 bg-white rounded-2xl shadow-sm border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
+        {/* Search Bar Row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1 group">
+            <Search
+              size={18}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors pointer-events-none"
+            />
             <input
               type="text"
               placeholder="Search equipment by name, code, or model..."
-              className="py-2.5 pr-4 pl-10 w-full rounded-xl border border-gray-200 bg-gray-50/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white transition-all text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:focus:bg-gray-750"
+              className="h-11 pr-10 pl-10 w-full rounded-xl border border-gray-200 bg-gray-50/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all text-sm font-medium dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:bg-gray-800"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
             />
-            <Search
-              size={16}
-              className="absolute left-3.5 top-1/2 text-gray-400 -translate-y-1/2 group-focus-within:text-sky-500 transition-colors"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-            <select
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="all">Category: All</option>
-              <option value="PRODUCTION">Production</option>
-              <option value="MATERIAL_HANDLING">Material Handling</option>
-              <option value="UTILITY">Utility</option>
-              <option value="HVAC">HVAC</option>
-              <option value="ELECTRICAL">Electrical</option>
-              <option value="FACILITY">Facility</option>
-            </select>
-
-            <select
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-              value={ownershipFilter}
-              onChange={(e) => setOwnershipFilter(e.target.value)}
-            >
-              <option value="all">Ownership: All</option>
-              <option value="OWNED">Owned</option>
-              <option value="HIRED">Hired / Rented</option>
-            </select>
-
-            <select
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-            >
-              <option value="all">Status: All</option>
-              <option value="OPERATIONAL">In Use / Operational</option>
-              <option value="UNDER_MAINTENANCE">Under Maintenance</option>
-              <option value="BREAKDOWN">Breakdown</option>
-              <option value="IDLE">Idle</option>
-              <option value="DECOMMISSIONED">Decommissioned</option>
-            </select>
-
-            <select
-              className="px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 hidden sm:block"
-              value={departmentFilter}
-              onChange={(e) => {
-                setDepartmentFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-            >
-              <option value="all">All Depts</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-
-            {firms.length > 0 && (
-              <select
-                className="px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 hidden lg:block"
-                value={firmFilter}
-                onChange={(e) => {
-                  setFirmFilter(e.target.value);
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
                   setCurrentPage(1);
                 }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md transition-colors"
+                aria-label="Clear search"
               >
-                <option value="all">All Projects</option>
-                {firms.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-muted-foreground font-medium shrink-0">
+            <span className="px-2.5 py-1 rounded-lg bg-muted/60 text-foreground/80 font-semibold">
+              {filteredMachines.length} equipment found
+            </span>
+            {(searchTerm || categoryFilter !== 'all' || ownershipFilter !== 'all' || statusFilter !== 'all' || departmentFilter !== 'all' || firmFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setCategoryFilter('all');
+                  setOwnershipFilter('all');
+                  setStatusFilter('all');
+                  setDepartmentFilter('all');
+                  setFirmFilter('all');
+                  setCurrentPage(1);
+                }}
+                className="text-xs text-primary hover:underline font-semibold px-2 py-1"
+              >
+                Reset filters
+              </button>
             )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-1 font-medium">
-          <span>{filteredMachines.length} equipment found</span>
+        {/* Filter Pills and Selects Row */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-800/80">
+          <select
+            className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50/60 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="all">Category: All</option>
+            <option value="PRODUCTION">Production</option>
+            <option value="MATERIAL_HANDLING">Material Handling</option>
+            <option value="UTILITY">Utility</option>
+            <option value="HVAC">HVAC</option>
+            <option value="ELECTRICAL">Electrical</option>
+            <option value="FACILITY">Facility</option>
+          </select>
+
+          <div role="group" aria-label="Ownership" className="flex items-center gap-1">
+            {(['all', 'OWNED', 'RENTED'] as const).map((o) => (
+              <button
+                key={o}
+                type="button"
+                aria-pressed={ownershipFilter === o}
+                onClick={() => {
+                  setOwnershipFilter(o);
+                  setCurrentPage(1);
+                }}
+                className={`h-9 rounded-full border px-3.5 text-xs font-semibold transition-colors ${
+                  ownershipFilter === o
+                    ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                    : 'border-border bg-background text-foreground hover:bg-muted'
+                }`}
+              >
+                {o === 'all' ? 'All' : o === 'OWNED' ? 'Owned' : 'Rented'}
+              </button>
+            ))}
+          </div>
+
+          <select
+            className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50/60 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+          >
+            <option value="all">Status: All</option>
+            <option value="OPERATIONAL">In Use / Operational</option>
+            <option value="UNDER_MAINTENANCE">Under Maintenance</option>
+            <option value="BREAKDOWN">Breakdown</option>
+            <option value="IDLE">Idle</option>
+            <option value="DECOMMISSIONED">Decommissioned</option>
+          </select>
+
+          <select
+            className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50/60 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            value={departmentFilter}
+            onChange={(e) => {
+              setDepartmentFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+          >
+            <option value="all">All Depts</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+
+          {firms.length > 0 && (
+            <select
+              className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50/60 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              value={firmFilter}
+              onChange={(e) => {
+                setFirmFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">All Projects</option>
+              {firms.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -524,6 +566,14 @@ export default function MachinesList() {
                           >
                             <FileText size={18} />
                           </Link>
+                          <button
+                            type="button"
+                            onClick={() => setEditMachine(machine)}
+                            className="p-1.5 text-emerald-600 rounded-lg hover:text-emerald-900 hover:bg-emerald-50 transition-colors"
+                            title="Edit Machine"
+                          >
+                            <Pencil size={18} />
+                          </button>
                           <Link
                             to={`/maintenance/machines/${machine.id}/parts`}
                             className="p-1.5 text-amber-600 rounded-lg hover:text-amber-900 hover:bg-amber-50 transition-colors"
@@ -553,6 +603,7 @@ export default function MachinesList() {
                         <div className="text-xs text-gray-500 font-mono mt-0.5 dark:text-gray-400">
                           {machine.assetCode}
                         </div>
+                        <OwnershipBadge value={machine.ownershipType} className="mt-1" />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                         {machine.department?.name ?? '—'}
@@ -587,7 +638,7 @@ export default function MachinesList() {
                             </span>
                             {machine.assignments?.[0] && (
                               <div className="text-[11px] text-gray-500 mt-0.5 font-medium dark:text-gray-400">
-                                {machine.assignments[0].user.name}
+                                {machine.assignments[0].user?.name || machine.assignments[0].firmName || machine.assignments[0].firm?.name || 'Assigned'}
                               </div>
                             )}
                           </div>
@@ -675,11 +726,8 @@ export default function MachinesList() {
           paginatedMachines.map((machine) => {
             const repairCount = machine._count?.breakdownReports ?? 0;
             const health = getHealthScore(machine.status, repairCount);
-            const isHired =
-              machine.ownershipType === 'RENTED' ||
-              machine.ownershipType === 'HIRED' ||
-              (!machine.firm && !!machine.supplier);
-            const vendorName = machine.supplier || machine.firmName;
+            const isHired = machine.ownershipType === 'RENTED';
+            const vendorName = machine.rentalVendorName || machine.supplier;
             const siteName = machine.firm?.name || machine.firmName || machine.location || 'Main Site';
             const categoryName = machine.category ? machine.category.replace(/_/g, ' ') : 'Equipment';
 
@@ -737,6 +785,16 @@ export default function MachinesList() {
                             >
                               <FileText size={14} className="text-sky-600" /> View Details
                             </Link>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                setEditMachine(machine);
+                              }}
+                            >
+                              <Pencil size={14} className="text-emerald-600" /> Edit Machine
+                            </button>
                             <Link
                               to={`/maintenance/daily-logs?machineId=${machine.id}`}
                               className="flex items-center gap-2 px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -759,15 +817,7 @@ export default function MachinesList() {
                     <div className="mt-2 space-y-0.5 text-xs text-gray-600 dark:text-gray-400">
                       <div className="flex items-center gap-1.5">
                         <span className="text-gray-400 text-[11px]">Ownership:</span>
-                        {isHired ? (
-                          <span className="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">
-                            Hired
-                          </span>
-                        ) : (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
-                            Owned
-                          </span>
-                        )}
+                        <OwnershipBadge value={machine.ownershipType} />
                       </div>
                       {isHired && vendorName && (
                         <div className="flex items-center gap-1 text-[11px]">
@@ -845,6 +895,8 @@ export default function MachinesList() {
           </div>
         )}
       </div>
+
+      <MachineEditDialog machine={editMachine} onClose={() => setEditMachine(null)} />
 
       {/* QR Code Dialog Modal */}
       {qrModalMachine && (

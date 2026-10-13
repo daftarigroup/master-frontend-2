@@ -16,12 +16,14 @@ import {
   YAxis,
 } from 'recharts';
 import { useProject } from '@/context/ProjectContext';
+import { toFirmParam } from '../../shared/lib/common';
 import {
   useCostAnalysisReport,
   useMachineReliabilityReport,
   useReportDepartments,
 } from '../server/tanstackQuery/useReportsQueries';
 import type { ReportTimeframe } from '../types/types';
+import { FuelEfficiencySection } from './FuelEfficiencySection';
 
 const formatINR = (value: number) => `₹${value.toLocaleString('en-IN')}`;
 
@@ -32,7 +34,7 @@ const departmentChartColors = ['#0284c7', '#60A5FA', '#F59E0B', '#10B981', '#8B5
 
 export default function ReportsPage() {
   const { selectedProject } = useProject();
-  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+  const queryFirmId = toFirmParam(selectedProject);
 
   const [reportType, setReportType] = useState<'costAnalysis' | 'machineReliability'>(
     'costAnalysis'
@@ -359,6 +361,8 @@ export default function ReportsPage() {
           )}
         </div>
       )}
+
+      <FuelEfficiencySection />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type { UserPermissions } from '@/types/sheets';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authenticateUser, getUserByUsername } from '@/services/userService';
 import { CHECKLIST_TOKEN_KEY } from '@/lib/checklistApiClient';
+import { AUTH_REJECTED_EVENT } from '@/lib/apiClient';
 
 interface AuthState {
     loggedIn: boolean;
@@ -51,6 +52,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
             setLoading(false);
         }
+    }, []);
+
+    // The API answered 401 / expired token: drop the session so the app returns to the login screen.
+    useEffect(() => {
+        const onRejected = () => {
+            if (!localStorage.getItem('auth')) return;
+            localStorage.removeItem('auth');
+            localStorage.removeItem(CHECKLIST_TOKEN_KEY);
+            setLoggedIn(false);
+            setUserPermissions(null);
+        };
+        window.addEventListener(AUTH_REJECTED_EVENT, onRejected);
+        return () => window.removeEventListener(AUTH_REJECTED_EVENT, onRejected);
     }, []);
 
     async function login(username: string, password: string) {

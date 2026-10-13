@@ -1,8 +1,17 @@
 import React from 'react';
 
+// Maintenance & Repair (merged). Retired pages (plans, assign task, calendars, daily reports, repair stages,
+// AMC, parts & vendors) are gone; their URLs redirect from main.tsx.
+
 export const MaintenanceDashboardPage = React.lazy(
   () => import('@/features/maintenancepro/dashboard/components/main_maintenancepro_dashboard')
 );
+
+export const MaintenanceRecordsPage = React.lazy(() => import('@/features/maintenancepro/records/components/RecordsList'));
+
+export const MachineRecordPage = React.lazy(() => import('@/features/maintenancepro/records/components/MachineRecord'));
+
+export const AssignmentStatusPage = React.lazy(() => import('@/features/maintenancepro/assignments/components/AssignmentStatus'));
 
 export const MachinesListPage = React.lazy(
   () => import('@/features/maintenancepro/machines/components/main_maintenancepro_machines')
@@ -20,32 +29,10 @@ export const MachinePartsPage = React.lazy(
   () => import('@/features/maintenancepro/machines/components/MachinePartsList')
 );
 
-export const MaintenancePlansPage = React.lazy(
-  () => import('@/features/maintenancepro/plans/components/main_maintenancepro_plans')
-);
-
-export const MaintenanceTasksPage = React.lazy(
-  () => import('@/features/maintenancepro/unique_task/components/main_maintenancepro_unique_task')
-);
-
-export const AssignTaskPage = React.lazy(
-  () => import('@/features/maintenancepro/assign_task/components/main_maintenancepro_assign_task')
-);
+export const WorkOrdersPage = React.lazy(() => import('@/features/maintenancepro/work_orders/components/WorkOrders'));
 
 export const BreakdownLogPage = React.lazy(
   () => import('@/features/maintenancepro/breakdown_log/components/main_maintenancepro_breakdown_log')
-);
-
-export const DailyMachineLogPage = React.lazy(
-  () => import('@/features/maintenancepro/daily_machine_log/components/main_maintenancepro_daily_machine_log')
-);
-
-export const DailyReportPage = React.lazy(
-  () => import('@/features/maintenancepro/daily_report/components/main_maintenancepro_daily_report')
-);
-
-export const MaintenanceCalendarPage = React.lazy(
-  () => import('@/features/maintenancepro/calendar_view/components/main_maintenancepro_calendar')
 );
 
 export const PendingApprovalPage = React.lazy(

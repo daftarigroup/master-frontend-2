@@ -1,28 +1,23 @@
 'use client';
 
+import { PRIORITY_OPTIONS, isAdminUser } from '../../shared/lib/common';
+import { OwnershipBadge } from '@/features/asset/fleet/components/OwnershipBadge';
 import {
   AlertTriangle,
   BarChart2,
   Building,
   Calendar,
   CheckCircle,
-  CheckCircle2,
   ChevronLeft,
-  ChevronRight,
-  Clock,
   DollarSign,
   Factory,
   FileText,
   History as HistoryIcon,
   MapPin,
-  MoreVertical,
   Package,
-  Phone,
   Settings,
   ShieldAlert,
-  ShieldCheck,
   ShoppingCart,
-  Upload,
   User,
   Wrench,
   X,
@@ -47,10 +42,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useImageUpload } from '@/hooks/useImageUpload';
+import { MachineDocumentsPanel } from '@/features/asset/documents/components/MachineDocumentsPanel';
 import { useAppSelector } from '@/store/hook';
 import { selectUser } from '@/store/slice/userAccountData';
-import { useMachineDetails, useUpdateMachine } from '../server/tanstackQuery/useMachinesQueries';
+import { useMachineDetails } from '../server/tanstackQuery/useMachinesQueries';
 import { MACHINE_CATEGORY_LABELS, MACHINE_STATUS_LABELS } from '../types/types';
 import { AddMachinePartForm } from './AddMachinePartForm';
 import { MachinePartDetailsModal } from './MachinePartDetailsModal';
@@ -131,9 +126,7 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
   const navigate = useNavigate();
   const router = { push: (p: string) => navigate(p), back: () => navigate(-1) };
   const currentUser = useAppSelector(selectUser);
-  const isAdmin =
-    (currentUser as { role?: string } | null)?.role === 'ADMIN' ||
-    (currentUser as { role?: string } | null)?.role === 'SUPERADMIN';
+  const isAdmin = isAdminUser(currentUser);
 
   const { effectivePermittedFirms } = useProject();
   const hasAccessToMachine = useMemo(() => {
@@ -146,27 +139,6 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
-  const updateMachine = useUpdateMachine();
-  const { uploadImage: uploadDoc, isUploading: isUploadingDoc } = useImageUpload({
-    bucket: 'mis-docs',
-    pathPrefix: 'maintenance/machines/documents',
-    maxSizeMB: 20,
-    allowedTypes: [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-    ],
-  });
-  const [docModalOpen, setDocModalOpen] = useState(false);
-  const [docDescription, setDocDescription] = useState('');
-  const [docFile, setDocFile] = useState<File | null>(null);
-  const [docFileName, setDocFileName] = useState('');
-  const [docFilter, setDocFilter] = useState<'all' | 'expiring' | 'expired'>('all');
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isEditPartModalOpen, setIsEditPartModalOpen] = useState(false);
   const [editingPart, setEditingPart] = useState<unknown>(null);
@@ -262,6 +234,13 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
             <span className={`w-2 h-2 rounded-full ${statusStyle.dot}`} />
             {MACHINE_STATUS_LABELS[machine.status]}
           </span>
+          <OwnershipBadge value={machine.ownershipType === 'RENTED' || machine.ownershipType === 'HIRED' ? 'RENTED' : 'OWNED'} />
+          <Link
+            to={`/asset/machines/${machine.id}/logbook`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-muted"
+          >
+            Logbook
+          </Link>
         </div>
       </div>
 
@@ -497,7 +476,7 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                         <div className="space-y-1 mt-0.5">
                           {machine.assignments.map((a) => (
                             <p key={a.id} className="text-sm font-bold text-foreground">
-                              {a.user.name}
+                              {a.user?.name || a.firmName || a.firm?.name || 'Assigned'}
                             </p>
                           ))}
                         </div>
@@ -516,18 +495,8 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                 const woTasks = (machine.workOrders ?? []).filter(
                   (wo) => wo.breakdownReportId === null
                 );
-                const priorityMap: Record<number, string> = {
-                  1: 'P1 — Critical',
-                  2: 'P2 — High',
-                  3: 'P3 — Standard',
-                  4: 'P4 — Low',
-                };
-                const priorityColors: Record<number, string> = {
-                  1: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
-                  2: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400',
-                  3: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
-                  4: 'bg-muted text-muted-foreground',
-                };
+                const priorityMap: Record<number, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, `P${o.value} — ${o.label}`]));
+                const priorityColors: Record<number, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, o.badge]));
                 const statusColors: Record<string, string> = {
                   PENDING: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
                   IN_PROGRESS:
@@ -549,226 +518,18 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                     'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400',
                 };
 
-                const standardTasks = [
-                  { title: 'Engine Oil & Filter Change', completed: true },
-                  { title: 'Hydraulic Oil Level Check', completed: true },
-                  { title: 'Air Filter Cleaning', completed: true },
-                  { title: 'Coolant Level Check', completed: true },
-                  { title: 'Undercarriage Inspection', completed: false },
-                  { title: 'Grease All Nipples', completed: false },
-                  { title: 'Battery Condition Check', completed: true },
-                  { title: 'Function Test', completed: true },
-                ];
-
-                const checklistItems =
-                  woTasks.length > 0
-                    ? woTasks.map((w) => ({
-                        id: w.id,
-                        title: w.plan?.title || `Task #${w.id.slice(-6)}`,
-                        completed: w.status === 'COMPLETED' || w.status === 'COMPLETED_LATE',
-                        status: w.status,
-                      }))
-                    : standardTasks.map((t, i) => ({
-                        id: `std-${i}`,
-                        title: t.title,
-                        completed: t.completed,
-                        status: t.completed ? 'COMPLETED' : 'PENDING',
-                      }));
-
-                const completedCount = checklistItems.filter((i) => i.completed).length;
-                const totalCount = checklistItems.length;
-                const progressPct = Math.round((completedCount / (totalCount || 1)) * 100);
-
                 return (
                   <div className="space-y-4">
-                    {/* Next Service Due Card (Image 3) */}
-                    <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                          <Calendar size={20} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-gray-900 dark:text-gray-100">
-                            Next Service Due
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                            In 250 Hours or by 25 May 2025
-                          </div>
-                        </div>
+                    {/* Service due, schedule, checklist, mechanic and cost live in Maintenance Records (real data) */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-foreground">Service schedule and checklist</div>
+                        <div className="text-xs text-muted-foreground">Next service due, checklist progress, mechanic, estimated cost and service documents.</div>
                       </div>
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300/50 shrink-0">
-                        250 Hrs Left
-                      </span>
-                    </div>
-
-                    {/* Service Schedule Card (Image 3) */}
-                    <div className="bg-card rounded-2xl border border-border p-4 shadow-2xs">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Wrench size={16} className="text-sky-600" />
-                        <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                          Service Schedule
-                        </h4>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
-                        <div className="pr-2">
-                          <div className="text-[11px] text-muted-foreground">Last Service</div>
-                          <div className="text-xs font-bold text-foreground mt-0.5">25 Apr 2025</div>
-                          <div className="text-[11px] text-muted-foreground font-mono">
-                            at 20,000 Hours
-                          </div>
-                        </div>
-                        <div className="sm:px-3 pt-2 sm:pt-0">
-                          <div className="text-[11px] text-muted-foreground">Next Due</div>
-                          <div className="text-xs font-bold text-foreground mt-0.5">20,750 Hours</div>
-                          <div className="text-[11px] text-muted-foreground font-mono">
-                            or 25 May 2025
-                          </div>
-                        </div>
-                        <div className="sm:pl-3 pt-2 sm:pt-0">
-                          <div className="text-[11px] text-muted-foreground">Service Interval</div>
-                          <div className="text-xs font-bold text-foreground mt-0.5">250 Hours</div>
-                          <div className="text-[11px] text-muted-foreground">Every 250 Hours</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Maintenance Checklist Wired to Maintenance Tasks (Image 3) */}
-                    <div className="bg-card rounded-2xl border border-border p-4 shadow-2xs space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <FileText size={16} className="text-sky-600" />
-                          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                            Maintenance Checklist
-                          </h4>
-                        </div>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50">
-                          {completedCount} / {totalCount} Completed
-                        </span>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                          style={{ width: `${progressPct}%` }}
-                        />
-                      </div>
-
-                      {/* Checklist Items */}
-                      <div className="divide-y divide-border/60 pt-1">
-                        {checklistItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className="py-2.5 flex items-center justify-between gap-3 text-xs"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {item.completed ? (
-                                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                              ) : (
-                                <Clock size={16} className="text-amber-500 shrink-0" />
-                              )}
-                              <span
-                                className={`truncate ${item.completed ? 'text-foreground' : 'text-muted-foreground'}`}
-                              >
-                                {item.title}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {item.completed ? (
-                                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                  Done
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                                  Pending
-                                </span>
-                              )}
-                              <ChevronRight size={14} className="text-muted-foreground/50" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Breakdown Reported Alert Banner (if exists) */}
-                    {machine.breakdownReports && machine.breakdownReports.length > 0 && (
-                      <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 flex items-center justify-center shrink-0">
-                            <AlertTriangle size={20} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-rose-900 dark:text-rose-200">
-                              Breakdown Reported
-                            </div>
-                            <div className="text-[11px] text-rose-600 dark:text-rose-400 mt-0.5 truncate">
-                              {machine.breakdownReports[0].title} •{' '}
-                              {formatDate(machine.breakdownReports[0].reportedAt)}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300 shrink-0">
-                          Yes
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Mechanic & Est Cost 2-Card Row (Image 3) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="bg-card rounded-2xl border border-border p-3.5 flex items-center justify-between shadow-2xs">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 flex items-center justify-center font-bold text-sm shrink-0">
-                            {machine.assignments?.[0]?.user?.name?.charAt(0) || 'R'}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                              Assigned Mechanic
-                            </div>
-                            <div className="text-xs font-bold text-foreground truncate">
-                              {machine.assignments?.[0]?.user?.name || 'Ramesh Yadav'}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground">Senior Mechanic</div>
-                          </div>
-                        </div>
-                        <a
-                          href="tel:1234567890"
-                          className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors shrink-0"
-                          title="Contact Mechanic"
-                        >
-                          <Phone size={15} />
-                        </a>
-                      </div>
-
-                      <div className="bg-card rounded-2xl border border-border p-3.5 flex items-center justify-between shadow-2xs">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center font-bold text-base shrink-0">
-                            ₹
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                              Est. Cost
-                            </div>
-                            <div className="text-base font-black text-foreground">
-                              ₹{' '}
-                              {machine.totalRepairCost
-                                ? machine.totalRepairCost.toLocaleString('en-IN')
-                                : '18,450'}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground">Parts + Labour</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Schedule Service CTA Button (Image 3) */}
-                    <div className="pt-1">
-                      <Button
-                        asChild
-                        className="w-full py-3 rounded-2xl text-xs font-bold shadow-md gap-2"
-                      >
-                        <Link to="/maintenance/plans">
+                      <Button asChild className="shrink-0 gap-2">
+                        <Link to={`/maintenance/records/${machine.id}`}>
                           <Calendar size={16} />
-                          Schedule Service
+                          Open Maintenance Records
                         </Link>
                       </Button>
                     </div>
@@ -831,7 +592,7 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-xs font-medium text-foreground/80 max-w-[140px] truncate">
-                                  {wo.plan?.title ?? (
+                                  {wo.plan?.title ?? wo.title ?? (
                                     <span className="text-muted-foreground/60">—</span>
                                   )}
                                 </td>
@@ -856,7 +617,7 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-xs font-medium text-foreground/80 whitespace-nowrap">
-                                  {wo.currentAssignee?.name ?? (
+                                  {wo.currentAssignee?.name ?? wo.responsible?.name ?? (
                                     <span className="text-muted-foreground/60">—</span>
                                   )}
                                 </td>
@@ -870,120 +631,6 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                 );
               })()}
 
-              {/* Standard Maintenance Checklist */}
-              <div className="mt-8">
-                <h3 className="mb-4 text-base font-medium">Standard Maintenance Checklist</h3>
-                <div className="p-4 bg-card rounded-lg border border-border shadow-lg">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <h4 className="mb-2 font-medium text-foreground/80">Mechanical Components</h4>
-                      <ul className="space-y-2">
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Inspect all moving parts for wear</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check belt tension and condition</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Inspect spindle for play and vibration</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Lubricate all required points</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check axis alignment</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="mb-2 font-medium text-foreground/80">
-                        Electrical &amp; Control Systems
-                      </h4>
-                      <ul className="space-y-2">
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Test emergency stop functionality</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check all electrical connections</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Verify control panel operation</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Test limit switches</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check firmware version</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="mb-2 font-medium text-foreground/80">
-                        Coolant &amp; Hydraulic Systems
-                      </h4>
-                      <ul className="space-y-2">
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check coolant level and quality</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Inspect coolant pumps and lines</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check hydraulic pressure</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Inspect for leaks</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Replace filters as needed</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="mb-2 font-medium text-foreground/80">
-                        Safety &amp; Calibration
-                      </h4>
-                      <ul className="space-y-2">
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Verify all safety guards</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Check interlocks and sensors</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Perform accuracy test</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Verify operating parameters</span>
-                        </li>
-                        <li className="flex items-center">
-                          <CheckCircle size={16} className="mr-2 text-green-500" />
-                          <span>Run test cycle</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -991,18 +638,8 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
           {selectedWO &&
             (() => {
               const wo = selectedWO;
-              const priorityMap: Record<number, string> = {
-                1: 'P1 — Critical',
-                2: 'P2 — High',
-                3: 'P3 — Standard',
-                4: 'P4 — Low',
-              };
-              const priorityColors: Record<number, string> = {
-                1: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
-                2: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400',
-                3: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
-                4: 'bg-muted text-muted-foreground',
-              };
+              const priorityMap: Record<number, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, `P${o.value} — ${o.label}`]));
+              const priorityColors: Record<number, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, o.badge]));
               const statusColors: Record<string, string> = {
                 PENDING: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
                 IN_PROGRESS: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400',
@@ -1130,14 +767,24 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                               Assigned To
                             </p>
                             <p className="text-sm font-semibold text-foreground">
-                              {wo.currentAssignee?.name ?? '—'}
+                              {wo.currentAssignee?.name ?? wo.responsible?.name ?? '—'}
                             </p>
-                            {wo.currentAssignee?.email && (
+                            {(wo.currentAssignee?.email ?? wo.responsible?.email) && (
                               <p className="text-xs text-muted-foreground/60 mt-0.5">
-                                {wo.currentAssignee.email}
+                                {wo.currentAssignee?.email ?? wo.responsible?.email}
                               </p>
                             )}
                           </div>
+                          {wo.responsible && wo.responsible.id !== wo.currentAssignee?.id && (
+                            <div className="bg-muted/50 rounded-xl p-3">
+                              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
+                                Responsible Person
+                              </p>
+                              <p className="text-sm font-semibold text-foreground">
+                                {wo.responsible.name}
+                              </p>
+                            </div>
+                          )}
                           {wo.completedBy && (
                             <div className="bg-muted/50 rounded-xl p-3">
                               <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
@@ -1341,20 +988,14 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
 
               {(() => {
                 const repairTasks = (machine.workOrders ?? []).filter(
-                  (wo) => (wo.statusLogs?.length ?? 0) > 0
+                  (wo) =>
+                    wo.type === 'REPAIR' ||
+                    wo.type === 'BREAKDOWN' ||
+                    wo.breakdownReportId !== null ||
+                    (wo.statusLogs?.length ?? 0) > 0
                 );
-                const priorityMap: Record<number, string> = {
-                  1: 'P1 — Critical',
-                  2: 'P2 — High',
-                  3: 'P3 — Standard',
-                  4: 'P4 — Low',
-                };
-                const priorityColors: Record<number, string> = {
-                  1: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
-                  2: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400',
-                  3: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
-                  4: 'bg-muted text-muted-foreground',
-                };
+                const priorityMap: Record<number, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, `P${o.value} — ${o.label}`]));
+                const priorityColors: Record<number, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, o.badge]));
                 const statusColors: Record<string, string> = {
                   PENDING: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
                   IN_PROGRESS:
@@ -1424,19 +1065,29 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                               </Button>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-400">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  wo.type === 'BREAKDOWN'
+                                    ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-400'
+                                    : 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-400'
+                                }`}
+                              >
                                 {wo.type.replace('_', ' ')}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-xs font-medium text-foreground/80 max-w-[140px] truncate">
-                              {wo.plan?.title ?? (
+                              {wo.plan?.title ?? wo.title ?? (
                                 <span className="text-muted-foreground/60">—</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-xs font-mono text-muted-foreground whitespace-nowrap">
-                              {wo.statusLogs?.[0]?.createdAt
-                                ? formatDate(wo.statusLogs[0].createdAt)
-                                : formatDate(wo.scheduledDate)}
+                              {wo.startedAt
+                                ? formatDate(wo.startedAt)
+                                : wo.scheduledDate
+                                  ? formatDate(wo.scheduledDate)
+                                  : wo.statusLogs?.[0]?.createdAt
+                                    ? formatDate(wo.statusLogs[0].createdAt)
+                                    : '—'}
                             </td>
                             <td className="px-4 py-3 text-xs font-mono text-muted-foreground whitespace-nowrap">
                               {formatDate(wo.actualDueDate)}
@@ -1456,7 +1107,7 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
                               </span>
                             </td>
                             <td className="px-4 py-3 text-xs font-medium text-foreground/80 whitespace-nowrap">
-                              {wo.currentAssignee?.name ?? (
+                              {wo.currentAssignee?.name ?? wo.responsible?.name ?? (
                                 <span className="text-muted-foreground/60">—</span>
                               )}
                             </td>
@@ -1885,424 +1536,8 @@ export default function MachineDetails({ id: propId }: MachineDetailsProps = {})
               );
             })()}
 
-          {/* ── DOCUMENTS ── */}
-          {activeTab === 'documents' &&
-            (() => {
-              const parseDoc = (entry: string): { url: string; description: string } => {
-                try {
-                  const p = JSON.parse(entry) as { url?: string; description?: string };
-                  if (p?.url) return { url: p.url, description: p.description ?? '' };
-                } catch {
-                  // Fallback for plain URL strings
-                }
-                return { url: entry, description: '' };
-              };
-
-              const docs = machine.documentUrls ?? [];
-              const parsed = docs.map(parseDoc);
-
-              const handleDocSubmit = async () => {
-                if (!docFile) return;
-                try {
-                  const result = await uploadDoc(docFile);
-                  const entry = JSON.stringify({
-                    url: result.url,
-                    description: docDescription.trim(),
-                  });
-                  await updateMachine.mutateAsync({
-                    id,
-                    data: { documentUrls: [...docs, entry] },
-                  });
-                  setDocModalOpen(false);
-                  setDocDescription('');
-                  setDocFile(null);
-                  setDocFileName('');
-                } catch (error) {
-                  console.error('Failed to upload document:', error);
-                }
-              };
-
-              return (
-                <>
-                  <div className="space-y-4">
-                    {/* Header & Filter Sub-Tabs (Image 5 style) */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-                      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                        <button
-                          type="button"
-                          onClick={() => setDocFilter('all')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
-                            docFilter === 'all'
-                              ? 'bg-primary text-primary-foreground shadow-2xs'
-                              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                          }`}
-                        >
-                          All Documents
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDocFilter('expiring')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-                            docFilter === 'expiring'
-                              ? 'bg-amber-500 text-white shadow-2xs'
-                              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                          }`}
-                        >
-                          <span>Expiring Soon</span>
-                          <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 text-[10px] flex items-center justify-center font-extrabold">
-                            3
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDocFilter('expired')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-                            docFilter === 'expired'
-                              ? 'bg-rose-500 text-white shadow-2xs'
-                              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                          }`}
-                        >
-                          <span>Expired</span>
-                          <span className="w-4 h-4 rounded-full bg-rose-200 text-rose-900 text-[10px] flex items-center justify-center font-extrabold">
-                            1
-                          </span>
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setDocModalOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold bg-primary text-primary-foreground rounded-xl shadow-sm hover:opacity-90 transition-all active:scale-95 whitespace-nowrap"
-                      >
-                        <Upload size={14} />
-                        Upload Document
-                      </button>
-                    </div>
-
-                    {/* Rich Document Cards (Image 5 style) */}
-                    {(() => {
-                      interface EquipmentDocItem {
-                        id: string;
-                        title: string;
-                        code: string;
-                        uploadedDate: string;
-                        validTill: string;
-                        status: 'VALID' | 'EXPIRING' | 'EXPIRED' | 'LATEST';
-                        type: string;
-                        url?: string;
-                      }
-
-                      const standardDocs: EquipmentDocItem[] = [
-                        {
-                          id: 'doc-rc',
-                          title: 'RC Book',
-                          code: `${machine.assetCode || 'EQP'}-RC.pdf`,
-                          uploadedDate: '12 Feb 2024',
-                          validTill: '15 Apr 2026',
-                          status: 'VALID',
-                          type: 'pdf',
-                        },
-                        {
-                          id: 'doc-ins',
-                          title: 'Insurance Certificate',
-                          code: `${machine.assetCode || 'EQP'}-INS.pdf`,
-                          uploadedDate: '10 Feb 2024',
-                          validTill: '10 Feb 2025',
-                          status: 'EXPIRING',
-                          type: 'shield',
-                        },
-                        {
-                          id: 'doc-puc',
-                          title: 'Pollution Under Control',
-                          code: `${machine.assetCode || 'EQP'}-PUC.pdf`,
-                          uploadedDate: '05 Jan 2024',
-                          validTill: '25 Jan 2025',
-                          status: 'EXPIRING',
-                          type: 'file',
-                        },
-                        {
-                          id: 'doc-lic',
-                          title: 'Operator License',
-                          code: 'LIC-OP-0458.pdf',
-                          uploadedDate: '01 Mar 2024',
-                          validTill: '01 Mar 2026',
-                          status: 'VALID',
-                          type: 'user',
-                        },
-                        {
-                          id: 'doc-mr',
-                          title: 'Last Maintenance Report',
-                          code: 'MR-EX-0008.pdf',
-                          uploadedDate: '18 May 2025',
-                          validTill: '18 May 2025',
-                          status: 'LATEST',
-                          type: 'wrench',
-                        },
-                        {
-                          id: 'doc-fit',
-                          title: 'Fitness Certificate',
-                          code: 'FIT-CERT-01.pdf',
-                          uploadedDate: '15 Jan 2024',
-                          validTill: '01 Jan 2025',
-                          status: 'EXPIRED',
-                          type: 'file',
-                        },
-                      ];
-
-                      // Merge uploaded documents
-                      const userUploadedDocs: EquipmentDocItem[] = parsed.map((p, idx) => ({
-                        id: `usr-doc-${idx}`,
-                        title: p.description || `Uploaded Document ${idx + 1}`,
-                        code: p.url.split('/').pop() || 'document.pdf',
-                        uploadedDate: formatDate(machine.createdAt),
-                        validTill: '31 Dec 2026',
-                        status: 'VALID',
-                        type: 'pdf',
-                        url: p.url,
-                      }));
-
-                      const allDocsList: EquipmentDocItem[] = [...userUploadedDocs, ...standardDocs];
-
-                      const filteredDocsList = allDocsList.filter((doc) => {
-                        if (docFilter === 'expiring') return doc.status === 'EXPIRING';
-                        if (docFilter === 'expired') return doc.status === 'EXPIRED';
-                        return true;
-                      });
-
-                      const statusBadges = {
-                        VALID: (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50">
-                            Valid
-                          </span>
-                        ),
-                        EXPIRING: (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/50">
-                            Expiring Soon
-                          </span>
-                        ),
-                        EXPIRED: (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/50">
-                            Expired
-                          </span>
-                        ),
-                        LATEST: (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400 border border-sky-200/50">
-                            Latest
-                          </span>
-                        ),
-                      };
-
-                      return (
-                        <div className="space-y-2.5">
-                          {filteredDocsList.map((doc) => (
-                            <div
-                              key={doc.id}
-                              className="p-3.5 bg-card rounded-2xl border border-border flex items-center justify-between gap-3 shadow-2xs hover:shadow-xs transition-shadow"
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 flex items-center justify-center shrink-0">
-                                  {doc.type === 'shield' ? (
-                                    <ShieldCheck size={18} />
-                                  ) : doc.type === 'user' ? (
-                                    <User size={18} />
-                                  ) : doc.type === 'wrench' ? (
-                                    <Wrench size={18} />
-                                  ) : (
-                                    <FileText size={18} />
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <h4 className="text-xs font-bold text-foreground truncate">
-                                    {doc.title}
-                                  </h4>
-                                  <p className="text-[11px] font-mono text-sky-600 dark:text-sky-400 mt-0.5 truncate">
-                                    {doc.code}
-                                  </p>
-                                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                                    Uploaded on {doc.uploadedDate}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-3 shrink-0">
-                                <div className="text-right hidden sm:block">
-                                  <div className="text-[10px] text-muted-foreground font-medium">
-                                    Valid Till
-                                  </div>
-                                  <div className="text-xs font-bold text-foreground">
-                                    {doc.validTill}
-                                  </div>
-                                </div>
-
-                                {statusBadges[doc.status]}
-
-                                <button
-                                  type="button"
-                                  className="p-1.5 text-muted-foreground/60 hover:text-foreground rounded-lg"
-                                  onClick={() => {
-                                    if (doc.url) window.open(doc.url, '_blank');
-                                  }}
-                                >
-                                  <MoreVertical size={16} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Expiry Warning Banner (Image 5 style) */}
-                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-                          <AlertTriangle size={18} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                            3 documents expiring in next 30 days
-                          </div>
-                          <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 truncate">
-                            Insurance, PUC, Fitness Certificate
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setDocFilter('expiring')}
-                        className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-900 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-gray-800 shadow-2xs shrink-0"
-                      >
-                        View All
-                      </button>
-                    </div>
-
-                    {/* Sticky Upload CTA at Bottom (Image 5 style) */}
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setDocModalOpen(true)}
-                        className="w-full py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-95"
-                      >
-                        <Upload size={16} />
-                        Upload Document
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Upload Document Modal */}
-                  <Dialog
-                    open={docModalOpen}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        setDocModalOpen(false);
-                        setDocDescription('');
-                        setDocFile(null);
-                        setDocFileName('');
-                      }
-                    }}
-                  >
-                    <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
-                      <DialogTitle className="text-base font-bold">Upload Document</DialogTitle>
-                      <DialogDescription className="text-xs text-muted-foreground">
-                        Attach a file to this machine. Description is optional.
-                      </DialogDescription>
-                      <div className="space-y-4 mt-2">
-                        {/* Description */}
-                        <div className="space-y-1.5">
-                          <label
-                            htmlFor="doc-description"
-                            className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-                          >
-                            Description <span className="font-normal normal-case">(optional)</span>
-                          </label>
-                          <input
-                            id="doc-description"
-                            type="text"
-                            placeholder="e.g. User Manual, Warranty Card…"
-                            value={docDescription}
-                            onChange={(e) => setDocDescription(e.target.value)}
-                            className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary"
-                          />
-                        </div>
-
-                        {/* File picker */}
-                        <div className="space-y-1.5">
-                          <label
-                            htmlFor="doc-file"
-                            className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-                          >
-                            File <span className="text-destructive">*</span>
-                          </label>
-                          <label
-                            htmlFor="doc-file-input"
-                            className="flex flex-col items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed border-border bg-muted/50 py-6 cursor-pointer hover:border-primary transition-colors"
-                          >
-                            {docFileName ? (
-                              <>
-                                <FileText size={28} className="text-primary" />
-                                <span className="text-xs font-semibold text-foreground max-w-full truncate px-4">
-                                  {docFileName}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  Click to change
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <Upload size={28} className="text-muted-foreground/60" />
-                                <span className="text-xs font-semibold text-primary">
-                                  Click to select file
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  PDF, DOC, DOCX, XLS, XLSX, Images — up to 20MB
-                                </span>
-                              </>
-                            )}
-                            <input
-                              id="doc-file-input"
-                              type="file"
-                              className="hidden"
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) {
-                                  setDocFile(f);
-                                  setDocFileName(f.name);
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex justify-end gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDocModalOpen(false);
-                              setDocDescription('');
-                              setDocFile(null);
-                              setDocFileName('');
-                            }}
-                            className="px-4 py-2 text-xs font-semibold rounded-lg border border-border bg-muted text-foreground hover:bg-muted/80 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleDocSubmit}
-                            disabled={!docFile || isUploadingDoc || updateMachine.isPending}
-                            className="px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider"
-                          >
-                            {isUploadingDoc || updateMachine.isPending ? 'Uploading…' : 'Upload'}
-                          </button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </>
-              );
-            })()}
+          {/* ── DOCUMENTS: the one shared documents panel (types, expiry, photo sets, signed downloads) ── */}
+          {activeTab === 'documents' && <MachineDocumentsPanel machineId={machine.id} variant="embedded" />}
 
           {/* ── ANALYTICS ── */}
           {activeTab === 'analytics' && (

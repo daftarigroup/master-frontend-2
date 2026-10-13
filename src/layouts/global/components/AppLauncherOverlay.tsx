@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -203,19 +204,19 @@ export const AppLauncherOverlay: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLauncherOpen]);
 
-  if (!shouldRender) return null;
+  if (!shouldRender || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <>
       <div
         ref={backdropRef}
         onClick={handleClose}
-        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-md"
+        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-md"
       />
 
       <div
         ref={panelRef}
-        className="fixed inset-0 z-50 flex items-center justify-center p-6 lg:items-start lg:pt-16 lg:p-4 pointer-events-none"
+        className="fixed inset-0 z-[101] flex items-center justify-center p-6 lg:items-start lg:pt-16 lg:p-4 pointer-events-none"
       >
         <div className="w-full max-w-3xl lg:max-w-sm bg-popover/95 backdrop-blur-xl border border-border/80 shadow-2xl rounded-3xl lg:rounded-2xl ring-1 ring-black/5 dark:ring-white/10 p-6 lg:p-4 pointer-events-auto">
           <div className="flex items-center justify-between mb-5 lg:mb-3">
@@ -296,7 +297,8 @@ export const AppLauncherOverlay: React.FC = () => {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 

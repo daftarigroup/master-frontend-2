@@ -95,6 +95,7 @@ export const useAssets = (params?: {
   search?: string;
   status?: string;
   department?: string;
+  ownership?: 'OWNED' | 'RENTED';
 }) => {
   return useQuery({
     queryKey: ['asset', 'assets', params],

@@ -129,6 +129,7 @@ export interface SubmitPunchPayload {
   latitude: number;
   longitude: number;
   notes?: string;
+  submittedBy?: string;
 }
 
 export interface AttendancePunch {

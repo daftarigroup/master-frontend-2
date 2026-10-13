@@ -41,6 +41,7 @@ export const HrSystemManifest: SystemManifest = {
       id: 'hr_time_attendance',
       title: 'Attendance & Leaves',
       items: [
+        { id: 'hr-mark-attendance', name: 'Mark Attendance', path: '/hr/mark-attendance' },
         { id: 'hr-attendance', name: 'Attendance Management', path: '/hr/attendance' },
         { id: 'hr-leave', name: 'Leave Management', path: '/hr/leave' },
         { id: 'hr-calendar', name: 'Company Calendar', path: '/hr/calendar' },

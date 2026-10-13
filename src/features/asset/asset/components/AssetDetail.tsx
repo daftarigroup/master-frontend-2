@@ -1,3 +1,5 @@
+import { DocumentsSummaryCard } from '@/features/asset/documents/components/DocumentsSummaryCard';
+import { useDocumentsAccess } from '@/features/asset/documents/lib/useDocumentsAccess';
 import {
   AlertTriangle,
   Building2,
@@ -19,13 +21,14 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { QRCodeModal } from './QRCodeModal';
+import { AssetForm } from './AssetForm';
+import { MachineMonthCard } from '@/features/asset/equipment/components/MachineMonthCard';
+import { OwnershipBadge } from '@/features/asset/fleet/components/OwnershipBadge';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useProject } from '@/context/ProjectContext';
-import { filterByFirmAccess, isAllowedFirm } from '@/lib/firmAccess';
-import { api } from '@/lib/axios';
+import { isAllowedFirm } from '@/lib/firmAccess';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useMachines } from '@/features/maintenancepro/machines/server/tanstackQuery/useMachinesQueries';
 import { useWorkOrders } from '@/features/maintenancepro/unique_task/server/tanstackQuery/useWorkOrdersQueries';
@@ -34,48 +37,23 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
   useAsset,
   useUpdateAsset,
-  useUsersList,
-  useDepartmentsList,
-  useSiteLocationsList,
-  type SiteLocationOption,
 } from '../server/tanstackQuery/useAssetQueries';
 import {
   CATEGORY_COLORS,
   formatCurrency,
+  formatRupees,
   formatDateOnly,
   STATUS_COLORS,
-  type AssetCategory,
-  type AssetStatus,
-  type AssetType,
+  type Asset,
 } from '../types/types';
-
-const CATEGORIES: AssetCategory[] = [
-  'IT',
-  'Electronics',
-  'Furniture',
-  'Machinery',
-  'Tools',
-  'Vehicle',
-];
-const STATUSES: AssetStatus[] = ['Active', 'Inactive', 'Under Repair', 'Disposed'];
-const ASSET_TYPES: AssetType[] = ['Asset', 'Non-Consumable', 'Consumable'];
 
 function InfoRow({
   label,
@@ -146,6 +124,7 @@ export default function AssetDetail() {
   // no more fuzzy name/serial matching on the frontend.
   const { data: machinesForAsset } = useMachines({ assetId: asset?.id }, undefined, { enabled: !!asset?.id });
   const machine = machinesForAsset?.data?.[0];
+  const docsAllowed = useDocumentsAccess();
 
   const { data: workOrdersResp } = useWorkOrders({ machineId: machine?.id }, { enabled: !!machine?.id });
   const linkedWorkOrders = workOrdersResp?.data ?? [];
@@ -173,21 +152,22 @@ export default function AssetDetail() {
     return `/maintenance/breakdown-log?${params.toString()}`;
   }, [asset, machine]);
 
-  const { data: firmsResponse } = useQuery({
-    queryKey: ['asset', 'firms', 'list'],
-    queryFn: () => api.get('/maintenance/firms'),
-    staleTime: 5 * 60_000,
-    gcTime: 10 * 60_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
+  const pmPlansUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('tab', 'scheduled');
+    params.set('new', '1');
+    params.set('type', 'SCHEDULED');
+    const mId = machine?.id;
+    if (mId) {
+      params.set('machine', String(mId));
+      params.set('machineId', String(mId));
+    }
+    const fId = asset?.firmId || machine?.firmId;
+    if (fId) params.set('firmId', String(fId));
+    return `/maintenance/work-orders?${params.toString()}`;
+  }, [asset, machine]);
 
   const { effectivePermittedFirms } = useProject();
-  const rawFirms: { id: string; name: string }[] = firmsResponse?.data?.data ?? [];
-  const firms = useMemo<{ id: string; name: string }[]>(
-    () => filterByFirmAccess(rawFirms, effectivePermittedFirms),
-    [rawFirms, effectivePermittedFirms]
-  );
 
   const hasAccessToAsset = useMemo(() => {
     if (!asset) return true;
@@ -197,118 +177,10 @@ export default function AssetDetail() {
     );
   }, [asset, machine, effectivePermittedFirms]);
 
-  const { data: users = [] } = useUsersList();
-  const { data: dbDepartments = [] } = useDepartmentsList();
-  const { data: dbLocations = [] } = useSiteLocationsList();
-
-  const [form, setForm] = useState({
-    productName: '',
-    category: 'IT' as AssetCategory,
-    type: 'Asset' as AssetType,
-    status: 'Active' as AssetStatus,
-    brand: '',
-    model: '',
-    serialNo: '',
-    sku: '',
-    mfgDate: '',
-    origin: '',
-    assetDate: '',
-    invoiceNo: '',
-    cost: '',
-    quantity: '1',
-    supplierName: '',
-    supplierPhone: '',
-    paymentMode: '',
-    depMethod: 'Straight Line',
-    location: '',
-    department: '',
-    firmId: '',
-    assignedTo: '',
-    responsiblePerson: '',
-    warrantyAvailable: 'No' as 'Yes' | 'No',
-    warrantyEnd: '',
-    maintenanceRequired: 'No' as 'Yes' | 'No',
-    priority: '' as 'Low' | 'Medium' | 'High' | '',
-  });
-
-  const availableLocations = useMemo(() => {
-    const selectedFirmId = form.firmId && form.firmId !== 'none' ? String(form.firmId) : null;
-    let list = dbLocations;
-    if (selectedFirmId) {
-      list = dbLocations.filter(
-        (l) => l.firmId && String(l.firmId) === selectedFirmId
-      );
-    }
-    const seen = new Set<string>();
-    const result: SiteLocationOption[] = [];
-    for (const item of list) {
-      const key = item.location.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push(item);
-      }
-    }
-    return result;
-  }, [dbLocations, form.firmId]);
-
-  function handleOpenEdit() {
+  async function handleSaveEdit(data: Partial<Asset>) {
     if (!asset) return;
-    setForm({
-      productName: asset.productName || '',
-      category: asset.category || 'IT',
-      type: asset.type || 'Asset',
-      status: asset.status || 'Active',
-      brand: asset.brand || '',
-      model: asset.model || '',
-      serialNo: asset.serialNo || '',
-      sku: asset.sku || '',
-      mfgDate: asset.mfgDate ? formatDateOnly(asset.mfgDate) : '',
-      origin: asset.origin || '',
-      assetDate: asset.assetDate ? formatDateOnly(asset.assetDate) : '',
-      invoiceNo: asset.invoiceNo || '',
-      cost: asset.cost !== undefined ? String(asset.cost) : '',
-      quantity: asset.quantity !== undefined ? String(asset.quantity) : '1',
-      supplierName: asset.supplierName || '',
-      supplierPhone: asset.supplierPhone || '',
-      paymentMode: asset.paymentMode || '',
-      depMethod: asset.depMethod || 'Straight Line',
-      location: asset.location || '',
-      department: asset.department || '',
-      firmId: (asset.firmId as string) || '',
-      assignedTo: asset.assignedTo || '',
-      responsiblePerson: asset.responsiblePerson || '',
-      warrantyAvailable: asset.warrantyAvailable || 'No',
-      warrantyEnd: asset.warrantyEnd ? formatDateOnly(asset.warrantyEnd) : '',
-      maintenanceRequired: asset.maintenanceRequired || 'No',
-      priority: asset.priority || '',
-    });
-    setEditOpen(true);
-  }
-
-  async function handleSaveEdit() {
-    if (!asset) return;
-    if (!form.productName.trim()) {
-      toast.error('Product name is required');
-      return;
-    }
     try {
-      await updateAssetMutation.mutateAsync({
-        id: asset.id,
-        data: {
-          ...form,
-          firmId: form.firmId && form.firmId !== 'none' ? form.firmId : undefined,
-          cost: Number(form.cost) || 0,
-          quantity: Number(form.quantity) || 1,
-          mfgDate: form.mfgDate || undefined,
-          origin: form.origin || undefined,
-          assetDate: form.assetDate || undefined,
-          invoiceNo: form.invoiceNo || undefined,
-          supplierName: form.supplierName || undefined,
-          supplierPhone: form.supplierPhone || undefined,
-          paymentMode: form.paymentMode || undefined,
-          depMethod: form.depMethod || undefined,
-        },
-      });
+      await updateAssetMutation.mutateAsync({ id: asset.id, data });
       toast.success('Asset updated successfully');
       setEditOpen(false);
     } catch {
@@ -436,7 +308,7 @@ export default function AssetDetail() {
                     </button>
                     <button
                       type="button"
-                      onClick={handleOpenEdit}
+                      onClick={() => setEditOpen(true)}
                       title="Edit Asset"
                       className="p-2 rounded-xl border border-border hover:bg-muted hover:border-primary/40 hover:text-primary transition-colors cursor-pointer"
                     >
@@ -461,6 +333,7 @@ export default function AssetDetail() {
                   <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
                     {asset.type}
                   </span>
+                  <OwnershipBadge value={asset.ownershipType} className="text-xs px-2.5 py-1" />
                   {asset.maintenanceRequired === 'Yes' && (
                     <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full flex items-center gap-1">
                       <Wrench className="h-3 w-3" /> Maintenance Due
@@ -472,7 +345,7 @@ export default function AssetDetail() {
                   {[
                     {
                       label: 'Purchase Cost',
-                      value: `₹${asset.cost.toLocaleString()}`,
+                      value: formatRupees(asset.cost),
                       color: 'text-foreground',
                     },
                     {
@@ -499,6 +372,8 @@ export default function AssetDetail() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {machine?.id && <MachineMonthCard machineId={String(machine.id)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard
@@ -527,7 +402,7 @@ export default function AssetDetail() {
           <InfoRow label="Invoice No" value={asset.invoiceNo} />
           <InfoRow
             label="Purchase Cost"
-            value={`₹${asset.cost.toLocaleString()}`}
+            value={formatRupees(asset.cost)}
             accent="text-foreground font-bold"
           />
           <InfoRow label="Quantity" value={asset.quantity} />
@@ -583,6 +458,8 @@ export default function AssetDetail() {
             <InfoRow label="AMC Valid Till" value={formatDateOnly(asset.amcEnd)} accent="text-blue-600" />
           )}
         </SectionCard>
+
+        {machine?.id && docsAllowed && <DocumentsSummaryCard machineId={machine.id} />}
 
         <SectionCard
           title="Maintenance"
@@ -661,14 +538,14 @@ export default function AssetDetail() {
           )}
           <div className="pt-3 flex gap-2">
             <Link
-              to="/maintenance/tasks"
+              to={machine?.id ? `/maintenance/work-orders?tab=scheduled&machine=${machine.id}` : '/maintenance/work-orders?tab=scheduled'}
               className="flex-1 text-center text-xs font-semibold py-1.5 px-2.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1"
             >
               <span>Maintenance Hub</span>
               <ExternalLink className="h-3 w-3" />
             </Link>
             <Link
-              to="/maintenance/plans"
+              to={pmPlansUrl}
               className="text-xs font-semibold py-1.5 px-2.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
             >
               PM Plans
@@ -688,12 +565,12 @@ export default function AssetDetail() {
               <InfoRow label="Last Repair Date" value={formatDateOnly(asset.lastRepairDate)} />
               <InfoRow
                 label="Last Repair Cost"
-                value={`₹${asset.repairCost.toLocaleString()}`}
+                value={formatRupees(asset.repairCost)}
                 accent="text-rose-600"
               />
               <InfoRow
                 label="Total Repair Cost"
-                value={`₹${asset.totalRepairCost.toLocaleString()}`}
+                value={formatRupees(asset.totalRepairCost)}
                 accent="text-rose-600 font-bold"
               />
               <InfoRow label="Parts Changed" value={asset.partChanged} />
@@ -791,476 +668,13 @@ export default function AssetDetail() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2 text-xs">
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Product Name *
-              </label>
-              <Input
-                placeholder="Product Name"
-                value={form.productName}
-                onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Category</label>
-              <Select
-                value={form.category}
-                onValueChange={(val) => setForm((f) => ({ ...f, category: val as AssetCategory }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Status</label>
-              <Select
-                value={form.status}
-                onValueChange={(val) => setForm((f) => ({ ...f, status: val as AssetStatus }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((st) => (
-                    <SelectItem key={st} value={st}>
-                      {st}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Asset Type</label>
-              <Select
-                value={form.type}
-                onValueChange={(val) => setForm((f) => ({ ...f, type: val as AssetType }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ASSET_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Brand</label>
-              <Input
-                placeholder="Brand"
-                value={form.brand}
-                onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Model</label>
-              <Input
-                placeholder="Model"
-                value={form.model}
-                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Serial No</label>
-              <Input
-                placeholder="Serial No"
-                value={form.serialNo}
-                onChange={(e) => setForm((f) => ({ ...f, serialNo: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">SKU</label>
-              <Input
-                placeholder="SKU"
-                value={form.sku}
-                onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Mfg Date</label>
-              <Input
-                type="date"
-                value={form.mfgDate}
-                onChange={(e) => setForm((f) => ({ ...f, mfgDate: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Country of Origin
-              </label>
-              <Input
-                placeholder="Country of Origin"
-                value={form.origin}
-                onChange={(e) => setForm((f) => ({ ...f, origin: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Asset Date</label>
-              <Input
-                type="date"
-                value={form.assetDate}
-                onChange={(e) => setForm((f) => ({ ...f, assetDate: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Invoice No</label>
-              <Input
-                placeholder="Invoice No"
-                value={form.invoiceNo}
-                onChange={(e) => setForm((f) => ({ ...f, invoiceNo: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Purchase Cost (₹)
-              </label>
-              <Input
-                type="number"
-                placeholder="Cost"
-                value={form.cost}
-                onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Quantity</label>
-              <Input
-                type="number"
-                placeholder="Quantity"
-                value={form.quantity}
-                onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Supplier Name
-              </label>
-              <Input
-                placeholder="Supplier Name"
-                value={form.supplierName}
-                onChange={(e) => setForm((f) => ({ ...f, supplierName: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Supplier Phone
-              </label>
-              <Input
-                placeholder="Supplier Phone"
-                value={form.supplierPhone}
-                onChange={(e) => setForm((f) => ({ ...f, supplierPhone: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Payment Mode
-              </label>
-              <Select
-                value={form.paymentMode || undefined}
-                onValueChange={(val) => setForm((f) => ({ ...f, paymentMode: val }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Payment Mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Cash">Cash</SelectItem>
-                  <SelectItem value="Card">Card</SelectItem>
-                  <SelectItem value="UPI">UPI</SelectItem>
-                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="Cheque">Cheque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Depreciation Method
-              </label>
-              <Select
-                value={form.depMethod || 'Straight Line'}
-                onValueChange={(val) => setForm((f) => ({ ...f, depMethod: val }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Depreciation Method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Straight Line">Straight Line</SelectItem>
-                  <SelectItem value="WDV">WDV</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Location</label>
-              <Select
-                value={form.location || undefined}
-                onValueChange={(val) => {
-                  if (val === '_clear') {
-                    setForm((f) => ({ ...f, location: '' }));
-                  } else {
-                    const match = dbLocations.find((l) => l.location === val);
-                    setForm((f) => ({
-                      ...f,
-                      location: val,
-                      firmId: (!f.firmId || f.firmId === 'none') && match?.firmId ? String(match.firmId) : f.firmId,
-                    }));
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_clear">Clear (None)</SelectItem>
-                  {availableLocations.map((l) => (
-                    <SelectItem key={l.id} value={l.location}>
-                      {l.location}
-                      {(!form.firmId || form.firmId === 'none') && l.firmName ? ` (${l.firmName})` : ''}
-                    </SelectItem>
-                  ))}
-                  {form.location && !availableLocations.some((l) => l.location === form.location) && (
-                    <SelectItem value={form.location}>{form.location}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Department</label>
-              <Select
-                value={form.department || undefined}
-                onValueChange={(val) =>
-                  setForm((f) => ({ ...f, department: val === '_clear' ? '' : val }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_clear">Clear (None)</SelectItem>
-                  {dbDepartments.map((d) => (
-                    <SelectItem key={d.id} value={d.name}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                  {form.department && !dbDepartments.some((d) => d.name === form.department) && (
-                    <SelectItem value={form.department}>{form.department}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Project (Firm)
-              </label>
-              <Select
-                value={form.firmId || 'none'}
-                onValueChange={(val) => {
-                  const newFirmId = val === 'none' ? '' : val;
-                  setForm((f) => {
-                    const belongs =
-                      !f.location ||
-                      !newFirmId ||
-                      dbLocations.some(
-                        (l) =>
-                          l.location.toLowerCase() === f.location.toLowerCase() &&
-                          String(l.firmId) === newFirmId
-                      );
-                    return {
-                      ...f,
-                      firmId: newFirmId,
-                      location: belongs ? f.location : '',
-                    };
-                  });
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Project (Firm)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Project (Firm)</SelectItem>
-                  {firms.map((f) => (
-                    <SelectItem key={f.id} value={String(f.id)}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Assigned To
-              </label>
-              <Select
-                value={form.assignedTo || undefined}
-                onValueChange={(value) =>
-                  setForm((f) => ({ ...f, assignedTo: value === '_clear' ? '' : value }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Assigned To" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_clear">Clear (None)</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.name}>
-                      {u.name} {u.role ? `(${u.role})` : ''}
-                    </SelectItem>
-                  ))}
-                  {form.assignedTo && !users.some((u) => u.name === form.assignedTo) && (
-                    <SelectItem value={form.assignedTo}>{form.assignedTo}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Responsible To
-              </label>
-              <Select
-                value={form.responsiblePerson || undefined}
-                onValueChange={(value) =>
-                  setForm((f) => ({ ...f, responsiblePerson: value === '_clear' ? '' : value }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Responsible To" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_clear">Clear (None)</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.name}>
-                      {u.name} {u.role ? `(${u.role})` : ''}
-                    </SelectItem>
-                  ))}
-                  {form.responsiblePerson &&
-                    !users.some((u) => u.name === form.responsiblePerson) && (
-                      <SelectItem value={form.responsiblePerson}>{form.responsiblePerson}</SelectItem>
-                    )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Warranty Available
-              </label>
-              <Select
-                value={form.warrantyAvailable}
-                onValueChange={(val) =>
-                  setForm((f) => ({ ...f, warrantyAvailable: val as 'Yes' | 'No' }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Warranty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="No">No</SelectItem>
-                  <SelectItem value="Yes">Yes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Warranty End Date
-              </label>
-              <Input
-                type="date"
-                disabled={form.warrantyAvailable === 'No'}
-                value={form.warrantyEnd}
-                onChange={(e) => setForm((f) => ({ ...f, warrantyEnd: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Maintenance Required
-              </label>
-              <Select
-                value={form.maintenanceRequired}
-                onValueChange={(val) =>
-                  setForm((f) => ({ ...f, maintenanceRequired: val as 'Yes' | 'No' }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Maintenance" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="No">No</SelectItem>
-                  <SelectItem value="Yes">Yes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Priority</label>
-              <Select
-                value={form.priority || 'Medium'}
-                disabled={form.maintenanceRequired === 'No'}
-                onValueChange={(val) =>
-                  setForm((f) => ({ ...f, priority: val as 'Low' | 'Medium' | 'High' }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <DialogFooter className="pt-2">
-            <button
-              type="button"
-              onClick={() => setEditOpen(false)}
-              className="px-4 py-2 text-xs font-medium rounded-xl border border-border hover:bg-muted transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={updateAssetMutation.isPending}
-              onClick={handleSaveEdit}
-              className="px-4 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {updateAssetMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
-          </DialogFooter>
+          <AssetForm
+            mode="edit"
+            initial={asset}
+            saving={updateAssetMutation.isPending}
+            onSubmit={handleSaveEdit}
+            onCancel={() => setEditOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>

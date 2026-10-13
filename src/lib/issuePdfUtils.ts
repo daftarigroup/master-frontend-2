@@ -99,12 +99,23 @@ export const openGroupedIssuePdfPreview = async (
     try {
         const logoBase64 = await getLogoBase64(logoUrl);
 
-        // Group records by contractor_name && site_location
+        // Group records:
+        // - For ASSET_DIESEL: group by machine & receiver
+        // - For MAINTENANCE: group by work order & machine
+        // - For MATERIAL: group by contractor & site location
         const groupsMap = new Map<string, IssueRecord[]>();
         for (const r of records) {
-            const contractor = (r.constructor_name || '').trim();
-            const site = (r.site_location || '').trim();
-            const key = `${contractor.toLowerCase()}____${site.toLowerCase()}`;
+            const kind = r.issue_kind || 'MATERIAL';
+            let key: string;
+            if (kind === 'ASSET_DIESEL') {
+                key = `diesel____${String(r.machine_id || r.machine_name || '').toLowerCase()}____${String(r.constructor_name || '').toLowerCase()}`;
+            } else if (kind === 'MAINTENANCE') {
+                key = `maint____${String(r.work_order_id || r.work_order_code || '').toLowerCase()}____${String(r.machine_id || '').toLowerCase()}`;
+            } else {
+                const contractor = (r.constructor_name || '').trim();
+                const site = (r.site_location || '').trim();
+                key = `mat____${contractor.toLowerCase()}____${site.toLowerCase()}`;
+            }
             if (!groupsMap.has(key)) {
                 groupsMap.set(key, []);
             }
@@ -184,6 +195,10 @@ export const openGroupedIssuePdfPreview = async (
 
                 pages.push({
                     type,
+                    issueKind: first.issue_kind || 'MATERIAL',
+                    machineName: first.machine_name || (first as any).machine?.name,
+                    workOrderCode: first.work_order_code || (first as any).work_order?.workOrderCode,
+                    receiverName: first.constructor_name,
                     issueNumber,
                     date: dateStr,
                     plannedDate: plannedDateStr,

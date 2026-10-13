@@ -12,6 +12,8 @@ import {
   useRejectWorkOrder,
   useWorkOrders,
 } from '../../unique_task/server/tanstackQuery/useWorkOrdersQueries';
+import { toFirmParam } from '../../shared/lib/common';
+import { CheckCircle2, Eye } from 'lucide-react';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const T = {
@@ -28,8 +30,8 @@ const T = {
   successBg: 'color-mix(in oklch, var(--success) 14%, transparent)',
   warning: 'var(--warning)',
   warningBg: 'color-mix(in oklch, var(--warning) 14%, transparent)',
-  danger: 'var(--danger)',
-  dangerBg: 'color-mix(in oklch, var(--danger) 14%, transparent)',
+  danger: 'var(--danger, var(--destructive, #ef4444))',
+  dangerBg: 'color-mix(in oklch, var(--danger, var(--destructive, #ef4444)) 14%, transparent)',
   info: 'oklch(0.488 0.243 264.376)',
   infoBg: 'oklch(0.488 0.243 264.376 / 0.14)',
   font: "'DM Sans', system-ui, sans-serif" as string,
@@ -875,9 +877,9 @@ function PendingRow({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '72px 2fr 1fr 1fr 1fr 1fr',
+        gridTemplateColumns: '135px 2fr 1fr 1fr 1fr 1fr',
         gap: 0,
-        minWidth: isMobile ? 700 : undefined,
+        minWidth: isMobile ? 760 : undefined,
         padding: isMobile ? '12px 16px' : '14px 20px',
         borderBottom: `1px solid ${T.border}`,
         background: T.card,
@@ -892,18 +894,76 @@ function PendingRow({
       }}
     >
       {/* Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <ActionBtn
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button
+          type="button"
           title="View details"
-          color={T.primary}
-          bg={T.primaryBg}
           onClick={() => onView(wo)}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 6,
+            border: `1px solid ${T.border}`,
+            background: T.muted,
+            color: T.mutedFg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all .15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = T.primaryBg;
+            e.currentTarget.style.color = T.primary;
+            e.currentTarget.style.borderColor = T.primary;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = T.muted;
+            e.currentTarget.style.color = T.mutedFg;
+            e.currentTarget.style.borderColor = T.border;
+          }}
         >
-          {Ico.eye(13)}
-        </ActionBtn>
-        <ActionBtn title="Review" color={T.warning} bg={T.warningBg} onClick={() => onReview(wo)}>
-          {Ico.review(13)}
-        </ActionBtn>
+          <Eye size={14} />
+        </button>
+        <button
+          type="button"
+          title="Review & Approve Work Order"
+          onClick={() => onReview(wo)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            background: 'color-mix(in oklch, var(--success) 14%, transparent)',
+            color: 'var(--success)',
+            border: '1px solid color-mix(in oklch, var(--success) 45%, transparent)',
+            cursor: 'pointer',
+            fontFamily: T.font,
+            transition: 'all .18s ease',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--success)';
+            e.currentTarget.style.color = '#ffffff';
+            e.currentTarget.style.borderColor = 'var(--success)';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 3px 8px rgba(16, 185, 129, 0.35)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'color-mix(in oklch, var(--success) 14%, transparent)';
+            e.currentTarget.style.color = 'var(--success)';
+            e.currentTarget.style.borderColor = 'color-mix(in oklch, var(--success) 45%, transparent)';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.04)';
+          }}
+        >
+          <CheckCircle2 size={14} />
+          <span>Approve</span>
+        </button>
       </div>
 
       {/* Task name */}
@@ -1099,7 +1159,7 @@ function ActionBtn({
 // ── Main component ─────────────────────────────────────────────────────────────
 export function MainPendingApproval() {
   const { effectivePermittedFirms, selectedProject } = useProject();
-  const queryFirmId = selectedProject ? String(selectedProject.id) : undefined;
+  const queryFirmId = toFirmParam(selectedProject);
 
   const requireCompanySelected = useRequireCompanySelected();
   const isMobile = useIsMobile();
@@ -1126,6 +1186,8 @@ export function MainPendingApproval() {
     refetch: refetchPending,
   } = useWorkOrders({
     status: 'PENDING_APPROVAL',
+    // the server returns only what this user may approve: the ones they are responsible for (an admin sees all but their own work)
+    pendingMyApproval: true,
     limit: 100,
     ...(queryFirmId ? { firmId: queryFirmId } : {}),
   });
@@ -1435,9 +1497,9 @@ export function MainPendingApproval() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '72px 2fr 1fr 1fr 1fr 1fr',
+              gridTemplateColumns: '135px 2fr 1fr 1fr 1fr 1fr',
               gap: 0,
-              minWidth: isMobile ? 700 : undefined,
+              minWidth: isMobile ? 760 : undefined,
               background: T.muted,
               borderBottom: `1px solid ${T.border}`,
               padding: isMobile ? '10px 16px' : '10px 20px',

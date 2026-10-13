@@ -7,6 +7,7 @@ import { dashboardApi as pettyCashDashboardApi, expensesApi } from '@/systems/pe
 import { documentsApi, subscriptionsApi, loansApi } from '@/systems/document/services/document.api';
 import { api } from '@/lib/axios';
 import { useMaintenanceProSidebarCountsQuery } from '@/features/maintenancepro/shared/server/tanstackQuery/useMaintenanceProSidebarCountsQuery';
+import { useOpsBadgeCounts } from './useOpsBadgeCounts';
 import { repairSystemApi } from '@/features/maintenancepro/repair/server/api/repairSystemApi';
 
 interface UseSidebarBadgeCountsProps {
@@ -170,6 +171,7 @@ export function useSidebarBadgeCounts({
 
     // ── 5. Maintenance System ────────────────────────────────────────────
     const { data: maintCounts } = useMaintenanceProSidebarCountsQuery();
+    const opsCounts = useOpsBadgeCounts(isUserLoggedIn);
 
     // ── 6. Repair System ─────────────────────────────────────────────────
     const { data: repairIndents = [] } = useQuery({
@@ -347,16 +349,16 @@ export function useSidebarBadgeCounts({
             }
 
             // 6. Maintenance Management System
+            // Merged Maintenance & Repair: the new routes carry the counts the old pages had
             if (maintCounts) {
-                counts['/maintenance/tasks'] = Number(maintCounts.scheduleMaintenance || 0);
-                counts['/maintenance/pending'] = Number(maintCounts.adminApproval || 0);
-                counts['/maintenance/breakdown-log'] = Number(maintCounts.breakdownLog || 0);
+                // tasks waiting for me (the old combined count was every open order in the firm)
+                counts['/maintenance/work-orders'] = opsCounts['/maintenance/work-orders'];
+                counts['/maintenance/approvals'] = Number(maintCounts.adminApproval || 0);
             }
 
-            // 7. Repair Management System
-            if (maintCounts) {
-                counts['/repair/tasks'] = Number(maintCounts.repair || 0);
-            }
+            counts['/asset/work-logs'] = opsCounts['/asset/work-logs'];
+            counts['/maintenance/records'] = opsCounts['/maintenance/records'];
+            counts['/maintenance/assignments'] = opsCounts['/maintenance/assignments'];
 
             if (repairIndents.length > 0) {
                 // Pending Store-In (Dispatched for repair but not yet received back in store)
@@ -441,6 +443,7 @@ export function useSidebarBadgeCounts({
         loans,
         hrCounts,
         maintCounts,
+        opsCounts,
         repairIndents,
     ]);
 }

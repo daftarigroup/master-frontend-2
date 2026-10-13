@@ -259,9 +259,20 @@ export const SheetsProvider = ({ children }: { children: React.ReactNode }) => {
                     constructorName: r.constructor_name,
                     siteLocation: r.site_location,
                     rejected_damage_qty: r.rejected_damage_qty,
+                    damage_remark: r.damage_remark,
                     return_slip: r.return_slip || '',
                     returnPersonName: r.return_person_name,
                     issuePersonName: r.issue_person_name,
+                    issueKind: r.issue_kind,
+                    machineId: r.machine_id,
+                    workOrderId: r.work_order_id,
+                    workOrderCode: (r as any).work_order_code || (r as any).work_order?.workOrderCode || undefined,
+                    workOrderTitle: (r as any).work_order_title || (r as any).work_order?.title || undefined,
+                    workOrderStatus: (r as any).work_order_status || (r as any).work_order?.status || undefined,
+                    workOrderRepairParts: (r as any).work_order?.repairParts || (r as any).work_order_repair_parts || undefined,
+                    meterReading: r.meter_reading,
+                    machineName: r.machine_name,
+                    machineUnit: r.machine_unit,
                 }));
                 setIssueSheet(mapped as unknown as IssueSheet[]);
                 setIssueLoading(false);

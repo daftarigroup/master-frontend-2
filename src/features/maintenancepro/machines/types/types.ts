@@ -17,6 +17,27 @@ export type MachineCategory =
   | 'SAFETY'
   | 'FACILITY';
 
+export type EquipmentType =
+  | 'EXCAVATOR'
+  | 'BACKHOE_LOADER'
+  | 'TIPPER'
+  | 'TRUCK'
+  | 'TRANSIT_MIXER'
+  | 'ROLLER'
+  | 'TRACTOR'
+  | 'WATER_PUMP'
+  | 'DG_SET'
+  | 'CAR'
+  | 'OTHER'
+  | 'LOADER'
+  | 'DOZER'
+  | 'GRADER'
+  | 'CRANE'
+  | 'CONCRETE_PUMP'
+  | 'BATCHING_PLANT'
+  | 'COMPRESSOR'
+  | 'WATER_TANKER';
+
 export interface MachineDepartment {
   id: string;
   name: string;
@@ -24,7 +45,10 @@ export interface MachineDepartment {
 
 export interface MachineAssignment {
   id: string;
-  user: { id: string; name: string; email: string; role?: string };
+  firmId?: string;
+  firmName?: string | null;
+  firm?: { id: string; name: string } | null;
+  user?: { id: string; name: string; email?: string; role?: string } | null;
 }
 
 export interface Machine {
@@ -45,6 +69,19 @@ export interface Machine {
   category: MachineCategory;
   subCategory: string | null;
   ownershipType?: 'OWNED' | 'RENTED' | 'HIRED' | string | null;
+  equipmentType?: EquipmentType | null;
+  readingUnit?: 'KM' | 'HOURS' | 'NONE' | null;
+  openingReading?: number | null;
+  expectedConsumption?: number | null;
+  registrationNo?: string | null;
+  capacityLabel?: string | null;
+  siteLocationId?: string | null;
+  siteLocation?: { id: string; location: string } | null;
+  rentalStartAt?: string | null;
+  rentalEndAt?: string | null;
+  rentalVendorId?: string | null;
+  rentalVendorName?: string | null;
+  hireType?: 'DRY' | 'WET' | null;
   criticalityLevel: number;
   location: string | null;
   locationCode: string | null;
@@ -113,7 +150,9 @@ export type WorkOrderStatus =
 export interface MaintenanceWorkOrder {
   id: string;
   breakdownReportId: string | null;
-  type: 'SCHEDULED' | 'BREAKDOWN' | 'ONE_TIME';
+  type: 'SCHEDULED' | 'BREAKDOWN' | 'ONE_TIME' | 'REPAIR';
+  title?: string | null;
+  description?: string | null;
   status: WorkOrderStatus;
   priority: number;
   scheduledDate: string;
@@ -125,7 +164,8 @@ export interface MaintenanceWorkOrder {
   slaBreach: boolean;
   cancelReason: string | null;
   skipReason: string | null;
-  currentAssignee: { id: string; name: string; email?: string };
+  currentAssignee?: { id: string; name: string; email?: string } | null;
+  responsible?: { id: string; name: string; email?: string } | null;
   plan: {
     title: string;
     activityType: { id: string; name: string; code: string | null } | null;
@@ -183,9 +223,22 @@ export interface MachineListResponse {
 }
 
 export interface CreateMachinePayload {
+  ownershipType?: 'OWNED' | 'RENTED';
+  equipmentType?: EquipmentType;
+  readingUnit?: 'KM' | 'HOURS' | 'NONE';
+  openingReading?: number;
+  expectedConsumption?: number;
+  registrationNo?: string;
+  capacityLabel?: string;
+  siteLocationId?: string;
+  rentalStartAt?: string;
+  rentalEndAt?: string;
+  rentalVendorId?: string;
+  rentalVendorName?: string;
+  hireType?: 'DRY' | 'WET';
   name: string;
-  assetCode: string;
-  category: MachineCategory;
+  assetCode?: string;
+  category?: MachineCategory;
   firmId?: string;
   departmentId?: string;
   serialNumber?: string;

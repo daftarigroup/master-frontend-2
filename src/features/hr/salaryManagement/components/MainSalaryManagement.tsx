@@ -8,6 +8,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconCurrencyRupee,
+  IconDownload,
   IconEdit,
   IconFilter,
   IconLoader2,
@@ -41,6 +42,7 @@ import {
   usePayrollOverview,
 } from '../server/tanstackQuery/useSalaryManagementQueries';
 import type { PayrollEmployee } from '../types/types';
+import { exportSalaryPreviewToExcel } from '../utils/exportSalaryPreviewExcel';
 
 const T = {
   bg: 'var(--background)',
@@ -935,6 +937,32 @@ export default function MainSalaryManagement() {
     setSelectedIds(new Set());
   };
 
+  const handleExportSalaryPreview = (onlySelected = false) => {
+    const listToExport = onlySelected
+      ? filtered.filter((e) => selectedIds.has(e.employeeId))
+      : filtered;
+
+    if (listToExport.length === 0) {
+      toast.error('No employees to export');
+      return;
+    }
+
+    try {
+      exportSalaryPreviewToExcel({
+        employees: listToExport,
+        month,
+        year,
+        monthName: MONTHS[month - 1],
+      });
+      toast.success(
+        `Exported salary preview for ${listToExport.length} employee${listToExport.length !== 1 ? 's' : ''}`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Export failed: ${msg}`);
+    }
+  };
+
   if (!isAdmin) return <MainMySalary />;
 
   return (
@@ -1169,6 +1197,37 @@ export default function MainSalaryManagement() {
                 </div>
               );
             })()}
+
+            {/* Top Right: Export Salary Preview */}
+            <button
+              type="button"
+              onClick={() => handleExportSalaryPreview(false)}
+              disabled={isLoading || filtered.length === 0}
+              title="Export salary preview to Excel (.xlsx)"
+              style={{
+                height: 36,
+                padding: '0 14px',
+                borderRadius: 9,
+                border: `1px solid ${T.success}50`,
+                background: T.successBg,
+                color: T.success,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: isLoading || filtered.length === 0 ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: T.font,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                marginLeft: 'auto',
+                opacity: isLoading || filtered.length === 0 ? 0.5 : 1,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <IconDownload size={14} style={{ flexShrink: 0 }} />
+              <span>Export Salary Preview</span>
+            </button>
           </div>
 
           {/* Stat cards */}
@@ -1220,14 +1279,14 @@ export default function MainSalaryManagement() {
             {/* Toolbar */}
             <div
               style={{
-                padding: '14px 20px',
+                padding: '12px 16px',
                 borderBottom: `1px solid ${T.border}`,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 10,
               }}
             >
-              {/* Row 1: count + search + clear */}
+              {/* Row 1: count + search + clear + export */}
               <div
                 style={{
                   display: 'flex',
@@ -1235,6 +1294,8 @@ export default function MainSalaryManagement() {
                   justifyContent: 'space-between',
                   flexWrap: 'wrap',
                   gap: 10,
+                  width: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1257,25 +1318,33 @@ export default function MainSalaryManagement() {
                     </span>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'nowrap',
+                    flexShrink: 0,
+                    maxWidth: '100%',
+                  }}
+                >
                   <input
                     type="text"
                     placeholder="Search name, ID, department…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     style={{
-                      height: 34,
-                      padding: '0 12px',
+                      height: 32,
+                      padding: '0 10px',
                       borderRadius: 8,
                       border: `1px solid ${T.border}`,
                       background: T.muted,
                       color: T.fg,
-                      fontSize: 13,
+                      fontSize: 12,
                       fontFamily: T.font,
                       outline: 'none',
-                      width: '100%',
-                      maxWidth: 220,
-                      minWidth: 160,
+                      width: 175,
+                      boxSizing: 'border-box',
                     }}
                   />
                   {(activeFilterCount > 0 || search) && (
@@ -1283,8 +1352,8 @@ export default function MainSalaryManagement() {
                       type="button"
                       onClick={clearFilters}
                       style={{
-                        height: 34,
-                        padding: '0 12px',
+                        height: 32,
+                        padding: '0 8px',
                         borderRadius: 8,
                         border: `1px solid ${T.border}`,
                         background: T.muted,
@@ -1292,16 +1361,47 @@ export default function MainSalaryManagement() {
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 5,
+                        gap: 4,
                         fontFamily: T.font,
                         whiteSpace: 'nowrap',
+                        boxSizing: 'border-box',
+                        flexShrink: 0,
                       }}
                     >
-                      <IconX size={13} /> Clear
+                      <IconX size={12} /> Clear
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => handleExportSalaryPreview(false)}
+                    disabled={isLoading || filtered.length === 0}
+                    title="Export salary preview to Excel (.xlsx)"
+                    style={{
+                      height: 32,
+                      padding: '0 10px',
+                      borderRadius: 8,
+                      border: `1px solid ${T.success}50`,
+                      background: T.successBg,
+                      color: T.success,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: isLoading || filtered.length === 0 ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontFamily: T.font,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      boxSizing: 'border-box',
+                      opacity: isLoading || filtered.length === 0 ? 0.5 : 1,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <IconDownload size={13} style={{ flexShrink: 0 }} />
+                    <span>Export Preview</span>
+                  </button>
                 </div>
               </div>
 
@@ -1538,6 +1638,30 @@ export default function MainSalaryManagement() {
                   >
                     <IconRefresh size={13} />
                     Regen ({selectedCount})
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkLoading}
+                    onClick={() => handleExportSalaryPreview(true)}
+                    title="Export selected employees preview to Excel"
+                    style={{
+                      height: 30,
+                      padding: '0 12px',
+                      borderRadius: 7,
+                      border: `1px solid ${T.success}50`,
+                      background: T.successBg,
+                      color: T.success,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontFamily: T.font,
+                    }}
+                  >
+                    <IconDownload size={13} />
+                    Export Selected ({selectedCount})
                   </button>
                   <button
                     type="button"

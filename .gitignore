@@ -41,4 +41,6 @@ migration.sql
 GEMINI.md
 TARGET_MULTI_SYSTEM_LAYOUT_ARCHITECTURE.md
 WORKFLOW_AUDIT_CHECKLIST.md
-database/
+database/
+
+*.md

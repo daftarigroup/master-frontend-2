@@ -1,6 +1,13 @@
 'use client';
 
-import { IconDownload, IconPrinter, IconQrcode, IconX } from '@tabler/icons-react';
+import {
+  IconCheck,
+  IconCopy,
+  IconDownload,
+  IconPrinter,
+  IconQrcode,
+  IconX,
+} from '@tabler/icons-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -50,7 +57,19 @@ const encodeConfig = (cfg: CandidateFieldConfig): string =>
 
 const QrCodeModal: React.FC<QrCodeModalProps> = ({ indent, onClose }) => {
   const [applyUrl, setApplyUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  const handleCopy = async () => {
+    if (!applyUrl) return;
+    try {
+      await navigator.clipboard.writeText(applyUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy URL to clipboard:', err);
+    }
+  };
 
   useEffect(() => {
     let cfg = DEFAULT_CONFIG;
@@ -167,9 +186,24 @@ const QrCodeModal: React.FC<QrCodeModalProps> = ({ indent, onClose }) => {
             settings
           </p>
           {applyUrl && (
-            <p className="max-w-full break-all rounded-lg border border-border bg-muted px-3 py-2 text-center font-mono text-[10px] text-muted-foreground">
-              {applyUrl}
-            </p>
+            <div className="relative flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted/60 px-3 py-2 transition-colors hover:bg-muted">
+              <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-muted-foreground select-all text-left">
+                {applyUrl}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopy}
+                title={copied ? 'Copied to clipboard!' : 'Copy application link'}
+                aria-label={copied ? 'Copied' : 'Copy application link'}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground shadow-xs transition-all hover:bg-muted hover:text-foreground active:scale-95"
+              >
+                {copied ? (
+                  <IconCheck className="h-3.5 w-3.5 text-emerald-600 animate-in zoom-in-75 duration-150" />
+                ) : (
+                  <IconCopy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
           )}
         </div>
 

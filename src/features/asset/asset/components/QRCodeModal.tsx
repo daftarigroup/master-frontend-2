@@ -75,11 +75,15 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ asset, open, onOpenCha
     const svgData = new XMLSerializer().serializeToString(svg);
     const svgBase64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
 
+    // Asset fields are free text: escape them before they go into the print document.
+    const esc = (v: unknown) =>
+      String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
     const printHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Asset Tag - ${asset.sn}</title>
+  <title>Asset Tag - ${esc(asset.sn)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -160,13 +164,13 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ asset, open, onOpenCha
 <body>
   <div class="tag-container">
     <img class="qr-img" src="${svgBase64}" alt="QR Code" />
-    <div class="tag-sn">${asset.sn}</div>
-    <div class="tag-name">${asset.productName}</div>
-    ${asset.brand || asset.model ? `<div class="tag-brand">${asset.brand || ''} ${asset.model ? '· ' + asset.model : ''}</div>` : ''}
-    <div class="tag-meta">${asset.category} · ${asset.department || 'General'}</div>
-    <div class="tag-meta">Location: ${asset.location || 'N/A'}</div>
-    <div class="tag-badge">${asset.status}</div>
-    <div class="tag-url">${productUrl}</div>
+    <div class="tag-sn">${esc(asset.sn)}</div>
+    <div class="tag-name">${esc(asset.productName)}</div>
+    ${asset.brand || asset.model ? `<div class="tag-brand">${esc(asset.brand)} ${asset.model ? '· ' + esc(asset.model) : ''}</div>` : ''}
+    <div class="tag-meta">${esc(asset.category)} · ${esc(asset.department || 'General')}</div>
+    <div class="tag-meta">Location: ${esc(asset.location || 'N/A')}</div>
+    <div class="tag-badge">${esc(asset.status)}</div>
+    <div class="tag-url">${esc(productUrl)}</div>
   </div>
   <script>
     window.onload = function() {

@@ -27,6 +27,7 @@ import {
 } from '@tabler/icons-react';
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ModalPortal } from '@/features/hr/_shared/components';
 import { ClaimModal } from '@/features/hr/myAttendance/components/MainMyAttendance';
@@ -57,7 +58,6 @@ import {
 } from '../server/tanstackQuery/useAttendanceQueries';
 import type { AttendanceClaim, AttendanceRecord, CompanyShift, EmployeeMeta, MonthlyAttendanceSummary } from '../types/types';
 import AttendanceConfigTab from './AttendanceConfigTab';
-import SubmitAttendanceTab from './SubmitAttendanceTab';
 
 type ShiftInfo = Pick<CompanyShift, 'id' | 'name' | 'startTime' | 'endTime'>;
 
@@ -1308,7 +1308,7 @@ export const MainEmployeeAttendance = () => {
     [holidayList]
   );
 
-  const [mainTab, setMainTab] = useState<'attendance' | 'submit' | 'claims' | 'config'>(
+  const [mainTab, setMainTab] = useState<'attendance' | 'claims' | 'config'>(
     'attendance'
   );
   const [search, setSearch] = useState('');
@@ -1817,39 +1817,44 @@ export const MainEmployeeAttendance = () => {
         </div>
 
         {/* Tab switcher */}
-        <div className="overflow-x-auto">
-          <div className="flex w-fit items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-xs">
-            {(
-              [
-                { key: 'attendance', label: 'Attendance', Icon: IconCalendarStats },
-                ...(isAdmin
-                  ? ([{ key: 'submit', label: 'Mark Attendance', Icon: IconCamera }] as const)
-                  : []),
-                { key: 'claims', label: 'Claim Requests', Icon: IconFileText },
-                ...(isAdmin
-                  ? ([{ key: 'config', label: 'Attendance Config', Icon: IconSettings }] as const)
-                  : []),
-              ] as const
-            ).map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setMainTab(key)}
-                className={cn(
-                  'inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors',
-                  mainTab === key
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="overflow-x-auto">
+            <div className="flex w-fit items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-xs">
+              {(
+                [
+                  { key: 'attendance', label: 'Attendance', Icon: IconCalendarStats },
+                  { key: 'claims', label: 'Claim Requests', Icon: IconFileText },
+                  ...(isAdmin
+                    ? ([{ key: 'config', label: 'Attendance Config', Icon: IconSettings }] as const)
+                    : []),
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMainTab(key)}
+                  className={cn(
+                    'inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors',
+                    mainTab === key
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {mainTab === 'submit' && isAdmin && <SubmitAttendanceTab employees={employees} />}
+          <Link
+            to="/hr/mark-attendance"
+            className="inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/20"
+          >
+            <IconCamera className="h-4 w-4" />
+            Mark Attendance
+          </Link>
+        </div>
 
         {mainTab === 'claims' && <ClaimsTab employees={employees} />}
 

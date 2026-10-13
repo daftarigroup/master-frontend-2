@@ -2,8 +2,8 @@ import type { SystemManifest } from '@/shared/types/systemManifest';
 
 export const MaintenanceSystemManifest: SystemManifest = {
   id: 'maintenance',
-  name: 'Maintenance & Machinery System',
-  description: 'Preventive maintenance, machine breakdown logs, work orders, and spare parts management',
+  name: 'Maintenance & Repair System',
+  description: 'Machines, work orders (scheduled, breakdown, repair, outsourced), approvals and breakdowns',
   version: '1.0.0',
   iconName: 'Wrench',
   themeColor: 'amber',
@@ -17,7 +17,7 @@ export const MaintenanceSystemManifest: SystemManifest = {
       items: [
         { id: 'dash', name: 'Maintenance Overview', path: '/maintenance/dashboard' },
         { id: 'machines', name: 'Machine Registry', path: '/maintenance/machines' },
-        { id: 'breakdowns', name: 'Breakdown Requests', path: '/maintenance/breakdowns' },
+        { id: 'work_orders', name: 'Work Orders', path: '/maintenance/work-orders' },
       ],
     },
   ],

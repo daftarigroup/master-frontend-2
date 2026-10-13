@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateMachinePartPayload, UpdateMachinePartPayload } from '../../types/types';
 import * as api from '../api/machinePartsApi';
+import { machinesKeys } from './useMachinesQueries';
 
 export const machinePartsKeys = {
   all: ['maintenancepro', 'machine-parts'] as const,
@@ -41,6 +42,7 @@ export const useCreateMachinePart = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: machinePartsKeys.list(variables.machineId) });
       queryClient.invalidateQueries({ queryKey: machinePartsKeys.list() });
+      queryClient.invalidateQueries({ queryKey: machinesKeys.all });
     },
   });
 };
@@ -54,6 +56,7 @@ export const useUpdateMachinePart = () => {
       queryClient.invalidateQueries({ queryKey: machinePartsKeys.list(updatedPart.machineId) });
       queryClient.invalidateQueries({ queryKey: machinePartsKeys.list() });
       queryClient.invalidateQueries({ queryKey: machinePartsKeys.detail(updatedPart.id) });
+      queryClient.invalidateQueries({ queryKey: machinesKeys.all });
     },
   });
 };
@@ -64,6 +67,7 @@ export const useDeleteMachinePart = () => {
     mutationFn: (id: string) => api.deleteMachinePart(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: machinePartsKeys.all });
+      queryClient.invalidateQueries({ queryKey: machinesKeys.all });
     },
   });
 };

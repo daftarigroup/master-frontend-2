@@ -186,6 +186,10 @@ export interface Product {
 
 export interface IssuePdfGroupProps {
     type: 'issue' | 'return';
+    issueKind?: 'MATERIAL' | 'MAINTENANCE' | 'ASSET_DIESEL';
+    machineName?: string;
+    workOrderCode?: string;
+    receiverName?: string;
     issueNumber: string;
     date: string;
     plannedDate?: string;
@@ -211,6 +215,10 @@ export interface IssuePdfProps extends Partial<IssuePdfGroupProps> {
 const SlipPanel = ({
     copyTitle,
     type,
+    issueKind = 'MATERIAL',
+    machineName,
+    workOrderCode,
+    receiverName,
     issueNumber,
     date,
     plannedDate,
@@ -229,6 +237,8 @@ const SlipPanel = ({
     startSr = 1,
 }: IssuePdfGroupProps & { copyTitle: string }) => {
     const isReturn = type === 'return';
+    const isDiesel = issueKind === 'ASSET_DIESEL';
+    const isMaintenance = issueKind === 'MAINTENANCE';
     const isCompact = (products?.length || 0) > 4;
 
     return (
@@ -250,10 +260,22 @@ const SlipPanel = ({
 
             <View style={[styles.header, isCompact ? { marginBottom: 3, paddingBottom: 2 } : {}]}>
                 <Text style={[styles.title, isCompact ? { fontSize: 11, marginBottom: 0.5 } : {}]}>
-                    {isReturn ? 'STORE RETURN SLIP' : 'STORE ISSUE SLIP'}
+                    {isReturn
+                        ? 'STORE RETURN SLIP'
+                        : isDiesel
+                        ? 'STORE DIESEL ISSUE SLIP'
+                        : isMaintenance
+                        ? 'STORE MAINTENANCE ISSUE SLIP'
+                        : 'STORE ISSUE SLIP'}
                 </Text>
                 <Text style={styles.subtitle}>
-                    {isReturn ? 'Material Return Confirmation' : 'Material Issue Note'}
+                    {isReturn
+                        ? 'Material Return Confirmation'
+                        : isDiesel
+                        ? 'Diesel Issue to Equipment Note'
+                        : isMaintenance
+                        ? 'Machine Spare Parts Issue Note'
+                        : 'Material Issue Note'}
                     {totalPages && totalPages > 1 ? ` • PAGE ${pageNumber} OF ${totalPages}` : ''}
                 </Text>
             </View>
@@ -269,29 +291,76 @@ const SlipPanel = ({
                         <Text style={styles.value}>{date}</Text>
                     </View>
                     <View style={styles.infoItem}>
-                        <Text style={styles.label}>PLANNED DATE</Text>
-                        <Text style={styles.value}>{plannedDate || '-'}</Text>
-                    </View>
-                    <View style={styles.infoItem}>
                         <Text style={styles.label}>PROJECT NAME</Text>
                         <Text style={styles.value}>{projectName || '-'}</Text>
                     </View>
-                    <View style={styles.infoItem}>
-                        <Text style={styles.label}>SITE LOCATION</Text>
-                        <Text style={styles.value}>{siteLocation || '-'}</Text>
-                    </View>
-                    <View style={styles.infoItem}>
-                        <Text style={styles.label}>CONTRACTOR NAME</Text>
-                        <Text style={styles.value}>{constructorName || '-'}</Text>
-                    </View>
-                    <View style={styles.infoItem}>
-                        <Text style={styles.label}>{isReturn ? 'RETURN PERSON' : 'ISSUE PERSON'}</Text>
-                        <Text style={styles.value}>{isReturn ? returnPersonName : issuePersonName || '-'}</Text>
-                    </View>
-                    <View style={styles.infoItem}>
-                        <Text style={styles.label}>ISSUE REMARKS</Text>
-                        <Text style={styles.value}>{remarks || '-'}</Text>
-                    </View>
+
+                    {isDiesel ? (
+                        <>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>MACHINE</Text>
+                                <Text style={styles.value}>{machineName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>SITE LOCATION</Text>
+                                <Text style={styles.value}>{siteLocation || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>RECEIVER (OPERATOR)</Text>
+                                <Text style={styles.value}>{receiverName || constructorName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>ISSUED BY</Text>
+                                <Text style={styles.value}>{issuePersonName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItemFull}>
+                                <Text style={styles.label}>ISSUE REMARKS</Text>
+                                <Text style={styles.value}>{remarks || '-'}</Text>
+                            </View>
+                        </>
+                    ) : isMaintenance ? (
+                        <>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>MACHINE</Text>
+                                <Text style={styles.value}>{machineName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>WORK ORDER</Text>
+                                <Text style={styles.value}>{workOrderCode || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>ISSUED BY</Text>
+                                <Text style={styles.value}>{issuePersonName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItemFull}>
+                                <Text style={styles.label}>ISSUE REMARKS</Text>
+                                <Text style={styles.value}>{remarks || '-'}</Text>
+                            </View>
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>PLANNED DATE</Text>
+                                <Text style={styles.value}>{plannedDate || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>SITE LOCATION</Text>
+                                <Text style={styles.value}>{siteLocation || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>CONTRACTOR NAME</Text>
+                                <Text style={styles.value}>{constructorName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>{isReturn ? 'RETURN PERSON' : 'ISSUE PERSON'}</Text>
+                                <Text style={styles.value}>{isReturn ? returnPersonName : issuePersonName || '-'}</Text>
+                            </View>
+                            <View style={styles.infoItem}>
+                                <Text style={styles.label}>ISSUE REMARKS</Text>
+                                <Text style={styles.value}>{remarks || '-'}</Text>
+                            </View>
+                        </>
+                    )}
 
                     {isReturn && (
                         <>
@@ -311,9 +380,9 @@ const SlipPanel = ({
                     <View style={[styles.tableHeader, isCompact ? { padding: 3 } : {}]}>
                         <Text style={styles.colSr}>#</Text>
                         <View style={[styles.colMain, !isReturn ? { width: '45%' } : {}]}>
-                            <Text>MATERIAL / PRODUCT</Text>
+                            <Text>{isDiesel ? 'ITEM DESCRIPTION' : isMaintenance ? 'PART / ITEM' : 'MATERIAL / PRODUCT'}</Text>
                         </View>
-                        <Text style={[styles.colQty, isReturn ? { width: '13%' } : {}]}>ISSUE QTY</Text>
+                        <Text style={[styles.colQty, isReturn ? { width: '13%' } : {}]}>{isDiesel ? 'QUANTITY' : 'ISSUE QTY'}</Text>
                         {isReturn && <Text style={styles.colReturnQty}>RETURN QTY</Text>}
                         <Text style={styles.colUom}>UOM</Text>
                         <Text style={styles.colRemark}>ISSUE REMARK</Text>
@@ -338,13 +407,16 @@ const SlipPanel = ({
             <View style={[styles.bottomSection, isCompact ? { paddingTop: 4 } : {}]}>
                 <View style={[styles.signatureSection, isCompact ? { marginBottom: 3 } : {}]}>
                     <View style={styles.signatureBox}>
+                        <Text style={styles.signatureName}>{issuePersonName || '-'}</Text>
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureLabel}>Store incharge</Text>
                     </View>
                     <View style={styles.signatureBox}>
-                        <Text style={styles.signatureName}>{constructorName}</Text>
+                        <Text style={styles.signatureName}>{(isDiesel || isMaintenance ? (receiverName || constructorName) : constructorName) || '-'}</Text>
                         <View style={styles.signatureLine} />
-                        <Text style={styles.signatureLabel}>contractor</Text>
+                        <Text style={styles.signatureLabel}>
+                            {isDiesel ? 'Operator / Receiver' : isMaintenance ? 'Technician / Receiver' : 'contractor'}
+                        </Text>
                     </View>
                 </View>
 

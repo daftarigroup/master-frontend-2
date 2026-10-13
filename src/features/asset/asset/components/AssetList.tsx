@@ -19,14 +19,16 @@ import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeModal } from './QRCodeModal';
 import { BulkQRModal } from './BulkQRModal';
+import { AssetForm, ASSET_CATEGORIES } from './AssetForm';
+import { OwnershipBadge } from '@/features/asset/fleet/components/OwnershipBadge';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api } from '@/lib/axios';
 import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -44,10 +46,7 @@ import { cn } from '@/lib/utils';
 import {
   useAssets,
   useCreateAsset,
-  useUsersList,
   useDepartmentsList,
-  useSiteLocationsList,
-  type SiteLocationOption,
 } from '../server/tanstackQuery/useAssetQueries';
 import {
   CATEGORY_COLORS,
@@ -80,16 +79,19 @@ function AssetCard({ asset }: { asset: Asset }) {
             </p>
           </div>
         </div>
-        <span
-          className={cn(
-            'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border',
-            statusCfg.bg,
-            statusCfg.text,
-            statusCfg.border
-          )}
-        >
-          {asset.status}
-        </span>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <span
+            className={cn(
+              'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+              statusCfg.bg,
+              statusCfg.text,
+              statusCfg.border
+            )}
+          >
+            {asset.status}
+          </span>
+          <OwnershipBadge value={asset.ownershipType} />
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-b border-border/50 text-center">
@@ -173,8 +175,6 @@ function AssetCard({ asset }: { asset: Asset }) {
 import { useProject } from '@/context/ProjectContext';
 import { filterByFirmAccess } from '@/lib/firmAccess';
 
-const CATEGORIES: AssetCategory[] = ['IT', 'Electronics', 'Furniture', 'Machinery', 'Tools', 'Vehicle'];
-
 export default function AssetList() {
   const { selectedProject, effectivePermittedFirms } = useProject();
 
@@ -188,7 +188,16 @@ export default function AssetList() {
     return undefined;
   }, [selectedProject, effectivePermittedFirms]);
 
-  const { data: rawAssets = [] } = useAssets(queryFirmId ? { firmId: queryFirmId } : undefined);
+  const [ownershipTab, setOwnershipTab] = useState<'all' | 'OWNED' | 'RENTED'>('all');
+
+  const assetParams = useMemo(() => {
+    const params: { firmId?: string; ownership?: 'OWNED' | 'RENTED' } = {};
+    if (queryFirmId) params.firmId = queryFirmId;
+    if (ownershipTab !== 'all') params.ownership = ownershipTab;
+    return Object.keys(params).length ? params : undefined;
+  }, [queryFirmId, ownershipTab]);
+
+  const { data: rawAssets = [] } = useAssets(assetParams);
   const assets = useMemo(() => {
     return filterByFirmAccess(rawAssets, effectivePermittedFirms);
   }, [rawAssets, effectivePermittedFirms]);
@@ -203,35 +212,6 @@ export default function AssetList() {
   const [addOpen, setAddOpen] = useState(false);
   const [bulkQrOpen, setBulkQrOpen] = useState(false);
   const [selectedQrAsset, setSelectedQrAsset] = useState<Asset | null>(null);
-  const [form, setForm] = useState({
-    productName: '',
-    category: 'IT' as AssetCategory,
-    type: 'Asset' as Asset['type'],
-    brand: '',
-    model: '',
-    serialNo: '',
-    sku: '',
-    mfgDate: '',
-    origin: '',
-    assetDate: new Date().toISOString().slice(0, 10),
-    invoiceNo: '',
-    cost: '',
-    quantity: '1',
-    supplierName: '',
-    supplierPhone: '',
-    paymentMode: '',
-    depMethod: 'Straight Line',
-    location: '',
-    department: '',
-    firmId: selectedProject && selectedProject.id !== 'all' ? String(selectedProject.id) : '',
-    assignedTo: '',
-    responsiblePerson: '',
-    warrantyAvailable: 'No' as 'Yes' | 'No',
-    warrantyEnd: '',
-    maintenanceRequired: 'No' as 'Yes' | 'No',
-    priority: '',
-  });
-
   const { data: firmsResponse } = useQuery({
     queryKey: ['asset', 'firms', 'list'],
     queryFn: () => api.get('/maintenance/firms'),
@@ -244,29 +224,7 @@ export default function AssetList() {
   const firms = useMemo(() => {
     return filterByFirmAccess(rawFirms, effectivePermittedFirms);
   }, [rawFirms, effectivePermittedFirms]);
-  const { data: users = [] } = useUsersList();
   const { data: dbDepartments = [] } = useDepartmentsList();
-  const { data: dbLocations = [] } = useSiteLocationsList();
-
-  const availableLocations = useMemo(() => {
-    const selectedFirmId = form.firmId && form.firmId !== 'none' ? String(form.firmId) : null;
-    let list = dbLocations;
-    if (selectedFirmId) {
-      list = dbLocations.filter(
-        (l) => l.firmId && String(l.firmId) === selectedFirmId
-      );
-    }
-    const seen = new Set<string>();
-    const result: SiteLocationOption[] = [];
-    for (const item of list) {
-      const key = item.location.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push(item);
-      }
-    }
-    return result;
-  }, [dbLocations, form.firmId]);
 
   const departments = useMemo(() => {
     const set = new Set<string>();
@@ -286,7 +244,11 @@ export default function AssetList() {
     if (deptFilter !== 'all') list = list.filter((a) => a.department === deptFilter);
     if (firmFilter !== 'all')
       list = list.filter(
-        (a) => String(a.firmId) === firmFilter || a.firmName === firmFilter
+        (a: any) =>
+          String(a.firmId) === firmFilter ||
+          a.firmName === firmFilter ||
+          String(a.assignment?.firmId) === firmFilter ||
+          a.assignment?.firmName === firmFilter
       );
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -314,61 +276,13 @@ export default function AssetList() {
     [assets]
   );
 
-  function resetForm() {
-    setForm({
-      productName: '',
-      category: 'IT',
-      type: 'Asset',
-      brand: '',
-      model: '',
-      serialNo: '',
-      sku: '',
-      mfgDate: '',
-      origin: '',
-      assetDate: new Date().toISOString().slice(0, 10),
-      invoiceNo: '',
-      cost: '',
-      quantity: '1',
-      supplierName: '',
-      supplierPhone: '',
-      paymentMode: '',
-      depMethod: 'Straight Line',
-      location: '',
-      department: '',
-      firmId: selectedProject && selectedProject.id !== 'all' ? String(selectedProject.id) : '',
-      assignedTo: '',
-      responsiblePerson: '',
-      warrantyAvailable: 'No',
-      warrantyEnd: '',
-      maintenanceRequired: 'No',
-      priority: '',
-    });
-  }
-
-  async function handleCreateAsset() {
-    if (!form.productName.trim()) return;
-    await createAsset.mutateAsync({
-      ...form,
-      firmId: form.firmId && form.firmId !== 'none' ? form.firmId : undefined,
-      cost: Number(form.cost || 0),
-      assetValue: Number(form.cost || 0),
-      quantity: Number(form.quantity || 1),
-      status: 'Active',
-      warrantyEnd: form.warrantyAvailable === 'Yes' ? form.warrantyEnd : '',
-      maintenanceRequired: form.maintenanceRequired,
-      maintenanceType: form.maintenanceRequired === 'Yes' ? 'Preventive' : '',
-      nextService: '',
-      priority: form.maintenanceRequired === 'Yes' ? (form.priority as Asset['priority']) : '',
-      amc: 'No',
-      partChanged: 'No',
-      partNames: [],
-      repairCount: 0,
-      repairCost: 0,
-      totalRepairCost: 0,
-      depMethod: form.depMethod || 'Straight Line',
-    });
-    setAddOpen(false);
-    resetForm();
+  async function handleCreateAsset(payload: Parameters<typeof createAsset.mutateAsync>[0]) {
+    try {
+      await createAsset.mutateAsync(payload);
+      setAddOpen(false);
+    } catch {
+      toast.error('Failed to create asset');
+    }
   }
 
   function handleExportCSV() {
@@ -476,6 +390,23 @@ export default function AssetList() {
         transition={{ delay: 0.1 }}
         className="flex flex-col gap-3 mb-5"
       >
+        <Tabs
+          value={ownershipTab}
+          onValueChange={(v) => setOwnershipTab(v as typeof ownershipTab)}
+        >
+          <TabsList className="h-auto gap-1 bg-muted/60 p-1">
+            <TabsTrigger value="all" className="text-xs">
+              All
+            </TabsTrigger>
+            <TabsTrigger value="OWNED" className="text-xs">
+              Owned
+            </TabsTrigger>
+            <TabsTrigger value="RENTED" className="text-xs">
+              Rented
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as typeof statusTab)}>
           <TabsList className="h-auto flex-wrap gap-1 bg-muted/60 p-1">
             {(['all', 'Active', 'Inactive', 'Under Repair'] as const).map((s) => (
@@ -507,7 +438,7 @@ export default function AssetList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              {CATEGORIES.map((c) => (
+              {ASSET_CATEGORIES.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
@@ -643,6 +574,7 @@ export default function AssetList() {
                                 <p className="text-[10px] text-muted-foreground">
                                   {asset.brand} · {asset.model}
                                 </p>
+                                <OwnershipBadge value={asset.ownershipType} className="mt-0.5" />
                               </div>
                             </div>
                           </td>
@@ -766,7 +698,7 @@ export default function AssetList() {
                   assets
                   {' · '}Total value:{' '}
                   <span className="font-bold text-foreground">
-                    {formatCurrency(filtered.reduce((s, a) => s + a.assetValue, 0))}
+                    {formatCurrency(filtered.some((a) => a.assetValue !== undefined) ? filtered.reduce((s, a) => s + (a.assetValue ?? 0), 0) : undefined)}
                   </span>
                 </span>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -783,319 +715,15 @@ export default function AssetList() {
           <DialogHeader>
             <DialogTitle>Add Asset</DialogTitle>
             <DialogDescription>
-              Create a new asset record with assignment, warranty, and maintenance details.
+              Create an asset record for office, IT or site items. Machines, vehicles and hired equipment are added through Add Equipment.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <Input
-              placeholder="Product name *"
-              value={form.productName}
-              onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
-            />
-            <Select
-              value={form.category}
-              onValueChange={(value) => setForm((f) => ({ ...f, category: value as AssetCategory }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="Brand"
-              value={form.brand}
-              onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
-            />
-            <Input
-              placeholder="Model"
-              value={form.model}
-              onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-            />
-            <Input
-              placeholder="Serial number"
-              value={form.serialNo}
-              onChange={(e) => setForm((f) => ({ ...f, serialNo: e.target.value }))}
-            />
-            <Input
-              placeholder="SKU"
-              value={form.sku}
-              onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-            />
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Mfg Date</label>
-              <Input
-                type="date"
-                value={form.mfgDate}
-                onChange={(e) => setForm((f) => ({ ...f, mfgDate: e.target.value }))}
-              />
-            </div>
-            <Input
-              placeholder="Country of Origin"
-              value={form.origin}
-              onChange={(e) => setForm((f) => ({ ...f, origin: e.target.value }))}
-            />
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">Asset Date</label>
-              <Input
-                type="date"
-                value={form.assetDate}
-                onChange={(e) => setForm((f) => ({ ...f, assetDate: e.target.value }))}
-              />
-            </div>
-            <Input
-              placeholder="Invoice No"
-              value={form.invoiceNo}
-              onChange={(e) => setForm((f) => ({ ...f, invoiceNo: e.target.value }))}
-            />
-            <Input
-              placeholder="Cost"
-              type="number"
-              value={form.cost}
-              onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
-            />
-            <Input
-              placeholder="Quantity"
-              type="number"
-              value={form.quantity}
-              onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-            />
-            <Input
-              placeholder="Supplier Name"
-              value={form.supplierName}
-              onChange={(e) => setForm((f) => ({ ...f, supplierName: e.target.value }))}
-            />
-            <Input
-              placeholder="Supplier Phone"
-              value={form.supplierPhone}
-              onChange={(e) => setForm((f) => ({ ...f, supplierPhone: e.target.value }))}
-            />
-            <Select
-              value={form.paymentMode || undefined}
-              onValueChange={(val) => setForm((f) => ({ ...f, paymentMode: val }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Payment Mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Cash">Cash</SelectItem>
-                <SelectItem value="Card">Card</SelectItem>
-                <SelectItem value="UPI">UPI</SelectItem>
-                <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                <SelectItem value="Cheque">Cheque</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.depMethod || 'Straight Line'}
-              onValueChange={(val) => setForm((f) => ({ ...f, depMethod: val }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Depreciation Method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Straight Line">Straight Line</SelectItem>
-                <SelectItem value="WDV">WDV</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.location || undefined}
-              onValueChange={(val) => {
-                if (val === '_clear') {
-                  setForm((f) => ({ ...f, location: '' }));
-                } else {
-                  const match = dbLocations.find((l) => l.location === val);
-                  setForm((f) => ({
-                    ...f,
-                    location: val,
-                    firmId: (!f.firmId || f.firmId === 'none') && match?.firmId ? String(match.firmId) : f.firmId,
-                  }));
-                }
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Location" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_clear">Clear (None)</SelectItem>
-                {availableLocations.map((l) => (
-                  <SelectItem key={l.id} value={l.location}>
-                    {l.location}
-                    {(!form.firmId || form.firmId === 'none') && l.firmName ? ` (${l.firmName})` : ''}
-                  </SelectItem>
-                ))}
-                {form.location && !availableLocations.some((l) => l.location === form.location) && (
-                  <SelectItem value={form.location}>{form.location}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.department || undefined}
-              onValueChange={(value) =>
-                setForm((f) => ({ ...f, department: value === '_clear' ? '' : value }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_clear">Clear (None)</SelectItem>
-                {dbDepartments.map((d) => (
-                  <SelectItem key={d.id} value={d.name}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-                {form.department && !dbDepartments.some((d) => d.name === form.department) && (
-                  <SelectItem value={form.department}>{form.department}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.firmId || 'none'}
-              onValueChange={(value) => {
-                const newFirmId = value === 'none' ? '' : value;
-                setForm((f) => {
-                  const belongs =
-                    !f.location ||
-                    !newFirmId ||
-                    dbLocations.some(
-                      (l) =>
-                        l.location.toLowerCase() === f.location.toLowerCase() &&
-                        String(l.firmId) === newFirmId
-                    );
-                  return {
-                    ...f,
-                    firmId: newFirmId,
-                    location: belongs ? f.location : '',
-                  };
-                });
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Project (Firm)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No Project (Firm)</SelectItem>
-                {firms.map((f) => (
-                  <SelectItem key={f.id} value={String(f.id)}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.assignedTo || undefined}
-              onValueChange={(value) =>
-                setForm((f) => ({ ...f, assignedTo: value === '_clear' ? '' : value }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Assigned To" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_clear">Clear (None)</SelectItem>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={u.name}>
-                    {u.name} {u.role ? `(${u.role})` : ''}
-                  </SelectItem>
-                ))}
-                {form.assignedTo && !users.some((u) => u.name === form.assignedTo) && (
-                  <SelectItem value={form.assignedTo}>{form.assignedTo}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={form.responsiblePerson || undefined}
-              onValueChange={(value) =>
-                setForm((f) => ({ ...f, responsiblePerson: value === '_clear' ? '' : value }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Responsible To" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_clear">Clear (None)</SelectItem>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={u.name}>
-                    {u.name} {u.role ? `(${u.role})` : ''}
-                  </SelectItem>
-                ))}
-                {form.responsiblePerson &&
-                  !users.some((u) => u.name === form.responsiblePerson) && (
-                    <SelectItem value={form.responsiblePerson}>{form.responsiblePerson}</SelectItem>
-                  )}
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.warrantyAvailable}
-              onValueChange={(value) =>
-                setForm((f) => ({ ...f, warrantyAvailable: value as 'Yes' | 'No' }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Warranty" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="No">No Warranty</SelectItem>
-                <SelectItem value="Yes">Warranty Available</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="date"
-              value={form.warrantyEnd}
-              disabled={form.warrantyAvailable === 'No'}
-              onChange={(e) => setForm((f) => ({ ...f, warrantyEnd: e.target.value }))}
-            />
-            <Select
-              value={form.maintenanceRequired}
-              onValueChange={(value) =>
-                setForm((f) => ({ ...f, maintenanceRequired: value as 'Yes' | 'No' }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Maintenance" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="No">No Maintenance</SelectItem>
-                <SelectItem value="Yes">Maintenance Required</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.priority || 'Medium'}
-              onValueChange={(value) => setForm((f) => ({ ...f, priority: value }))}
-              disabled={form.maintenanceRequired === 'No'}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={() => setAddOpen(false)}
-              className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleCreateAsset}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              Add Asset
-            </button>
-          </DialogFooter>
+          <AssetForm
+            mode="create"
+            saving={createAsset.isPending}
+            onSubmit={handleCreateAsset}
+            onCancel={() => setAddOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 

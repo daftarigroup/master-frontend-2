@@ -1,7 +1,7 @@
 import { useSheets } from '@/context/SheetsContext';
 import { useProject } from '@/context/ProjectContext';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import DataTable from '../element/DataTable';
 import { Button } from '../ui/button';
 import {
@@ -81,6 +81,7 @@ export default () => {
     const [historySearchQuery, setHistorySearchQuery] = useState<string>('');
     const [searchTermVendor, setSearchTermVendor] = useState('');
     const [indentQuotes, setIndentQuotes] = useState<IndentQuote[]>([]);
+    const autoFilledIndentNoRef = useRef<string | null>(null);
     const normalizeVendorKey = (value?: string) => (value || '').trim().toLowerCase();
     const hasVendorRate = (quote: any) => Number(quote?.vendor_rate) > 0;
     const findQuoteByVendorName = (vendorName?: string) => {
@@ -302,6 +303,52 @@ export default () => {
                                 setAmountToDetermineType(0);
                                 setComputedVendorType(indent.vendorType);
                                 comparisonSheetAttachment.reset();
+                                autoFilledIndentNoRef.current = null;
+                                regularForm.reset();
+                                threePartyForm.reset({
+                                    productCode: '',
+                                    vendors: [
+                                        {
+                                            vendorName: '',
+                                            rate: 0,
+                                            gstPercent: 0,
+                                            paymentTerm: '',
+                                            advancePercent: 0,
+                                            whatsappNumber: '',
+                                            emailId: '',
+                                            quotationNo: '',
+                                            quotationDate: '',
+                                            deliveryTime: 0,
+                                            make: '',
+                                        },
+                                        {
+                                            vendorName: '',
+                                            rate: 0,
+                                            gstPercent: 0,
+                                            paymentTerm: '',
+                                            advancePercent: 0,
+                                            whatsappNumber: '',
+                                            emailId: '',
+                                            quotationNo: '',
+                                            quotationDate: '',
+                                            deliveryTime: 0,
+                                            make: '',
+                                        },
+                                        {
+                                            vendorName: '',
+                                            rate: 0,
+                                            gstPercent: 0,
+                                            paymentTerm: '',
+                                            advancePercent: 0,
+                                            whatsappNumber: '',
+                                            emailId: '',
+                                            quotationNo: '',
+                                            quotationDate: '',
+                                            deliveryTime: 0,
+                                            make: '',
+                                        },
+                                    ],
+                                });
                                 setOpenDialog(true);
                             }}
                         >
@@ -703,6 +750,9 @@ export default () => {
                     new Date(quote.timestamp).toISOString().split('T')[0]
                 );
                 regularForm.setValue('rate', Number(quote.vendor_rate) || 0);
+                if (quote.gst !== undefined && quote.gst !== null) {
+                    regularForm.setValue('gstPercent', Number(quote.gst));
+                }
             }
             if (options?.vendors) {
                 const vendor = options.vendors.find(
@@ -726,6 +776,9 @@ export default () => {
                     new Date(quote.timestamp).toISOString().split('T')[0]
                 );
                 threePartyForm.setValue('vendors.0.rate', Number(quote.vendor_rate) || 0);
+                if (quote.gst !== undefined && quote.gst !== null) {
+                    threePartyForm.setValue('vendors.0.gstPercent', Number(quote.gst));
+                }
             }
             if (options?.vendors) {
                 const vendor = options.vendors.find(
@@ -734,6 +787,12 @@ export default () => {
                 );
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.0.paymentTerm', vendor.paymentTerm);
+                }
+                if (vendor?.phone) {
+                    threePartyForm.setValue('vendors.0.whatsappNumber', vendor.phone);
+                }
+                if (vendor?.email) {
+                    threePartyForm.setValue('vendors.0.emailId', vendor.email);
                 }
             }
         }
@@ -749,6 +808,9 @@ export default () => {
                     new Date(quote.timestamp).toISOString().split('T')[0]
                 );
                 threePartyForm.setValue('vendors.1.rate', Number(quote.vendor_rate) || 0);
+                if (quote.gst !== undefined && quote.gst !== null) {
+                    threePartyForm.setValue('vendors.1.gstPercent', Number(quote.gst));
+                }
             }
             if (options?.vendors) {
                 const vendor = options.vendors.find(
@@ -757,6 +819,12 @@ export default () => {
                 );
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.1.paymentTerm', vendor.paymentTerm);
+                }
+                if (vendor?.phone) {
+                    threePartyForm.setValue('vendors.1.whatsappNumber', vendor.phone);
+                }
+                if (vendor?.email) {
+                    threePartyForm.setValue('vendors.1.emailId', vendor.email);
                 }
             }
         }
@@ -772,6 +840,9 @@ export default () => {
                     new Date(quote.timestamp).toISOString().split('T')[0]
                 );
                 threePartyForm.setValue('vendors.2.rate', Number(quote.vendor_rate) || 0);
+                if (quote.gst !== undefined && quote.gst !== null) {
+                    threePartyForm.setValue('vendors.2.gstPercent', Number(quote.gst));
+                }
             }
             if (options?.vendors) {
                 const vendor = options.vendors.find(
@@ -781,9 +852,92 @@ export default () => {
                 if (vendor?.paymentTerm) {
                     threePartyForm.setValue('vendors.2.paymentTerm', vendor.paymentTerm);
                 }
+                if (vendor?.phone) {
+                    threePartyForm.setValue('vendors.2.whatsappNumber', vendor.phone);
+                }
+                if (vendor?.email) {
+                    threePartyForm.setValue('vendors.2.emailId', vendor.email);
+                }
             }
         }
     }, [watchVendor2, indentQuotes, options?.vendors, threePartyForm]);
+
+    // Auto-populate Three Party slots from filled vendor quotation responses
+    useEffect(() => {
+        if (!openDialog) {
+            autoFilledIndentNoRef.current = null;
+            return;
+        }
+
+        if (
+            dialogStep === 2 &&
+            computedVendorType === 'Three Party' &&
+            selectedIndent &&
+            autoFilledIndentNoRef.current !== selectedIndent.indentNo &&
+            indentQuotes.length > 0
+        ) {
+            const filledQuotes = indentQuotes.filter((q) => Number(q.vendor_rate) > 0);
+            const uniqueFilledQuotes: IndentQuote[] = [];
+            const seenVendors = new Set<string>();
+
+            for (const quote of filledQuotes) {
+                const key = normalizeVendorKey(quote.supplierName);
+                if (key && !seenVendors.has(key)) {
+                    seenVendors.add(key);
+                    uniqueFilledQuotes.push(quote);
+                }
+            }
+
+            if (uniqueFilledQuotes.length > 0) {
+                const quotesToFill = uniqueFilledQuotes.slice(0, 3);
+                quotesToFill.forEach((quote, index) => {
+                    const vendorName = (quote.supplierName || '').trim();
+                    threePartyForm.setValue(`vendors.${index}.vendorName`, vendorName);
+                    threePartyForm.setValue(`vendors.${index}.rate`, Number(quote.vendor_rate) || 0);
+                    threePartyForm.setValue(`vendors.${index}.quotationNo`, quote.quatationNo || '');
+
+                    const quoteDate = quote.timestamp
+                        ? new Date(quote.timestamp).toISOString().split('T')[0]
+                        : '';
+                    threePartyForm.setValue(`vendors.${index}.quotationDate`, quoteDate);
+
+                    if (quote.gst !== undefined && quote.gst !== null) {
+                        threePartyForm.setValue(`vendors.${index}.gstPercent`, Number(quote.gst));
+                    }
+
+                    if (options?.vendors) {
+                        const vendorMaster = options.vendors.find(
+                            (v: any) =>
+                                normalizeVendorKey(v.vendorName) === normalizeVendorKey(vendorName)
+                        );
+                        if (vendorMaster) {
+                            if (vendorMaster.paymentTerm) {
+                                threePartyForm.setValue(`vendors.${index}.paymentTerm`, vendorMaster.paymentTerm);
+                            }
+                            if (vendorMaster.phone) {
+                                threePartyForm.setValue(`vendors.${index}.whatsappNumber`, vendorMaster.phone);
+                            }
+                            if (vendorMaster.email) {
+                                threePartyForm.setValue(`vendors.${index}.emailId`, vendorMaster.email);
+                            }
+                        }
+                    }
+                });
+
+                toast.info(`Auto-filled ${quotesToFill.length} vendor rate(s) from quotation history.`);
+            }
+
+            autoFilledIndentNoRef.current = selectedIndent.indentNo;
+        }
+    }, [
+        openDialog,
+        dialogStep,
+        computedVendorType,
+        selectedIndent,
+        indentQuotes,
+        options?.vendors,
+        threePartyForm,
+    ]);
 
     async function onSubmitThreeParty(values: z.infer<typeof threePartySchema>) {
         try {
@@ -898,6 +1052,10 @@ export default () => {
                     setOpenDialog(open);
                     if (!open) {
                         setSelectedIndent(null);
+                        setDialogStep(1);
+                        autoFilledIndentNoRef.current = null;
+                        regularForm.reset();
+                        threePartyForm.reset();
                         comparisonSheetAttachment.reset();
                     }
                 }}
@@ -1534,7 +1692,7 @@ export default () => {
                                                             <FormLabel>Vendor Name</FormLabel>
                                                             <Select
                                                                 onValueChange={field.onChange}
-                                                                defaultValue={field.value}
+                                                                value={field.value}
                                                             >
                                                                 <FormControl>
                                                                     <SelectTrigger>

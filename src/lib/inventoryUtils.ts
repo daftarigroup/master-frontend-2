@@ -437,3 +437,473 @@ function groupAndSum<T>(data: T[], keyField: keyof T, sumFields: string[]): Reco
     }, {} as Record<string, any>);
 }
 
+export interface InventoryTransactionDetailRow {
+    date: string;
+    refNo: string;
+    quantity: number;
+    rate?: number;
+    amount?: number;
+    party: string;
+    projectName: string;
+    siteLocation?: string;
+}
+
+export type InventoryTransactionType =
+    | 'Indented'
+    | 'Approved'
+    | 'Purchase Return'
+    | 'Lifting Quantity'
+    | 'In Transit'
+    | 'Issue Return'
+    | 'Issued'
+    | 'Stock Transfer Given'
+    | 'Stock Transfer Receiving';
+
+export interface InventoryTransactionColumnMapping {
+    key: string;
+    header: string;
+    type: InventoryTransactionType;
+    field: keyof InventorySheet;
+    dialogLabel: string;
+}
+
+export const INVENTORY_TRANSACTION_COLUMNS: InventoryTransactionColumnMapping[] = [
+    { key: 'indented', header: 'Indented', type: 'Indented', field: 'indented', dialogLabel: 'Indented' },
+    { key: 'approved', header: 'Approved', type: 'Approved', field: 'approved', dialogLabel: 'Approved' },
+    { key: 'purchaseReturn', header: 'Purchase Return', type: 'Purchase Return', field: 'purchaseReturn', dialogLabel: 'Purchase Return' },
+    { key: 'liftingQty', header: 'Lifting Quantity', type: 'Lifting Quantity', field: 'liftingQty', dialogLabel: 'Lifting Quantity' },
+    { key: 'inTransit', header: 'In Transit', type: 'In Transit', field: 'inTransit', dialogLabel: 'In Transit' },
+    { key: 'issueReturn', header: 'Issue Return', type: 'Issue Return', field: 'issueReturn', dialogLabel: 'Issue Return' },
+    { key: 'outQuantity', header: 'Issued', type: 'Issued', field: 'outQuantity', dialogLabel: 'Issued' },
+    { key: 'stockTransferGiven', header: 'S.T. To', type: 'Stock Transfer Given', field: 'stockTransferGiven', dialogLabel: 'Stock Transfer Given' },
+    { key: 'stockTransferReceiving', header: 'S.T. From', type: 'Stock Transfer Receiving', field: 'stockTransferReceiving', dialogLabel: 'Stock Transfer Receiving' },
+];
+
+export interface InventoryResolutionContext {
+    indentsByProduct: Map<string, any[]>;
+    storeInsByProduct: Map<string, any[]>;
+    issuesByProduct: Map<string, any[]>;
+    transfersByProduct: Map<string, any[]>;
+    poMasterByProductAndPo: Map<string, any>;
+    inventoryByItemName: Map<string, any>;
+}
+
+export function createInventoryResolutionContext(
+    indents: any[] = [],
+    storeIns: any[] = [],
+    issues: any[] = [],
+    transfers: any[] = [],
+    poMaster: any[] = [],
+    inventorySheet: any[] = []
+): InventoryResolutionContext {
+    const normalize = (val?: string) => (val || '').trim().toLowerCase();
+
+    const indentsByProduct = new Map<string, any[]>();
+    for (const ind of indents) {
+        const key = normalize(ind.productName || ind.product);
+        if (!key) continue;
+        const list = indentsByProduct.get(key) || [];
+        list.push(ind);
+        indentsByProduct.set(key, list);
+    }
+
+    const storeInsByProduct = new Map<string, any[]>();
+    for (const s of storeIns) {
+        const key = normalize(s.productName || s.product);
+        if (!key) continue;
+        const list = storeInsByProduct.get(key) || [];
+        list.push(s);
+        storeInsByProduct.set(key, list);
+    }
+
+    const issuesByProduct = new Map<string, any[]>();
+    for (const is of issues) {
+        const key = normalize(is.productName || is.product);
+        if (!key) continue;
+        const list = issuesByProduct.get(key) || [];
+        list.push(is);
+        issuesByProduct.set(key, list);
+    }
+
+    const transfersByProduct = new Map<string, any[]>();
+    for (const t of transfers) {
+        const key = normalize(t.productName || t.product);
+        if (!key) continue;
+        const list = transfersByProduct.get(key) || [];
+        list.push(t);
+        transfersByProduct.set(key, list);
+    }
+
+    const poMasterByProductAndPo = new Map<string, any>();
+    for (const p of poMaster) {
+        const poNum = String(p.poNumber || '').trim();
+        const prod = normalize(p.product || p.productName);
+        if (poNum && prod) {
+            poMasterByProductAndPo.set(`${poNum}:::${prod}`, p);
+        }
+    }
+
+    const inventoryByItemName = new Map<string, any>();
+    for (const item of inventorySheet) {
+        const key = normalize(item.itemName);
+        if (key && !inventoryByItemName.has(key)) {
+            inventoryByItemName.set(key, item);
+        }
+    }
+
+    return {
+        indentsByProduct,
+        storeInsByProduct,
+        issuesByProduct,
+        transfersByProduct,
+        poMasterByProductAndPo,
+        inventoryByItemName
+    };
+}
+
+export function resolveInventoryTransactionDetails(params: {
+    type: string;
+    itemName: string;
+    partyFilteredIndents?: any[];
+    partyFilteredStoreIns?: any[];
+    partyFilteredIssues?: any[];
+    partyFilteredTransfers?: any[];
+    inventorySheet?: any[];
+    poMasterSheet?: any[];
+    selectedProjectId?: string;
+    selectedParty?: string;
+    context?: InventoryResolutionContext;
+}): InventoryTransactionDetailRow[] {
+    const {
+        type,
+        itemName,
+        partyFilteredIndents = [],
+        partyFilteredStoreIns = [],
+        partyFilteredIssues = [],
+        partyFilteredTransfers = [],
+        inventorySheet = [],
+        poMasterSheet = [],
+        selectedProjectId = 'All',
+        selectedParty = 'All',
+        context,
+    } = params;
+
+    const normalize = (val?: string) => (val || '').trim().toLowerCase();
+    const itemKey = normalize(itemName);
+    const isSameProduct = (prod?: string) => normalize(prod) === itemKey;
+
+    // Get current item's fallback rate / avgPrice
+    const matchedItem = context?.inventoryByItemName?.get(itemKey) ?? inventorySheet.find(i => normalize(i.itemName) === itemKey);
+    const itemFallbackRate = Number(matchedItem?.avgPrice || (matchedItem as any)?.individualRate || 0);
+
+    const isLifted = (s: any) => {
+        const raw = s.materialDate ?? s.material_date;
+        if (!raw) return false;
+        const str = String(raw).trim().toLowerCase();
+        return str !== '' && str !== 'null' && str !== 'undefined' && str !== '-' && str !== 'n/a';
+    };
+
+    const findPoMatch = (targetPoNumber: any) => {
+        if (!targetPoNumber) return null;
+        const poNumStr = String(targetPoNumber).trim();
+        if (context?.poMasterByProductAndPo) {
+            return context.poMasterByProductAndPo.get(`${poNumStr}:::${itemKey}`) || null;
+        }
+        return poMasterSheet.find((p: any) => {
+            const poNumMatch = Boolean(p.poNumber && String(p.poNumber).trim() === poNumStr);
+            const prodMatch = isSameProduct(p.product || p.productName);
+            return poNumMatch && prodMatch;
+        }) || null;
+    };
+
+    // Candidates filtered by item
+    const itemIndents = context?.indentsByProduct?.get(itemKey) ?? partyFilteredIndents.filter((i: any) => isSameProduct(i.productName || i.product));
+    const itemStoreIns = context?.storeInsByProduct?.get(itemKey) ?? partyFilteredStoreIns.filter((s: any) => isSameProduct(s.productName || s.product));
+    const itemIssues = context?.issuesByProduct?.get(itemKey) ?? partyFilteredIssues.filter((is: any) => isSameProduct(is.productName || is.product));
+    const itemTransfers = context?.transfersByProduct?.get(itemKey) ?? partyFilteredTransfers.filter((t: any) => isSameProduct(t.productName || t.product));
+
+    let rows: InventoryTransactionDetailRow[] = [];
+
+    // Normalize type string to handle aliases
+    const canonicalType = (type === 'S.T. To' ? 'Stock Transfer Given' : type === 'S.T. From' ? 'Stock Transfer Receiving' : type);
+
+    switch (canonicalType) {
+        case 'Indented':
+            rows = itemIndents
+                .map((i: any) => {
+                    const targetPo = i.poNumber || i.po_number;
+                    const poMatch = findPoMatch(targetPo);
+                    const rate = Number(
+                        poMatch?.rate ||
+                        i.approvedRate ||
+                        i.approved_rate ||
+                        i.rate ||
+                        i.rate1 ||
+                        i.negotiated_rate ||
+                        i.price ||
+                        itemFallbackRate ||
+                        0
+                    );
+                    const quantity = Number(i.quantity || 0);
+                    const party = (selectedParty !== 'All' && i.indenterName?.trim().toLowerCase() === selectedParty.trim().toLowerCase())
+                        ? (i.indenterName || 'N/A')
+                        : (i.approvedVendorName || i.approved_vendor_name || i.vendor || i.vendor_name || i.indenterName || 'N/A');
+                    return {
+                        date: i.timestamp,
+                        refNo: i.indentNumber,
+                        quantity,
+                        rate,
+                        amount: Number((quantity * rate).toFixed(2)),
+                        party,
+                        projectName: i.firmName || 'N/A',
+                        siteLocation: i.siteLocation || i.site_location || i.areaOfUse || i.area_of_use || i.location || 'N/A'
+                    };
+                });
+            break;
+
+        case 'Approved':
+            rows = itemIndents
+                .filter((i: any) => Number(i.approvedQuantity || 0) > 0)
+                .map((i: any) => {
+                    const targetPo = i.poNumber || i.po_number;
+                    const poMatch = findPoMatch(targetPo);
+                    const rate = Number(
+                        poMatch?.rate ||
+                        i.approvedRate ||
+                        i.approved_rate ||
+                        i.rate ||
+                        i.rate1 ||
+                        i.negotiated_rate ||
+                        i.price ||
+                        itemFallbackRate ||
+                        0
+                    );
+                    const quantity = Number(i.approvedQuantity || 0);
+                    const party = (selectedParty !== 'All' && i.indenterName?.trim().toLowerCase() === selectedParty.trim().toLowerCase())
+                        ? (i.indenterName || 'N/A')
+                        : (i.approvedVendorName || i.approved_vendor_name || i.vendor || i.vendor_name || i.indenterName || 'N/A');
+                    return {
+                        date: i.timestamp,
+                        refNo: i.indentNumber,
+                        quantity,
+                        rate,
+                        amount: Number((quantity * rate).toFixed(2)),
+                        party,
+                        projectName: i.firmName || 'N/A',
+                        siteLocation: i.siteLocation || i.site_location || i.areaOfUse || i.area_of_use || i.location || 'N/A'
+                    };
+                });
+            break;
+
+        case 'Lifting Quantity':
+            rows = itemStoreIns
+                .filter((s: any) => Number(s.receivedQuantity || 0) > 0 && isLifted(s))
+                .map((s: any) => {
+                    const matchedIndent: any = itemIndents.find((ind: any) => {
+                        const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                        const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                        return indentMatch || poMatchNum;
+                    });
+
+                    const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+                    const poMatch = findPoMatch(targetPoNumber);
+
+                    const poRate = Number(
+                        poMatch?.rate ||
+                        matchedIndent?.approvedRate ||
+                        matchedIndent?.approved_rate ||
+                        s.priceAsPerPo ||
+                        s.rate ||
+                        matchedIndent?.rate ||
+                        matchedIndent?.rate1 ||
+                        itemFallbackRate ||
+                        0
+                    );
+                    const quantity = Number(s.receivedQuantity || 0);
+                    return {
+                        date: s.materialDate || s.material_date || '',
+                        refNo: s.billNo || s.liftNumber,
+                        quantity,
+                        rate: poRate,
+                        amount: Number((quantity * poRate).toFixed(2)),
+                        party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
+                        projectName: s.firmNameMatch || 'N/A',
+                        siteLocation: s.location || 'N/A'
+                    };
+                });
+            break;
+
+        case 'In Transit':
+            rows = itemStoreIns
+                .filter((s: any) => {
+                    const liftedQty = isLifted(s) ? Number(s.receivedQuantity || 0) : 0;
+                    return (Number(s.qty || 0) - liftedQty) > 0;
+                })
+                .map((s: any) => {
+                    const matchedIndent: any = itemIndents.find((ind: any) => {
+                        const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                        const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                        return indentMatch || poMatchNum;
+                    });
+
+                    const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+                    const poMatch = findPoMatch(targetPoNumber);
+
+                    const poRate = Number(
+                        poMatch?.rate ||
+                        matchedIndent?.approvedRate ||
+                        matchedIndent?.approved_rate ||
+                        s.priceAsPerPo ||
+                        s.rate ||
+                        matchedIndent?.rate ||
+                        matchedIndent?.rate1 ||
+                        itemFallbackRate ||
+                        0
+                    );
+                    const liftedQty = isLifted(s) ? Number(s.receivedQuantity || 0) : 0;
+                    const quantity = Number(s.qty || 0) - liftedQty;
+                    return {
+                        date: s.timestamp,
+                        refNo: s.billNo || s.liftNumber,
+                        quantity,
+                        rate: poRate,
+                        amount: Number((quantity * poRate).toFixed(2)),
+                        party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
+                        projectName: s.firmNameMatch || 'N/A',
+                        siteLocation: s.location || 'N/A'
+                    };
+                });
+            break;
+
+        case 'Issued':
+            rows = itemIssues
+                .filter((is: any) => Number(is.givenQty || 0) > 0)
+                .map((is: any) => {
+                    const quantity = Number(is.givenQty || 0);
+                    return {
+                        date: is.planned1 || is.timestamp,
+                        refNo: is.issueNo,
+                        quantity,
+                        rate: itemFallbackRate,
+                        amount: Number((quantity * itemFallbackRate).toFixed(2)),
+                        party: is.constructorName || is.constructor_name || is.issuePersonName || is.issue_person_name || is.issueTo || is.issue_to || is.party || 'N/A',
+                        projectName: is.projectName || is.firm_name || 'N/A',
+                        siteLocation: is.siteLocation || is.site_location || is.location || 'N/A'
+                    };
+                });
+            break;
+
+        case 'Issue Return':
+            rows = itemIssues
+                .filter((is: any) => Number(is.rejected_damage_qty || 0) > 0)
+                .map((is: any) => {
+                    const quantity = Number(is.rejected_damage_qty || 0);
+                    return {
+                        date: is.timestamp,
+                        refNo: is.issueNo,
+                        quantity,
+                        rate: itemFallbackRate,
+                        amount: Number((quantity * itemFallbackRate).toFixed(2)),
+                        party: is.returnPersonName || is.return_person_name || is.constructorName || is.party || 'N/A',
+                        projectName: is.projectName || is.firm_name || 'N/A',
+                        siteLocation: is.siteLocation || 'N/A'
+                    };
+                });
+            break;
+
+        case 'Purchase Return':
+            rows = itemStoreIns
+                .filter((s: any) => Number(s.returnQuantity || 0) > 0)
+                .map((s: any) => {
+                    const matchedIndent: any = itemIndents.find((ind: any) => {
+                        const indentMatch = Boolean(s.indentNo && ind.indentNumber && String(ind.indentNumber).trim() === String(s.indentNo).trim());
+                        const poMatchNum = Boolean(s.poNumber && ind.poNumber && String(ind.poNumber).trim() === String(s.poNumber).trim());
+                        return indentMatch || poMatchNum;
+                    });
+
+                    const targetPoNumber = s.poNumber || s.po_number || matchedIndent?.poNumber || matchedIndent?.po_number;
+                    const poMatch = findPoMatch(targetPoNumber);
+
+                    const poRate = Number(
+                        poMatch?.rate ||
+                        matchedIndent?.approvedRate ||
+                        matchedIndent?.approved_rate ||
+                        s.priceAsPerPo ||
+                        s.rate ||
+                        matchedIndent?.rate ||
+                        matchedIndent?.rate1 ||
+                        itemFallbackRate ||
+                        0
+                    );
+                    const quantity = Number(s.returnQuantity || 0);
+                    return {
+                        date: s.timestamp,
+                        refNo: s.billNo || s.liftNumber,
+                        quantity,
+                        rate: poRate,
+                        amount: Number((quantity * poRate).toFixed(2)),
+                        party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
+                        projectName: s.firmNameMatch || 'N/A',
+                        siteLocation: s.location || 'N/A'
+                    };
+                });
+            break;
+
+        case 'Stock Transfer Receiving': {
+            const legacyTransfers = itemStoreIns
+                .filter((s: any) => s.receivingStatus === 'Transfer')
+                .map((s: any) => {
+                    const qty = Number(s.receivedQuantity || 0);
+                    return {
+                        date: s.timestamp,
+                        refNo: s.billNo || s.liftNumber,
+                        quantity: qty,
+                        rate: itemFallbackRate,
+                        amount: Number((qty * itemFallbackRate).toFixed(2)),
+                        party: s.vendorName || s.vendor_name || s.vendor || s.approvedVendorName || (s as any).approved_party_name || 'N/A',
+                        projectName: s.firmNameMatch || 'N/A',
+                        siteLocation: s.location || 'N/A'
+                    };
+                });
+
+            const newTransfersReceiving = itemTransfers
+                .filter((t: any) => (selectedProjectId === 'All' || Number(t.to_firm_id || t.toFirmId) === Number(selectedProjectId)))
+                .map((t: any) => {
+                    const qty = Number(t.quantity || 0);
+                    return {
+                        date: t.timestamp,
+                        refNo: t.transferNo,
+                        quantity: qty,
+                        rate: itemFallbackRate,
+                        amount: Number((qty * itemFallbackRate).toFixed(2)),
+                        party: t.fromProject,
+                        projectName: t.toProject || 'N/A',
+                        siteLocation: t.siteLocation || t.site_location || t.location || 'N/A'
+                    };
+                });
+
+            rows = [...legacyTransfers, ...newTransfersReceiving];
+            break;
+        }
+
+        case 'Stock Transfer Given':
+            rows = itemTransfers
+                .filter((t: any) => (selectedProjectId === 'All' || Number(t.from_firm_id || t.fromFirmId) === Number(selectedProjectId)))
+                .map((t: any) => {
+                    const qty = Number(t.quantity || 0);
+                    return {
+                        date: t.timestamp,
+                        refNo: t.transferNo,
+                        quantity: qty,
+                        rate: itemFallbackRate,
+                        amount: Number((qty * itemFallbackRate).toFixed(2)),
+                        party: t.fromProject,
+                        projectName: t.toProject || 'N/A',
+                        siteLocation: t.siteLocation || t.site_location || t.location || 'N/A'
+                    };
+                });
+            break;
+    }
+
+    return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}

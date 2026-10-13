@@ -20,6 +20,14 @@ export const HrDeploymentPage = React.lazy(
   () => import('@/features/hr/deployment/components/MainManpowerDeployment')
 );
 
+export const HrMarkAttendancePage = React.lazy(
+  () => import('@/features/hr/attendance/components/MainMarkAttendance')
+);
+
+export const PublicAttendanceKioskPage = React.lazy(
+  () => import('@/features/hr/attendance/components/PublicAttendanceKiosk')
+);
+
 export const HrAttendancePage = React.lazy(
   () => import('@/features/hr/attendance/components/MainEmployeeAttendance')
 );

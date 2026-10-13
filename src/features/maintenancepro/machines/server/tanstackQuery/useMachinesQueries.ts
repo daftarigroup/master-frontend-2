@@ -23,6 +23,7 @@ export const useMachines = (
     search?: string;
     page?: number;
     limit?: number;
+    ownershipType?: 'OWNED' | 'RENTED';
   },
   actAsTenantId?: string,
   options?: { enabled?: boolean }

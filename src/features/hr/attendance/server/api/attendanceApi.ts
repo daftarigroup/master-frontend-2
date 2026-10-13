@@ -14,7 +14,17 @@ import type {
 } from '../../types/types';
 
 export const fetchAttendanceEmployees = async (): Promise<EmployeeMeta[]> => {
-  const res = await api.get('/hrfms/attendance/employees');
+  let res;
+  const hasToken = !!(localStorage.getItem('token') || localStorage.getItem('checklistToken'));
+  if (!hasToken) {
+    res = await api.get('/public/attendance/employees');
+  } else {
+    try {
+      res = await api.get('/hrfms/attendance/employees');
+    } catch {
+      res = await api.get('/public/attendance/employees');
+    }
+  }
   const items = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
   return items.map((e: any) => ({
     employeeId: e.employee_id || e.employeeId || String(e.id),
@@ -202,12 +212,26 @@ export const rejectAttendanceClaim = async (
  * hand to submitAttendancePunch.
  */
 export const uploadPunchPhoto = async (file: Blob, employeeId: string): Promise<string> => {
-  const presignRes = await api.post('/hrfms/upload/presign', {
+  const hasToken = !!(localStorage.getItem('token') || localStorage.getItem('checklistToken'));
+  let presignRes;
+
+  const payload = {
     bucket: 'attendance-punches',
     path: `${employeeId}/${Date.now()}.jpg`,
     contentType: file.type || 'image/jpeg',
-  });
-  const { uploadUrl, publicUrl } = presignRes.data.data;
+  };
+
+  if (!hasToken) {
+    presignRes = await api.post('/public/attendance/upload/presign', payload);
+  } else {
+    try {
+      presignRes = await api.post('/hrfms/upload/presign', payload);
+    } catch {
+      presignRes = await api.post('/public/attendance/upload/presign', payload);
+    }
+  }
+
+  const { uploadUrl, publicUrl } = presignRes.data?.data || presignRes.data || {};
   if (!uploadUrl || !publicUrl) {
     throw new Error('Could not get an upload URL from the server.');
   }
@@ -227,7 +251,21 @@ export const uploadPunchPhoto = async (file: Blob, employeeId: string): Promise<
 export const submitAttendancePunch = async (
   payload: SubmitPunchPayload
 ): Promise<SubmitPunchResult> => {
-  const res = await api.post('/hrfms/attendance/punch', payload);
+  const hasToken = !!(localStorage.getItem('token') || localStorage.getItem('checklistToken'));
+  let res;
+  if (!hasToken) {
+    res = await api.post('/public/attendance/punch', payload);
+  } else {
+    try {
+      res = await api.post('/hrfms/attendance/punch', payload);
+    } catch (err: any) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        res = await api.post('/public/attendance/punch', payload);
+      } else {
+        throw err;
+      }
+    }
+  }
   return res.data.data;
 };
 
@@ -235,7 +273,21 @@ export const fetchAttendancePunches = async (filters?: {
   employeeId?: string;
   date?: string;
 }): Promise<AttendancePunch[]> => {
-  const res = await api.get('/hrfms/attendance/punches', { params: filters });
+  const hasToken = !!(localStorage.getItem('token') || localStorage.getItem('checklistToken'));
+  let res;
+  if (!hasToken) {
+    res = await api.get('/public/attendance/punches', { params: filters });
+  } else {
+    try {
+      res = await api.get('/hrfms/attendance/punches', { params: filters });
+    } catch (err: any) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        res = await api.get('/public/attendance/punches', { params: filters });
+      } else {
+        throw err;
+      }
+    }
+  }
   return res.data.data ?? [];
 };
 

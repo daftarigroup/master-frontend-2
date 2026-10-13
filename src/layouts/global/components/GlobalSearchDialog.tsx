@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import {
@@ -38,6 +39,7 @@ import {
   CheckSquare,
   ClipboardCheck,
   Clock,
+  Camera,
   CalendarOff,
   Briefcase,
   X,
@@ -194,6 +196,7 @@ export const GlobalSearchDialog: React.FC = () => {
       { title: 'Manpower Deployment', category: 'HR & Facilities', path: '/hr/deployment', icon: <Briefcase className="mr-2 h-4 w-4 text-blue-600" /> },
       { title: 'Job Requisitions / Indents', category: 'HR & Facilities', path: '/hr/indent', icon: <FilePlus2 className="mr-2 h-4 w-4 text-blue-500" /> },
       { title: 'Candidate Pipeline', category: 'HR & Facilities', path: '/hr/find-enquiry', icon: <Users className="mr-2 h-4 w-4 text-indigo-500" /> },
+      { title: 'Mark Attendance', category: 'HR & Facilities', path: '/hr/mark-attendance', icon: <Camera className="mr-2 h-4 w-4 text-emerald-500" /> },
       { title: 'Daily Attendance', category: 'HR & Facilities', path: '/hr/attendance', icon: <Clock className="mr-2 h-4 w-4 text-amber-500" /> },
       { title: 'Leave Management', category: 'HR & Facilities', path: '/hr/leave', icon: <CalendarOff className="mr-2 h-4 w-4 text-rose-500" /> },
       { title: 'Gate Pass', category: 'HR & Facilities', path: '/hr/gate-pass', icon: <ShieldCheck className="mr-2 h-4 w-4 text-purple-500" /> },
@@ -240,21 +243,21 @@ export const GlobalSearchDialog: React.FC = () => {
     action();
   };
 
-  if (!shouldRender) return null;
+  if (!shouldRender || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <>
       {/* Click-away backdrop */}
       <div
         ref={backdropRef}
         onClick={handleClose}
-        className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity"
+        className="fixed inset-0 z-[100] bg-black/25 backdrop-blur-[2px] transition-opacity"
       />
 
       {/* Floating Dropdown Search Panel */}
       <div
         ref={panelRef}
-        className="fixed top-14 left-1/2 -translate-x-1/2 z-50 w-[720px] max-w-[94vw] bg-popover/95 backdrop-blur-xl border border-border/80 shadow-2xl rounded-2xl overflow-hidden ring-1 ring-black/5 dark:ring-white/10"
+        className="fixed top-14 left-1/2 -translate-x-1/2 z-[101] w-[720px] max-w-[94vw] bg-popover/95 backdrop-blur-xl border border-border/80 shadow-2xl rounded-2xl overflow-hidden ring-1 ring-black/5 dark:ring-white/10"
       >
         <Command className="w-full bg-transparent">
           <div className="flex items-center justify-between border-b border-border/60 px-3 py-1">
@@ -389,7 +392,8 @@ export const GlobalSearchDialog: React.FC = () => {
           </CommandList>
         </Command>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 
