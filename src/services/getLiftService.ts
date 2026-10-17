@@ -54,6 +54,7 @@ export interface GetLiftStoreInRecord {
     timestamp: string;
     materialDate?: string | null;
     rate?: string;
+    billAmount?: number;
 }
 
 export interface VendorOption {
@@ -230,6 +231,8 @@ export async function fetchStoreInRecords(permittedFirms?: string[]) {
             photoOfBill: r.photo_of_bill || '',
             timestamp: r.timestamp || '',
             materialDate: r.material_date || null,
+            rate: r.rate || '',
+            billAmount: Number(r.bill_amount) || 0,
         }));
     } catch (error) {
         console.error('Error fetching store-in records:', error);

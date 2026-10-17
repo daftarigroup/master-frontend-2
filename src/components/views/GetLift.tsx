@@ -391,7 +391,9 @@ export default function GetPurchase() {
             const withTax = indentMatch?.withTax || 'No';
             const effectiveRate = withTax === 'No' ? rate * (1 + taxValue / 100) : rate;
             const liftedQtyVal = Number(store.qty) || 0;
-            const amount = Number((liftedQtyVal * effectiveRate).toFixed(2));
+            const amount = Number(store.billAmount) > 0
+                ? Number(store.billAmount)
+                : Number((liftedQtyVal * effectiveRate).toFixed(2));
 
             return {
                 id: store.id,
