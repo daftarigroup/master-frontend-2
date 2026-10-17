@@ -1278,14 +1278,69 @@ export default function GetPurchase() {
                             columns={columns}
                             searchFields={['indentNo', 'vendorName', 'poNumber', 'firmNameMatch']}
                             dataLoading={loading}
+                            footer={({ filteredRows }) => {
+                                const totalPoQty = filteredRows.reduce((s, r) => s + (Number((r.original as any).quantity) || 0), 0);
+                                const totalLifting = filteredRows.reduce((s, r) => s + (Number((r.original as any).receivedQty) || 0), 0);
+                                const totalPending = filteredRows.reduce((s, r) => s + (Number((r.original as any).pendingPoQty) || 0), 0);
+                                return (
+                                    <div className="flex flex-wrap justify-end items-center gap-3 sm:gap-6 pt-2 pb-1 px-1 text-sm w-full">
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Total Rows:</span>
+                                            <span className="font-semibold text-foreground">{filteredRows.length}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>PO Qty:</span>
+                                            <span className="font-bold text-foreground">{totalPoQty.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Lifting Qty:</span>
+                                            <span className="font-bold text-primary">{totalLifting.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                            <span className="text-xs sm:text-sm font-semibold text-orange-800 dark:text-orange-300">Pending Qty:</span>
+                                            <span className="font-black text-base sm:text-lg text-orange-600 dark:text-orange-400">{totalPending.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    </div>
+                                );
+                            }}
                         />
                     </TabsContent>
                     <TabsContent value="history">
                         <DataTable
                             data={historyData}
                             columns={historyColumns}
-                            searchFields={['indentNo', 'vendorName', 'poNumber', 'firmNameMatch']}
+                            searchFields={['indentNo', 'vendorName', 'poNumber', 'firmNameMatch', 'product']}
                             dataLoading={false}
+                            footer={({ filteredRows }) => {
+                                const totalApproved = filteredRows.reduce((s, r) => s + (Number((r.original as any).quantity) || 0), 0);
+                                const totalLifted = filteredRows.reduce((s, r) => s + (Number((r.original as any).liftedQty) || 0), 0);
+                                const totalCancelled = filteredRows.reduce((s, r) => s + (Number((r.original as any).cancelQty) || 0), 0);
+                                const totalPending = filteredRows.reduce((s, r) => s + (Number((r.original as any).pendingLiftQty) || 0), 0);
+                                return (
+                                    <div className="flex flex-wrap justify-end items-center gap-3 sm:gap-6 pt-2 pb-1 px-1 text-sm w-full">
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Total Entries:</span>
+                                            <span className="font-semibold text-foreground">{filteredRows.length}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Approved Qty:</span>
+                                            <span className="font-bold text-foreground">{totalApproved.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Lifted Qty:</span>
+                                            <span className="font-bold text-primary">{totalLifted.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Cancelled:</span>
+                                            <span className="font-bold text-destructive">{totalCancelled.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                            <span className="text-xs sm:text-sm font-semibold text-orange-800 dark:text-orange-300">Pending Qty:</span>
+                                            <span className="font-black text-base sm:text-lg text-orange-600 dark:text-orange-400">{totalPending.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    </div>
+                                );
+                            }}
                         />
                     </TabsContent>
                 </Tabs>
