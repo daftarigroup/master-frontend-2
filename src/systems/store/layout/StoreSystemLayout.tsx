@@ -23,7 +23,7 @@ export const StoreSystemLayout: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold leading-none">Store & Inventory System</h2>
+              <h2 className="text-sm font-bold leading-none">Store and Inventory System</h2>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-blue-200 text-blue-700 bg-blue-50">
                 Active Module
               </span>
