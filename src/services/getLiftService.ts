@@ -53,6 +53,7 @@ export interface GetLiftStoreInRecord {
     photoOfBill: string;
     timestamp: string;
     materialDate?: string | null;
+    rate?: string;
 }
 
 export interface VendorOption {

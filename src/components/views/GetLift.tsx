@@ -105,6 +105,11 @@ interface HistoryData {
     products?: string[];
     indentNumbers?: string[];
     originalItems?: any[];
+    rate?: number;
+    taxValue?: number;
+    withTax?: string;
+    effectiveRate?: number;
+    amount?: number;
 }
 
 interface AuthUser {
@@ -381,6 +386,13 @@ export default function GetPurchase() {
             const cancelQtySafe = Number(indentMatch?.cancelQty) || 0;
             const pendingAfterThisLift = Math.max(0, approvedQty - runningReceived - cancelQtySafe);
 
+            const rate = parseFloat(String(store.rate || indentMatch?.approvedRate || '0').replace(/[^0-9.-]/g, '')) || 0;
+            const taxValue = Number(indentMatch?.taxValue) || 0;
+            const withTax = indentMatch?.withTax || 'No';
+            const effectiveRate = withTax === 'No' ? rate * (1 + taxValue / 100) : rate;
+            const liftedQtyVal = Number(store.qty) || 0;
+            const amount = Number((liftedQtyVal * effectiveRate).toFixed(2));
+
             return {
                 id: store.id,
                 indentNo: store.indentNo || '',
@@ -393,8 +405,8 @@ export default function GetPurchase() {
                 materialDateRaw: store.materialDate || '',
                 product: store.productName || indentMatch?.productName || '-',
                 quantity: approvedQty,
-                liftedQty: Number(store.qty) || 0, // NEW: Specific lift quantity
-                pendingLiftQty: pendingAfterThisLift, // NEW: Remaining at that time
+                liftedQty: liftedQtyVal,
+                pendingLiftQty: pendingAfterThisLift,
                 receivedQty: runningReceived,
                 pendingPoQty: pendingAfterThisLift,
                 cancelQty: cancelQtySafe,
@@ -405,6 +417,11 @@ export default function GetPurchase() {
                 areaOfUse: indentMatch?.areaOfUse || '-',
                 approvedVendorName: indentMatch?.approvedVendorName || '-',
                 liftingStatus: indentMatch?.liftingStatus || 'Pending',
+                rate,
+                taxValue,
+                withTax,
+                effectiveRate: Number(effectiveRate.toFixed(2)),
+                amount,
             };
         });
 
@@ -1312,10 +1329,10 @@ export default function GetPurchase() {
                             searchFields={['indentNo', 'vendorName', 'poNumber', 'firmNameMatch', 'product']}
                             dataLoading={false}
                             footer={({ filteredRows }) => {
-                                const totalApproved = filteredRows.reduce((s, r) => s + (Number((r.original as any).quantity) || 0), 0);
                                 const totalLifted = filteredRows.reduce((s, r) => s + (Number((r.original as any).liftedQty) || 0), 0);
                                 const totalCancelled = filteredRows.reduce((s, r) => s + (Number((r.original as any).cancelQty) || 0), 0);
                                 const totalPending = filteredRows.reduce((s, r) => s + (Number((r.original as any).pendingLiftQty) || 0), 0);
+                                const totalAmount = filteredRows.reduce((s, r) => s + (Number((r.original as any).amount) || 0), 0);
                                 return (
                                     <div className="flex flex-wrap justify-end items-center gap-3 sm:gap-6 pt-2 pb-1 px-1 text-sm w-full">
                                         <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
@@ -1323,20 +1340,20 @@ export default function GetPurchase() {
                                             <span className="font-semibold text-foreground">{filteredRows.length}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
-                                            <span>Approved Qty:</span>
-                                            <span className="font-bold text-foreground">{totalApproved.toLocaleString('en-IN')}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
-                                            <span>Lifted Qty:</span>
+                                            <span>Lift Qty:</span>
                                             <span className="font-bold text-primary">{totalLifted.toLocaleString('en-IN')}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
-                                            <span>Cancelled:</span>
+                                            <span>Cancel Qty:</span>
                                             <span className="font-bold text-destructive">{totalCancelled.toLocaleString('en-IN')}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 rounded-xl px-3.5 py-1.5 shadow-xs">
-                                            <span className="text-xs sm:text-sm font-semibold text-orange-800 dark:text-orange-300">Pending Qty:</span>
-                                            <span className="font-black text-base sm:text-lg text-orange-600 dark:text-orange-400">{totalPending.toLocaleString('en-IN')}</span>
+                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                                            <span>Pending Qty:</span>
+                                            <span className="font-bold text-orange-600">{totalPending.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                            <span className="text-xs sm:text-sm font-semibold text-emerald-800 dark:text-emerald-300">Total Amount:</span>
+                                            <span className="font-black text-base sm:text-lg text-emerald-600 dark:text-emerald-400">₹{totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
                                         </div>
                                     </div>
                                 );
