@@ -688,6 +688,14 @@ export default function GetPurchase() {
             cell: ({ getValue }) => <div className="font-medium text-orange-600">{(getValue() as number) || 0}</div>,
         },
         {
+            id: 'amount',
+            header: 'Amount',
+            cell: ({ row }) => {
+                const amt = Number(row.original.amount) || 0;
+                return <div className="font-medium text-emerald-600 whitespace-nowrap">₹{amt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>;
+            },
+        },
+        {
             id: 'stage_delete_action',
             header: 'Action',
             cell: ({ row }: { row: Row<HistoryData> }) => {
