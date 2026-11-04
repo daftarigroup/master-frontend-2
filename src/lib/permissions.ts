@@ -35,6 +35,7 @@ export const SYSTEM_PREFIXES: Record<string, string[]> = {
         'tally_',
     ],
     master_settings: ['master_registry', 'manage_users', 'working_calendar', 'holidays'],
+    pms: ['pms_'],
 };
 
 /**
@@ -54,6 +55,11 @@ function hasSystemAccessDirect(
     systemId: string
 ): boolean {
     if (!user) return false;
+
+    // Direct PMS access flag check
+    if (systemId === 'pms' && (user.pms_access === true || (user as any).pmsAccess === true)) {
+        return true;
+    }
 
     // Super admin, admin or legacy administrate flag grants all systems
     const isAdmin =

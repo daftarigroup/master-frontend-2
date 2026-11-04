@@ -433,6 +433,20 @@ export type UserPermissions = {
     hrLetter?: boolean;
     hrCalendar?: boolean;
     hrReports?: boolean;
+
+    // PMS System Permissions
+    pms_access?: boolean;
+    pmsAccess?: boolean;
+    pmsDash?: boolean;
+    pmsProjects?: boolean;
+    pmsContractor?: boolean;
+    pmsDrawings?: boolean;
+    pmsExecution?: boolean;
+    pmsAbstract?: boolean;
+    pmsBilling?: boolean;
+    pmsDocuments?: boolean;
+    pmsFinalApproval?: boolean;
+    pmsShareLogs?: boolean;
 };
 
 export interface PaymentsSheet {

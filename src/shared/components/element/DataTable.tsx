@@ -41,6 +41,7 @@ interface DataTableProps<TData, TValue> {
     hasMore?: boolean;
     loadingMore?: boolean;
     searchValue?: string;
+    onRowClick?: (row: TData) => void;
 }
 
 function globalFilterFn<TData>(row: TData, columnIds: string[], filterValue: string) {
@@ -69,6 +70,7 @@ export default function DataTable<TData, TValue>({
     hasMore = false,
     loadingMore = false,
     searchValue,
+    onRowClick,
 }: DataTableProps<TData, TValue>) {
     const [globalFilter, setGlobalFilter] = useState('');
     const [searchInput, setSearchInput] = useState(searchValue ?? '');
@@ -252,7 +254,8 @@ export default function DataTable<TData, TValue>({
                                             <TableRow
                                                 key={row.id}
                                                 data-state={row.getIsSelected?.() && 'selected'}
-                                                className="p-1"
+                                                className={cn("p-1", onRowClick && "cursor-pointer hover:bg-indigo-50/50")}
+                                                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                                             >
                                                 {row.getVisibleCells?.().map((cell) => (
                                                     cell && (

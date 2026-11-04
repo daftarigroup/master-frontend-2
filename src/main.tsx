@@ -206,6 +206,8 @@ import {
 const CandidateApplyPage = React.lazy(
     () => import('@/features/hr/apply/components/CandidateApplyPage')
 );
+const PMSRoutes = React.lazy(() => import('@/systems/pms/routes/PMSRoutes'));
+
 
 /** Old URL -> new URL. Optionally keeps the incoming query string (e.g. ?new=true) on top of the target's own. */
 function RedirectTo({ to, keepSearch = false }: { to: string; keepSearch?: boolean }) {
@@ -1324,6 +1326,25 @@ if (rootElement) {
                                 <Route path="master-registry" element={<Navigate to="/store/admin/master-registry" replace />} />
                                 <Route path="manage-users" element={<Navigate to="/store/admin/manage-users" replace />} />
                                 <Route path="license" element={<Liecense />} />
+
+                                {/* PROJECT MANAGEMENT SYSTEM (PMS) */}
+                                <Route path="pms/*" element={<PMSRoutes />} />
+
+                                {/* PMS Flat Route Backward-Compatibility Redirects */}
+                                <Route path="add-project" element={<Navigate to="/pms/projects/new" replace />} />
+                                <Route path="all-project" element={<Navigate to="/pms/projects" replace />} />
+                                <Route path="drawing-upload" element={<Navigate to="/pms/drawings" replace />} />
+                                <Route path="upload-drawing" element={<Navigate to="/pms/drawings/upload" replace />} />
+                                <Route path="final-approval" element={<Navigate to="/pms/final-approval" replace />} />
+                                <Route path="upload-design" element={<Navigate to="/pms/execution" replace />} />
+                                <Route path="project-minors/*" element={<RedirectTo to="/pms/minors" keepSearch />} />
+                                <Route path="project-abstract/*" element={<RedirectTo to="/pms/abstract" keepSearch />} />
+                                <Route path="ra-planning/*" element={<RedirectTo to="/pms/ra-planning" keepSearch />} />
+                                <Route path="final-comparative/*" element={<RedirectTo to="/pms/final-comparative" keepSearch />} />
+                                <Route path="rm1" element={<Navigate to="/pms/billing/department" replace />} />
+                                <Route path="rm2" element={<Navigate to="/pms/billing/subcontractor" replace />} />
+                                <Route path="documentation" element={<Navigate to="/pms/documentation" replace />} />
+                                <Route path="share-logs" element={<Navigate to="/pms/share-logs" replace />} />
 
                                 {/* Fallback route */}
                                 <Route path="*" element={<Navigate to="/" replace />} />

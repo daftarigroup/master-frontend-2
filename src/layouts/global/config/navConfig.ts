@@ -409,6 +409,38 @@ export const NAV_CONFIG: SystemNavConfig[] = [
       },
     ],
   },
+  {
+    id: 'pms',
+    name: 'Project Management (PMS)',
+    icon: Building2,
+    accentClassName: 'emerald',
+    dashboardPath: '/pms/projects',
+    groups: [
+      {
+        key: 'pms_all',
+        title: '',
+        items: [
+          { name: 'New Project', path: '/pms/projects', icon: Building2 },
+          { name: 'Create Indent', path: '/pms/indents/create', icon: PlusCircle },
+          { name: 'Indent Approval', path: '/pms/indents/approve', icon: CheckSquare },
+          { name: 'Vendor Rate Update', path: '/pms/indents/vendor-rates', icon: UserCog },
+          { name: 'Technical Approval', path: '/pms/indents/technical-approval', icon: Users },
+          { name: 'Management Approval', path: '/pms/indents/management-approval', icon: ShieldCheck },
+          { name: 'Pending PO to Make', path: '/pms/indents/pending-po', icon: Clock },
+          { name: 'Create PO', path: '/pms/indents/create-po', icon: FilePlus },
+          { name: 'PO History', path: '/pms/indents/po-history', icon: History },
+          { name: 'Final Approval', path: '/pms/final-approval', icon: ShieldCheck },
+          { name: 'Drawing & Design Upload', path: '/pms/drawings', icon: FileSpreadsheet },
+          { name: 'Execution & Actual Report', path: '/pms/execution', icon: FileSpreadsheet },
+          { name: 'Department Billing', path: '/pms/billing/department', icon: CreditCard },
+          { name: 'Sub Contractor Billings', path: '/pms/billing/subcontractor', icon: History },
+          { name: 'Documentation', path: '/pms/documentation', icon: FileText },
+          { name: 'Share Logs', path: '/pms/share-logs', icon: Send },
+          { name: 'Settings', path: '/pms/settings', icon: Settings },
+        ],
+      },
+    ],
+  },
 ];
 
 /**
@@ -450,6 +482,7 @@ export const getSystemIdFromPath = (pathname: string): string => {
   if (pathname.startsWith('/hr')) return 'hr';
   if (pathname.startsWith('/asset')) return 'asset';
   if (pathname.startsWith('/maintenance') || pathname.startsWith('/maintenancepro') || pathname.startsWith('/repair')) return 'maintenance';
+  if (pathname.startsWith('/pms')) return 'pms';
 
   for (const system of NAV_CONFIG) {
     if (system.id === 'global') continue;
