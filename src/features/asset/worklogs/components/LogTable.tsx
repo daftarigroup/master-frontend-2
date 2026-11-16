@@ -40,11 +40,6 @@ function cell(id: ColumnId, log: WorkLog): React.ReactNode {
         <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
           {log.isOpen ? '—' : fmtDuration(log.durationMinutes)}
           {log.machine.readingUnit === 'KM' && log.usage !== null && <span className="text-muted-foreground">({log.usage} {UNIT_SHORT.KM})</span>}
-          {log.clockVariance && (
-            <span title={CLOCK_VARIANCE_HINT} aria-label={CLOCK_VARIANCE_HINT} role="img" className="text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="size-3.5" />
-            </span>
-          )}
         </span>
       );
     case 'operator':

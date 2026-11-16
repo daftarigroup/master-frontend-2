@@ -63,13 +63,14 @@ export default function PmsIndentApprovalView() {
   const loadPending = async () => {
     setLoadingPending(true);
     try {
-      const res = await pmsApi.get('/indents?status=Pending');
+      const res = await pmsApi.get('/indents?status=Pending,IndentApproved');
       const list = Array.isArray(res) ? res : res?.data || [];
       // Flatten indents with multiple items if returned at indent-level or item-level
       const flattened: any[] = [];
       list.forEach((ind: any) => {
         if (Array.isArray(ind.items) && ind.items.length > 0) {
           ind.items.forEach((it: any, idx: number) => {
+            if (it.indent_status) return;
             flattened.push({
               ...ind,
               item_id: it.id || idx,
@@ -109,6 +110,7 @@ export default function PmsIndentApprovalView() {
             flattened.push({
               ...ind,
               item_id: it.id || idx,
+              status: it.indent_status || ind.status,
               group_head: it.group_head,
               area_of_use: it.area_of_use,
               product_name: it.product_name,

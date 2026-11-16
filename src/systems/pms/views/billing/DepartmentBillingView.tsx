@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { openRaBillVoucher } from '@/systems/pms/utils/raBillVoucher';
 import {
   Receipt,
   Search,
@@ -116,97 +117,13 @@ export default function RM1() {
   };
 
   const handlePrint = (bill: any) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Pop-up blocked. Please allow pop-ups to print bill.');
-      return;
-    }
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Running Account Bill - ${bill.billNo || bill.rmNo}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 30px; font-size: 12px; color: #111; }
-          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 18px; }
-          .header h1 { margin: 0 0 5px 0; font-size: 16px; text-transform: uppercase; }
-          .header h2 { margin: 0; font-size: 13px; font-weight: normal; }
-          .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-          .meta-item { display: flex; }
-          .meta-label { font-weight: bold; width: 150px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          th, td { border: 1px solid #444; padding: 6px 8px; }
-          th { background: #f0f0f0; text-align: left; font-size: 11px; }
-          .text-right { text-align: right; }
-          .text-center { text-align: center; }
-          .summary-table { width: 350px; margin-left: auto; margin-top: 20px; }
-          .summary-table td { padding: 5px 8px; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 50px; text-align: center; }
-          .sig-box { border-top: 1px dashed #666; padding-top: 8px; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Government of Maharashtra - Water Resources Department</h1>
-          <h2>Running Account (RA) Bill Certificate (Table 1 Abstract)</h2>
-          <div style="font-weight: bold; margin-top: 5px;">${bill.projectName} ${bill.minorName ? `(${bill.minorName})` : ''}</div>
-        </div>
-
-        <div class="meta-grid">
-          <div class="meta-item"><span class="meta-label">Bill Number:</span> <span>${bill.billNo || bill.rmNo}</span></div>
-          <div class="meta-item"><span class="meta-label">Bill Date:</span> <span>${bill.billDate || '-'}</span></div>
-          <div class="meta-item"><span class="meta-label">Contractor:</span> <span>${bill.contractorName || '-'}</span></div>
-          <div class="meta-item"><span class="meta-label">Total Pipe Length:</span> <span>${(bill.liveLength || 0).toLocaleString('en-IN')} m</span></div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th class="text-center" style="width: 40px;">#</th>
-              <th>Bill Item Description</th>
-              <th class="text-center" style="width: 50px;">Unit</th>
-              <th class="text-right" style="width: 80px;">Rate (₹)</th>
-              <th class="text-right" style="width: 90px;">Executed Qty</th>
-              <th class="text-right" style="width: 110px;">Amount (₹)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(bill.itemBreakdown || []).map((e: any, idx: number) => `
-              <tr>
-                <td class="text-center">${idx + 1}</td>
-                <td>${e.description}</td>
-                <td class="text-center">${e.unit}</td>
-                <td class="text-right">${Number(e.rate || 0).toLocaleString('en-IN')}</td>
-                <td class="text-right">${Number(e.quantity || 0).toLocaleString('en-IN')}</td>
-                <td class="text-right">${Number(e.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <table class="summary-table">
-          <tr style="background: #f8fafc; border: 2px solid #0f172a;">
-            <td><strong>Total Bill Amount:</strong></td>
-            <td class="text-right"><strong style="font-size: 14px; color: #0f172a;">₹ ${Number(bill.liveAmount || bill.billAmount || 0).toLocaleString('en-IN')}</strong></td>
-          </tr>
-        </table>
-
-        <div class="signatures">
-          <div class="sig-box">Sectional Engineer</div>
-          <div class="sig-box">Sub-Divisional Officer (SDO)</div>
-          <div class="sig-box">Executive Engineer</div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
+    const ok = openRaBillVoucher({
+      bill,
+      items: bill.itemBreakdown || [],
+      totalAmount: Number(bill.liveAmount || bill.billAmount || 0),
+      isSubContractor: false,
+    });
+    if (!ok) toast.error('Pop-up blocked. Please allow pop-ups to print bill.');
   };
 
 

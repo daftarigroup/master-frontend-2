@@ -178,7 +178,7 @@ function FormInner({ target, date, machines, onClose, onEditById }: Omit<Props, 
     <>
       <SheetHeader className="border-b p-4 text-left">
         <SheetTitle>{editLog ? `Edit ${editLog.logNumber ?? 'work log'}` : 'Add Work Log'}</SheetTitle>
-        <SheetDescription>{editLog ? 'Changes are saved as pending until approved.' : 'Only the basics are needed. More details are optional.'}</SheetDescription>
+        <SheetDescription>{editLog ? 'Changes are saved immediately.' : 'Only the basics are needed. More details are optional.'}</SheetDescription>
       </SheetHeader>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -215,11 +215,11 @@ function FormInner({ target, date, machines, onClose, onEditById }: Omit<Props, 
             <Input id="wl-date" type="date" value={f.date} max={istToday()} onChange={(e) => set('date', e.target.value)} className="h-11" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="wl-start-time">Start time</Label>
+            <Label htmlFor="wl-start-time">Start time <span className="font-normal text-muted-foreground">(not compared with meter)</span></Label>
             <Input id="wl-start-time" type="time" value={f.startTime} onChange={(e) => set('startTime', e.target.value)} className="h-11" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="wl-stop-time">Stop time</Label>
+            <Label htmlFor="wl-stop-time">Stop time <span className="font-normal text-muted-foreground">(not compared with meter)</span></Label>
             <Input id="wl-stop-time" type="time" value={f.stopTime} onChange={(e) => set('stopTime', e.target.value)} className="h-11" />
           </div>
         </div>

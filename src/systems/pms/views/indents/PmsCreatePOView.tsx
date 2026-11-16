@@ -166,7 +166,7 @@ const FALLBACK_SUPPLIERS = [
   },
 ];
 
-export default function PmsCreatePOView() {
+export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { indentId: any; itemId: any } | null; onCreated?: () => void } = {}) {
   const [mode, setMode] = useState<'create' | 'revise'>('create');
 
   // Main Form State
@@ -350,12 +350,21 @@ export default function PmsCreatePOView() {
 
     // 1. Extract from approved PMS indents
     approvedIndents.forEach((ind: any) => {
-      const vendorName = ind.approved_vendor_name || ind.selected_vendor?.vendor_name || ind.vendors?.[0]?.vendor_name;
-      if (vendorName && String(vendorName).trim() !== '') {
+      // Only approved items that don't have a PO yet; one supplier entry per approved vendor
+      const open = (Array.isArray(ind.items) ? ind.items : []).filter(
+        (it: any) => it.indent_status === 'Approved' && (!it.approval_status || it.approval_status === 'Approved') && !(it.po_number && String(it.po_number).trim())
+      );
+      const byVendor = new Map<string, any[]>();
+      open.forEach((it: any) => {
+        const vn = it.approved_vendor_name || ind.approved_vendor_name || ind.selected_vendor?.vendor_name || ind.vendors?.[0]?.vendor_name;
+        if (!vn || !String(vn).trim()) return;
+        byVendor.set(vn, [...(byVendor.get(vn) || []), it]);
+      });
+      byVendor.forEach((vendorItems, vendorName) => {
         const vendorData = ind.vendors?.find((v: any) => v.vendor_name === vendorName) || ind.selected_vendor || {};
-        const items = Array.isArray(ind.items) && ind.items.length > 0 ? ind.items : [];
         const proj = projects.find((p: any) => String(p.id) === String(ind.project_id)) || {};
         const sub = (proj.sub_contractors || proj.subContractors || [])[0] || {};
+        const gst = Number(vendorData.gst_percent || 18);
         list.push({
           name: vendorName,
           address: vendorData.address || ind.vendor_address || '',
@@ -378,27 +387,27 @@ export default function PmsCreatePOView() {
             phone: ind.sub_contractor_phone || sub.phone || '',
             email: ind.sub_contractor_email || sub.email || '',
           },
-          items: items.map((it: any, idx: number) => ({
-            item_id: it.id || idx,
-            indent_number: ind.indent_number || `PI-${ind.id}`,
-            quotation_number: '',
-            product_name: it.product_name,
-            quantity: Number(it.quantity || 1),
-            uom: it.uom || 'Nos',
-            rate: Number(vendorData.rate || it.approved_rate || 0),
-            gst_percent: Number(vendorData.gst_percent || 18),
-            discount_percent: 0,
-            amount: calculateRowAmount(
-              Number(it.quantity || 1),
-              Number(vendorData.rate || it.approved_rate || 0),
-              0,
-              Number(vendorData.gst_percent || 18)
-            ),
-            payment_terms: vendorData.payment_terms || '30 Days Net',
-          })),
+          items: vendorItems.map((it: any) => {
+            const qty = Number(it.quantity || 1);
+            const rate = Number(it.approved_rate || ind.approved_rate || vendorData.rate || 0); // approved rate comes from the approval step
+            return {
+              item_id: it.id,
+              indent_item_id: it.id,
+              indent_number: ind.indent_number || `PI-${ind.id}`,
+              quotation_number: '',
+              product_name: it.product_name,
+              quantity: qty,
+              uom: it.uom || 'Nos',
+              rate,
+              gst_percent: gst,
+              discount_percent: 0,
+              amount: calculateRowAmount(qty, rate, 0, gst),
+              payment_terms: vendorData.payment_terms || '30 Days Net',
+            };
+          }),
           indentObj: ind,
         });
-      }
+      });
     });
 
     // 2. Add fallbacks if empty or to ensure rich supplier selection
@@ -465,13 +474,13 @@ export default function PmsCreatePOView() {
   const location = useLocation();
   const prefillDone = useRef(false);
   useEffect(() => {
-    const st: any = location.state;
+    const st: any = prefill ?? location.state;
     if (prefillDone.current || !st?.indentId || approvedIndents.length === 0) return;
-    const entry = availableSuppliers.find((s) => s.indentObj && s.indentObj.id === st.indentId);
+    const entry = availableSuppliers.find((s) => s.indentObj && s.indentObj.id === st.indentId && (st.itemId == null || (s.items || []).some((it: any) => it.item_id === st.itemId)));
     prefillDone.current = true;
     if (entry) applySupplierEntry(entry, st.itemId);
     else toast.info('Selected indent could not be loaded; pick a supplier manually');
-  }, [location.state, approvedIndents, availableSuppliers]);
+  }, [location.state, prefill, approvedIndents, availableSuppliers]);
 
   // ── Line Items Handlers ──────────────────────────────────────────────────────
 
@@ -678,6 +687,7 @@ export default function PmsCreatePOView() {
         terms: terms,
         line_items: lineItems.map((it) => ({
           indent_number: it.indent_number,
+          indent_item_id: it.indent_item_id || null,
           quotation_number: it.quotation_number || null,
           product_name: it.product_name,
           quantity: Number(it.quantity) || 1,
@@ -731,6 +741,7 @@ export default function PmsCreatePOView() {
       // Refresh list & reset
       await loadData();
       handleReset();
+      onCreated?.();
     } catch (err: any) {
       toast.error(err?.message || 'Error creating Purchase Order');
     } finally {

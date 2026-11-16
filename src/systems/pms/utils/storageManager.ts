@@ -1028,3 +1028,44 @@ export const getEmailLogsForProject = (projectName: string, projectNo: string, a
     return false;
   });
 };
+
+// Pulls POs raised in the Indent -> PO flow (backend) into the local PO master + product rates,
+// so Sub-Contractor billing can pick them and take rates from them.
+export const syncBackendPOsToLocal = async (): Promise<void> => {
+  try {
+    const res: any = await pmsApi.get('/pos');
+    const pos: any[] = Array.isArray(res) ? res : res?.data || [];
+    if (!pos.length) return;
+    syncExternalPurchaseOrdersFromMaster(
+      pos.map((po) => ({
+        po_number: po.po_number,
+        poNumber: po.po_number,
+        name: po.vendor_name,
+        partyName: po.vendor_name,
+        date: po.po_date || po.created_at,
+        total_po_amount: Number(po.grand_total) || 0,
+      }))
+    );
+    const imf = { ...getProductIMFData() };
+    let changed = false;
+    pos.forEach((po) => {
+      const key = String(po.po_number || '').trim();
+      if (!key || imf[key]?.length) return;
+      imf[key] = (po.line_items || po.items || []).map((it: any, i: number) => ({
+        sn: i + 1,
+        product: it.product_name,
+        productName: it.product_name,
+        description: it.description,
+        uom: it.uom,
+        qty: Number(it.quantity) || 0,
+        rate: Number(it.rate) || 0,
+        gst: Number(it.gst_percent) || 0,
+        discount: Number(it.discount_percent) || 0,
+      }));
+      changed = true;
+    });
+    if (changed) saveProductIMFData(imf);
+  } catch (e) {
+    console.warn('PMS: could not sync backend POs for billing', e);
+  }
+};

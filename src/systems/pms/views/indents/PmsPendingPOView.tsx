@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/table';
 import { cn, formatDate } from '@/lib/utils';
 
-export default function PmsPendingPOView() {
+export default function PmsPendingPOView({ onSelect }: { onSelect?: (sel: { indentId: any; itemId: any }) => void } = {}) {
   const navigate = useNavigate();
   const [dataList, setDataList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,12 +39,11 @@ export default function PmsPendingPOView() {
       const list = Array.isArray(res) ? res : res?.data || [];
       const flattened: any[] = [];
       list.forEach((ind: any) => {
-        // Exclude indents that already have a PO number assigned
-        if (ind.po_number && String(ind.po_number).trim() !== '') return;
-
         if (Array.isArray(ind.items) && ind.items.length > 0) {
           ind.items.forEach((it: any, idx: number) => {
+            if (it.indent_status !== 'Approved') return; // only items approved at Indent Approval move ahead
             if (it.po_number && String(it.po_number).trim() !== '') return;
+            if (it.approval_status && it.approval_status !== 'Approved') return; // rejected / undecided items never get a PO
             const vendor = it.selected_vendor || ind.selected_vendor || {};
             flattened.push({
               ...ind,
@@ -176,9 +175,11 @@ export default function PmsPendingPOView() {
                       <TableRow
                         key={`${row.id}-${row.item_id || idx}`}
                         onClick={() =>
-                          navigate('/pms/indents/create-po', {
-                            state: { indentId: row.id, itemId: row.item_id },
-                          })
+                          onSelect
+                            ? onSelect({ indentId: row.id, itemId: row.item_id })
+                            : navigate('/pms/indents/create-po', {
+                                state: { indentId: row.id, itemId: row.item_id },
+                              })
                         }
                         className="hover:bg-slate-50/70 transition-colors cursor-pointer"
                       >

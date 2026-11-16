@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { openRaBillVoucher } from '@/systems/pms/utils/raBillVoucher';
 import {
   ArrowLeft,
   Building2,
@@ -18,7 +19,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { getTodayDate } from '@/systems/pms/utils/helpers';
-import { getRMBills, updateRMBill, getProjectOrMinor } from '@/systems/pms/utils/storageManager';
+import { getRMBills, updateRMBill, getProjectOrMinor, syncBackendPOsToLocal } from '@/systems/pms/utils/storageManager';
 import { computeBillFromExecutionEntries } from '@/systems/pms/utils/dynamicBillCalculator';
 import { getAvailablePOsForProject, resolvePoNumberForProject } from '@/systems/pms/utils/table1RateMaster';
 
@@ -80,11 +81,17 @@ export default function BillCalculationPage({ mode }: Props) {
   const isSubContractor = (mode || (bill?.billType === 'Actual' ? 'SUBCONTRACTOR' : 'DEPARTMENT')) === 'SUBCONTRACTOR';
   const backPath = isSubContractor ? '/pms/billing/subcontractor' : '/pms/billing/department';
 
+  // Bring POs created in the Indent -> PO flow into the local PO list (and rates) used here
+  const [poSyncTick, setPoSyncTick] = useState(0);
+  useEffect(() => {
+    syncBackendPOsToLocal().then(() => setPoSyncTick((t) => t + 1));
+  }, []);
+
   // Discover available POs
   const availablePOs = useMemo(() => {
     if (!bill) return [];
     return getAvailablePOsForProject(bill.projectNo, subContractorName);
-  }, [bill, subContractorName]);
+  }, [bill, subContractorName, poSyncTick]);
 
   // Compute live Table 1 bill: Qty x Rate = Amount (NO DEDUCTIONS)
   const calculation = useMemo(() => {
@@ -95,7 +102,7 @@ export default function BillCalculationPage({ mode }: Props) {
       subContractorName,
       overrideRates
     });
-  }, [bill, isSubContractor, selectedPoNumber, subContractorName, overrideRates]);
+  }, [bill, isSubContractor, selectedPoNumber, subContractorName, overrideRates, poSyncTick]);
 
   if (!bill) {
     return (
@@ -160,105 +167,17 @@ export default function BillCalculationPage({ mode }: Props) {
   };
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Pop-up blocked. Please allow pop-ups to print voucher.');
-      return;
-    }
-
-    const title = isSubContractor
-      ? 'Sub-Contractor Payment Certificate / Disbursement Voucher'
-      : 'Government Department Running Account (RA) Bill Certificate';
-
-    const items = calculation?.lineItems || bill.itemBreakdown || [];
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title} - ${billNo || bill.rmNo}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 30px; font-size: 12px; color: #111; }
-          .header { text-align: center; border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 18px; }
-          .header h1 { margin: 0 0 5px 0; font-size: 16px; text-transform: uppercase; color: #0f172a; }
-          .header h2 { margin: 0; font-size: 13px; font-weight: normal; color: #475569; }
-          .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-          .meta-item { display: flex; }
-          .meta-label { font-weight: bold; width: 160px; color: #334155; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          th, td { border: 1px solid #94a3b8; padding: 7px 10px; }
-          th { background: #f1f5f9; text-align: left; font-size: 11px; text-transform: uppercase; }
-          .text-right { text-align: right; }
-          .text-center { text-align: center; }
-          .summary-table { width: 380px; margin-left: auto; margin-top: 20px; font-size: 13px; }
-          .summary-table td { padding: 8px 12px; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 60px; text-align: center; gap: 20px; }
-          .sig-box { border-top: 1px dashed #64748b; padding-top: 8px; font-weight: bold; font-size: 11px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${title}</h1>
-          <h2>Table 1 Quantity Abstract & Work Done Certificate</h2>
-          <div style="font-weight: bold; margin-top: 6px;">${bill.projectName} ${bill.minorName ? `(${bill.minorName})` : ''}</div>
-        </div>
-
-        <div class="meta-grid">
-          <div class="meta-item"><span class="meta-label">Bill / Voucher No:</span> <span><strong>${billNo || bill.rmNo}</strong></span></div>
-          <div class="meta-item"><span class="meta-label">Bill Date:</span> <span>${billDate || '-'}</span></div>
-          <div class="meta-item"><span class="meta-label">Contractor / Party:</span> <span>${isSubContractor ? subContractorName : (bill.contractorName || '-')}</span></div>
-          ${isSubContractor ? `<div class="meta-item"><span class="meta-label">Linked PO Number:</span> <span>${selectedPoNumber || 'PO Scope'}</span></div>` : ''}
-          <div class="meta-item"><span class="meta-label">Total Pipe Length:</span> <span>${(calculation?.totalLengthMeters || bill.liveLength || 0).toLocaleString('en-IN')} m</span></div>
-          <div class="meta-item"><span class="meta-label">Reference RM No:</span> <span>${bill.rmNo}</span></div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th class="text-center" style="width: 40px;">#</th>
-              <th>Item Description</th>
-              <th class="text-center" style="width: 60px;">Unit</th>
-              <th class="text-right" style="width: 90px;">Executed Qty</th>
-              <th class="text-right" style="width: 100px;">Rate (₹)</th>
-              <th class="text-right" style="width: 130px;">Amount (₹)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map((e: any, idx: number) => `
-              <tr>
-                <td class="text-center">${idx + 1}</td>
-                <td>${e.description} <small style="color: #64748b;">(${e.rateSource || ''})</small></td>
-                <td class="text-center">${e.unit}</td>
-                <td class="text-right">${Number(e.quantity || 0).toLocaleString('en-IN')}</td>
-                <td class="text-right">${Number(e.rate || 0).toLocaleString('en-IN')}</td>
-                <td class="text-right font-bold">${Number(e.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        <table class="summary-table">
-          <tr style="background: #f8fafc; border: 2px solid #0f172a;">
-            <td><strong>Total Bill Amount (₹):</strong></td>
-            <td class="text-right"><strong style="font-size: 15px; color: #0f172a;">₹ ${Number(calculation?.totalAmount || bill.billAmount || 0).toLocaleString('en-IN')}</strong></td>
-          </tr>
-        </table>
-
-        <div class="signatures">
-          <div class="sig-box">${isSubContractor ? 'Site Engineer' : 'Sectional Engineer'}</div>
-          <div class="sig-box">${isSubContractor ? 'Billing In-Charge' : 'Sub-Divisional Officer (SDO)'}</div>
-          <div class="sig-box">${isSubContractor ? 'Project Manager / DGM' : 'Executive Engineer'}</div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
+    const ok = openRaBillVoucher({
+      bill,
+      items: calculation?.lineItems || bill.itemBreakdown || [],
+      totalAmount: Number(calculation?.totalAmount || bill.billAmount || 0),
+      billNo,
+      billDate,
+      isSubContractor,
+      partyName: isSubContractor ? subContractorName : (bill.contractorName || ''),
+      poNumber: isSubContractor ? selectedPoNumber : undefined,
+    });
+    if (!ok) toast.error('Pop-up blocked. Please allow pop-ups to print voucher.');
   };
 
   return (

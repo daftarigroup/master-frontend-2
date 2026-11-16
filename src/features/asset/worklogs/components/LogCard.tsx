@@ -53,11 +53,6 @@ export function LogCard({ log, index, showMachine, handlers }: { log: WorkLog; i
               <Clock className="size-4 text-muted-foreground" aria-hidden />
               <span className="flex items-center gap-1 text-sm font-bold tabular-nums">
                 {fmtDuration(log.durationMinutes)}
-                {log.clockVariance && (
-                  <span title={CLOCK_VARIANCE_HINT} aria-label={CLOCK_VARIANCE_HINT} role="img" className="text-amber-600 dark:text-amber-400">
-                    <AlertTriangle className="size-3.5" />
-                  </span>
-                )}
               </span>
             </>
           )}

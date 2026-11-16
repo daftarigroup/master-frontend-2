@@ -66,6 +66,7 @@ export default function PmsTechnicalApprovalView() {
       list.forEach((ind: any) => {
         if (Array.isArray(ind.items) && ind.items.length > 0) {
           ind.items.forEach((it: any, idx: number) => {
+            if (it.indent_status !== 'Approved') return; // only items approved at Indent Approval move ahead
             flattened.push({
               ...ind,
               item_id: it.id || idx,
@@ -101,6 +102,7 @@ export default function PmsTechnicalApprovalView() {
       list.forEach((ind: any) => {
         if (Array.isArray(ind.items) && ind.items.length > 0) {
           ind.items.forEach((it: any, idx: number) => {
+            if (it.indent_status !== 'Approved') return; // only items approved at Indent Approval move ahead
             flattened.push({
               ...ind,
               item_id: it.id || idx,

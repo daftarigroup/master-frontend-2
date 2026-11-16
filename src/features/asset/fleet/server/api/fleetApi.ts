@@ -32,12 +32,12 @@ export const fleetApi = {
   voidUsage: (id: string, reason: string) => api.post(`/fleet/usage-logs/${id}/void`, { reason }).then(unwrap),
   voidDiesel: (id: string, reason: string) => api.post(`/fleet/diesel/logs/${id}/void`, { reason }).then(unwrap),
 
-  ledger: (p: { firmId: string; month: string; includeIdle?: boolean }) =>
+  ledger: (p: { firmId: string; month?: string; from?: string; to?: string; includeIdle?: boolean }) =>
     api.get('/fleet/ledger', { params: p }).then((r) => unwrap<MonthLedger>(r)),
-  exportLedger: async (p: { firmId: string; month: string; format: 'xlsx' | 'csv'; includeIdle?: boolean }) => {
+  exportLedger: async (p: { firmId: string; month?: string; from?: string; to?: string; format: 'xlsx' | 'csv'; includeIdle?: boolean }) => {
     const res = await api.get('/fleet/ledger/export', { params: p, responseType: 'blob' });
     const cd = String(res.headers['content-disposition'] ?? '');
-    const name = /filename="?([^";]+)"?/.exec(cd)?.[1] ?? `diesel-ledger-${p.month}.${p.format}`;
+    const name = /filename="?([^";]+)"?/.exec(cd)?.[1] ?? `diesel-ledger-${p.month ?? `${p.from}_to_${p.to}`}.${p.format}`;
     return { blob: res.data as Blob, name };
   },
   efficiency: (p: { firmId?: string; from: string; to: string; machineId?: string }) =>

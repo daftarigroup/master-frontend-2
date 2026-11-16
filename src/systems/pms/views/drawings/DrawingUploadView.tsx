@@ -1216,11 +1216,11 @@ export default function DrawingUpload() {
                               <span className="text-gray-600 font-medium">
                                 {mRows > 0 ? `${mRows} design rows` : 'No design rows'}
                               </span>
-                              {((m.scheduleRows && m.scheduleRows.length > 0) || m.scheduleFile) && (
+                              {((m.scheduleRows && m.scheduleRows.length > 0) || m.scheduleFile || m.scheduleFileId) && (
                                 <>
                                   <span className="text-gray-400">•</span>
                                   <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded text-[10px]">
-                                    <CalendarClock size={10} /> Schedule: {m.scheduleRows?.length || 0} rows
+                                    <CalendarClock size={10} /> Schedule: {m.scheduleRows?.length ? `${m.scheduleRows.length} rows` : (m.scheduleFileName || 'PDF attached')}
                                   </span>
                                 </>
                               )}
@@ -1290,6 +1290,11 @@ export default function DrawingUpload() {
               </span>
               <span className="text-[10px] text-gray-400">Saved with the minor being added above</span>
             </div>
+            {projectMinors.some(m => m.scheduleFileId || m.scheduleFile || m.scheduleRows?.length) && (
+              <div className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1">
+                Already-uploaded schedules: {projectMinors.filter(m => m.scheduleFileId || m.scheduleFile || m.scheduleRows?.length).length} of {projectMinors.length} minors have one (see the Schedule badge / Schedule Report button on each saved minor above). This box is only for a schedule of the NEW minor.
+              </div>
+            )}
             
             <div className="space-y-1">
               <div className="flex items-center justify-between">

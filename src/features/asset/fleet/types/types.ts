@@ -77,6 +77,11 @@ export interface LedgerRow {
   /** old diesel logged without a machine; empty in new months */
   other: number;
   total: number;
+  /** Store diesel stock: balance at the start of the day, received that day, and opening + received */
+  opening: number;
+  received: number;
+  available: number;
+  closing: number;
 }
 export interface LedgerMachineMeta {
   id: string;

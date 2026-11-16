@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { pmsApi } from '../../services/pmsApi';
+import { apiClient } from '@/lib/apiClient';
+import { ComboBox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
 import {
   Search,
@@ -60,6 +62,7 @@ interface EquipmentRow {
   area_of_use: string;
   equipment_name: string;
   type: 'Rent' | 'Owned';
+  quantity: number | string;
   expected_time: string;
   day_charge: number | string;
   indent_type: 'Equipment';
@@ -118,6 +121,54 @@ export default function PmsCreateIndentView() {
   // Equipment Items
   const [equipments, setEquipments] = useState<EquipmentRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Store item master (+ stock) - the Product Name dropdown is linked to it and auto-fills group head, UOM, stock
+  const [storeItems, setStoreItems] = useState<{ key: string; name: string; groupHead: string; uom: string; stock: number }[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const [itemRes, stockRes]: any[] = await Promise.all([
+          apiClient.get('/store/entity/item', { params: { order: 'item_name.asc', limit: 'all' } }),
+          apiClient.get('/store/inventory/stock').catch(() => ({ data: [] })),
+        ]);
+        const norm = (v: any) => String(v ?? '').trim().toLowerCase();
+        const stockMap = new Map<string, number>();
+        for (const r of (stockRes?.data ?? []) as any[]) {
+          const k = `${norm(r.groupHead)}|${norm(r.itemName)}`;
+          stockMap.set(k, (stockMap.get(k) ?? 0) + Number(r.current || 0));
+        }
+        const seen = new Set<string>();
+        const rows: any[] = [];
+        for (const r of (itemRes?.data ?? []) as any[]) {
+          const name = String(r.item_name ?? '').trim();
+          const gh = String(r.group_head?.name ?? '').trim();
+          const k = `${norm(gh)}|${norm(name)}`;
+          if (!name || seen.has(k)) continue;
+          seen.add(k);
+          rows.push({ key: k, name, groupHead: gh, uom: r.uom?.name ?? 'Nos', stock: stockMap.get(k) ?? 0 });
+        }
+        setStoreItems(rows);
+      } catch (e) {
+        console.warn('Failed to load store items', e);
+      }
+    })();
+  }, []);
+
+  const handleSelectStoreItem = (index: number, key: string) => {
+    const it = storeItems.find((i) => i.key === key);
+    if (!it) return;
+    setProducts((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        product_name: it.name,
+        group_head: it.groupHead,
+        uom: it.uom,
+        current_stock_qty: it.stock,
+      };
+      return updated;
+    });
+  };
 
   // Initialize Indenter Name from auth
   useEffect(() => {
@@ -430,6 +481,7 @@ export default function PmsCreateIndentView() {
         area_of_use: '',
         equipment_name: '',
         type: 'Rent',
+        quantity: '',
         expected_time: '',
         day_charge: '',
         indent_type: 'Equipment',
@@ -491,6 +543,10 @@ export default function PmsCreateIndentView() {
         toast.error(`Equipment #${i + 1}: Equipment name is required`);
         return;
       }
+      if (!eq.quantity || Number(eq.quantity) <= 0) {
+        toast.error(`Equipment #${i + 1}: Quantity is required`);
+        return;
+      }
       if (eq.type === 'Rent') {
         if (!eq.expected_time.trim()) {
           toast.error(`Equipment #${i + 1}: Expected time is required for rented equipment`);
@@ -515,7 +571,7 @@ export default function PmsCreateIndentView() {
         group_head: p.group_head || '',
         product_name: p.product_name,
         quantity: Number(p.quantity),
-        current_stock_qty: 0,
+        current_stock_qty: p.current_stock_qty || 0,
         uom: p.uom || 'Nos',
         area_of_use: p.area_of_use || '',
         expected_requirement_date: p.expected_requirement_date,
@@ -528,6 +584,7 @@ export default function PmsCreateIndentView() {
         area_of_use: eq.area_of_use || '',
         equipment_name: eq.equipment_name,
         type: eq.type,
+        quantity: Number(eq.quantity),
         expected_time: eq.type === 'Rent' ? eq.expected_time : '',
         day_charge: eq.type === 'Rent' ? Number(eq.day_charge) : 0,
         indent_type: 'Equipment',
@@ -778,9 +835,9 @@ export default function PmsCreateIndentView() {
                           </Label>
                           <Input
                             value={item.group_head}
-                            onChange={(e) => handleProductChange(idx, 'group_head', e.target.value)}
-                            placeholder="Group Head"
-                            className="bg-white h-9 text-xs border-slate-200 rounded-lg"
+                            readOnly
+                            placeholder="Auto-filled from product"
+                            className="bg-slate-100 cursor-not-allowed h-9 text-xs border-slate-200 rounded-lg"
                           />
                         </div>
 
@@ -802,12 +859,11 @@ export default function PmsCreateIndentView() {
                           <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
                             Product Name <span className="text-red-500">*</span>
                           </Label>
-                          <Input
-                            value={item.product_name}
-                            onChange={(e) => handleProductChange(idx, 'product_name', e.target.value)}
-                            placeholder="Product Name"
-                            className="bg-white h-9 text-xs border-slate-200 rounded-lg font-medium"
-                            required
+<ComboBox
+                            options={storeItems.map((i) => ({ label: i.groupHead ? `${i.name} (${i.groupHead})` : i.name, value: i.key }))}
+                            value={storeItems.find((i) => i.name === item.product_name && i.groupHead === item.group_head)?.key ? [storeItems.find((i) => i.name === item.product_name && i.groupHead === item.group_head)!.key] : []}
+                            onChange={(v) => v[0] && handleSelectStoreItem(idx, v[0])}
+                            placeholder="Select Product from Store"
                           />
                         </div>
 
@@ -848,9 +904,9 @@ export default function PmsCreateIndentView() {
                           </Label>
                           <Input
                             value={item.uom}
-                            onChange={(e) => handleProductChange(idx, 'uom', e.target.value)}
-                            placeholder="Nos, Mtr, Bags..."
-                            className="bg-white h-9 text-xs border-slate-200 rounded-lg"
+                            readOnly
+                            placeholder="Auto-filled"
+                            className="bg-slate-100 cursor-not-allowed h-9 text-xs border-slate-200 rounded-lg"
                           />
                         </div>
 
@@ -997,6 +1053,23 @@ export default function PmsCreateIndentView() {
                             value={eq.equipment_name}
                             onChange={(e) => handleEquipmentChange(idx, 'equipment_name', e.target.value)}
                             placeholder="e.g. Vehicles, Crane, Excavator, Dump Truck"
+                            className="bg-white h-9 text-xs border-amber-200 rounded-lg font-medium"
+                            required
+                          />
+                        </div>
+
+                        {/* Quantity */}
+                        <div className="space-y-1">
+                          <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                            Quantity <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="any"
+                            value={eq.quantity}
+                            onChange={(e) => handleEquipmentChange(idx, 'quantity', e.target.value)}
+                            placeholder="Nos"
                             className="bg-white h-9 text-xs border-amber-200 rounded-lg font-medium"
                             required
                           />

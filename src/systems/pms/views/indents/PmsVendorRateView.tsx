@@ -115,6 +115,7 @@ export default function PmsVendorRateView() {
       list.forEach((ind: any) => {
         if (Array.isArray(ind.items) && ind.items.length > 0) {
           ind.items.forEach((it: any, idx: number) => {
+            if (it.indent_status !== 'Approved') return; // only items approved at Indent Approval move ahead
             flattened.push({
               ...ind,
               item_id: it.id || idx,
@@ -149,6 +150,7 @@ export default function PmsVendorRateView() {
       list.forEach((ind: any) => {
         if (Array.isArray(ind.items) && ind.items.length > 0) {
           ind.items.forEach((it: any, idx: number) => {
+            if (it.indent_status !== 'Approved') return; // only items approved at Indent Approval move ahead
             flattened.push({
               ...ind,
               item_id: it.id || idx,
@@ -286,14 +288,6 @@ export default function PmsVendorRateView() {
         toast.error(`Vendor #${i + 1}: Name is required`);
         return;
       }
-      if (!v.enquiry_no.trim()) {
-        toast.error(`Vendor #${i + 1}: Enquiry No is required`);
-        return;
-      }
-      if (!v.rate || Number(v.rate) <= 0) {
-        toast.error(`Vendor #${i + 1}: Valid rate is required`);
-        return;
-      }
       if (!v.payment_terms) {
         toast.error(`Vendor #${i + 1}: Payment term is required`);
         return;
@@ -332,7 +326,6 @@ export default function PmsVendorRateView() {
         comparison_sheet_filename: comparisonFile?.name || selectedIndent.comparison_sheet_filename || null,
         vendors: vendors.map((v, i) => ({
           vendor_name: v.vendor_name,
-          rate: Number(v.rate),
           gst_percent: Number(v.gst_percent) || 0,
           payment_terms: v.payment_terms,
           delivery_days: Number(v.delivery_days) || 0,
@@ -581,14 +574,13 @@ export default function PmsVendorRateView() {
                       <TableHead className="text-xs font-bold text-slate-700 text-right">Qty</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">UOM</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700 text-center">Quotes Count</TableHead>
-                      <TableHead className="text-xs font-bold text-slate-700 text-right">Lowest Rate</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingHistory ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-32 text-center text-xs text-slate-500">
+                        <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-2">
                             <RefreshCw className="w-5 h-5 animate-spin text-sky-600" />
                             Loading vendor rated records...
@@ -597,7 +589,7 @@ export default function PmsVendorRateView() {
                       </TableRow>
                     ) : filteredHistory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-32 text-center text-xs text-slate-500">
+                        <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500">
                           No indents with vendor rates recorded yet.
                         </TableCell>
                       </TableRow>
@@ -632,8 +624,7 @@ export default function PmsVendorRateView() {
                                 {quotesCount} Quotes
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-xs text-right font-bold text-emerald-700">{minRate}</TableCell>
-                            <TableCell className="text-xs">
+                                                        <TableCell className="text-xs">
                               <Badge className="bg-sky-50 text-sky-700 border-sky-200 text-[11px] font-semibold">
                                 VendorRated
                               </Badge>
@@ -791,13 +782,13 @@ export default function PmsVendorRateView() {
 
                       <div className="space-y-1">
                         <Label className="text-xs font-medium text-slate-600">
-                          Enquiry No <span className="text-red-500">*</span>
+                          Enquiry No
                         </Label>
                         <Input
                           value={vendor.enquiry_no}
-                          onChange={(e) => handleVendorChange(idx, 'enquiry_no', e.target.value)}
-                          placeholder="Quotation no."
-                          className="bg-white text-xs h-9"
+                          readOnly
+                          placeholder="Auto-generated on save"
+                          className="bg-slate-100 text-slate-500 text-xs h-9 cursor-not-allowed"
                         />
                       </div>
 
@@ -808,22 +799,6 @@ export default function PmsVendorRateView() {
                           value={vendor.enquiry_date}
                           onChange={(e) => handleVendorChange(idx, 'enquiry_date', e.target.value)}
                           className="bg-white text-xs h-9"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold text-slate-700">
-                          Basic Rate (₹) <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={vendor.rate}
-                          onChange={(e) => handleVendorChange(idx, 'rate', e.target.value)}
-                          placeholder="Enter basic rate"
-                          className="bg-white text-xs h-9 font-bold text-emerald-700"
-                          required
                         />
                       </div>
 

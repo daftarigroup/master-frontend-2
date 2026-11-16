@@ -28,7 +28,7 @@ import {
 } from '@/features/organization/components/CompanySelectField';
 import { useProject } from '@/context/ProjectContext';
 import { cn } from '@/lib/utils';
-import { apiErrorMessage, fmtDay, fmtNum, istMonth, shiftMonth } from '../lib/format';
+import { apiErrorMessage, fmtDay, fmtNum, istMonth, istToday } from '../lib/format';
 import { fleetApi } from '../server/api/fleetApi';
 import { isFirmId, useFleetMachines, useLedger } from '../server/tanstackQuery/useFleetQueries';
 import {
@@ -95,6 +95,11 @@ function LedgerTable({ ledger }: { ledger: MonthLedger }) {
                         <th rowSpan={2} className={cn(th, sticky, 'z-30 text-left')}>
                             Date
                         </th>
+                        {['Opening Balance', 'Diesel Received', 'Total Available'].map((h) => (
+                            <th key={h} rowSpan={2} className={th}>
+                                {h}
+                            </th>
+                        ))}
                         {ledger.machines.map((m) => (
                             <th
                                 key={m.id}
@@ -146,6 +151,9 @@ function LedgerTable({ ledger }: { ledger: MonthLedger }) {
                             <td className={cn(td, sticky, 'text-left font-medium bg-background')}>
                                 {fmtDay(r.date)}
                             </td>
+                            <td className={td}>{fmtNum(r.opening ?? 0)}</td>
+                            <td className={td}>{(r.received ?? 0) !== 0 ? fmtNum(r.received) : ''}</td>
+                            <td className={cn(td, 'font-medium')}>{fmtNum(r.available ?? 0)}</td>
                             {ledger.machines.map((m) => {
                                 const c = r.cells[m.id];
                                 return m.readingUnit === 'NONE' ? (
@@ -177,6 +185,9 @@ function LedgerTable({ ledger }: { ledger: MonthLedger }) {
                 <tfoot className="sticky bottom-0 z-20">
                     <tr className="font-semibold">
                         <td className={cn(td, sticky, 'z-30 bg-muted text-left')}>Total</td>
+                        <td className={cn(td, 'bg-muted')}>{fmtNum(ledger.rows[0]?.opening ?? 0)}</td>
+                        <td className={cn(td, 'bg-muted')}>{fmtNum(ledger.rows.reduce((a, r) => a + (r.received ?? 0), 0))}</td>
+                        <td className={cn(td, 'bg-muted')} />
                         {ledger.machines.map((m) => {
                             const t = ledger.totals.perMachine[m.id];
                             return m.readingUnit === 'NONE' ? (
@@ -296,13 +307,16 @@ export function DieselLedger() {
         },
         [availableProjects, selectProject]
     );
-    const [month, setMonth] = useState(istMonth());
+    const [from, setFrom] = useState(`${istMonth()}-01`);
+    const [to, setTo] = useState(istToday());
+    const month = from.slice(0, 7);
+    const rangeOk = !!from && !!to && from <= to && Date.parse(to) - Date.parse(from) <= 92 * 86_400_000;
     const [includeIdle, setIncludeIdle] = useState(true);
     const [exporting, setExporting] = useState<'xlsx' | 'csv' | null>(null);
 
     const [tab, setTab] = useState<'chart' | 'ledger'>('chart');
     const firmId = firm?.id ?? null;
-    const q = useLedger({ firmId, month, includeIdle });
+    const q = useLedger({ firmId: rangeOk ? firmId : null, from, to, includeIdle });
     const ledger = q.data;
 
     // Load accessible machines: when firmId is selected, scoped to that firm; otherwise all machines
@@ -514,7 +528,8 @@ export function DieselLedger() {
         try {
             const { blob, name } = await fleetApi.exportLedger({
                 firmId,
-                month,
+                from,
+                to,
                 format,
                 includeIdle,
             });
@@ -644,38 +659,12 @@ export function DieselLedger() {
 
                             <div className="hidden h-5 w-px bg-border sm:block" />
 
-                            <div className="flex items-center gap-2">
-                                <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-                                    Month:
-                                </Label>
-                                <div className="flex items-center gap-1">
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="size-9 shrink-0"
-                                        onClick={() => setMonth((m) => shiftMonth(m, -1))}
-                                        aria-label="Previous month"
-                                    >
-                                        <ChevronLeft className="size-4" />
-                                    </Button>
-                                    <Input
-                                        type="month"
-                                        value={month}
-                                        max={istMonth()}
-                                        onChange={(e) => e.target.value && setMonth(e.target.value)}
-                                        className="h-9 w-38 text-xs font-medium"
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="size-9 shrink-0"
-                                        disabled={month >= istMonth()}
-                                        onClick={() => setMonth((m) => shiftMonth(m, 1))}
-                                        aria-label="Next month"
-                                    >
-                                        <ChevronRight className="size-4" />
-                                    </Button>
-                                </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">From:</Label>
+                                <Input type="date" value={from} max={to || istToday()} onChange={(e) => e.target.value && setFrom(e.target.value)} className="h-9 w-40 text-xs font-medium" />
+                                <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">To:</Label>
+                                <Input type="date" value={to} min={from} max={istToday()} onChange={(e) => e.target.value && setTo(e.target.value)} className="h-9 w-40 text-xs font-medium" />
+                                {!rangeOk && <span className="text-xs text-destructive">Pick a valid range (max 93 days)</span>}
                             </div>
                         </div>
 
@@ -702,7 +691,7 @@ export function DieselLedger() {
 
                     {q.isLoading && firmId && (
                         <Card className="p-6 text-center text-sm text-muted-foreground">
-                            Loading {monthLabel(month)}…
+                            Loading the selected range…
                         </Card>
                     )}
 
@@ -724,8 +713,8 @@ export function DieselLedger() {
                             {displayLedger.machines.length === 0 ? (
                                 <Card className="p-6 text-center text-sm text-muted-foreground">
                                     {machineId !== 'ALL'
-                                        ? `No diesel or machine activity for this machine in ${monthLabel(month)}.`
-                                        : `No diesel or machine activity in ${monthLabel(month)}.`}
+                                        ? `No diesel or machine activity for this machine in this date range.`
+                                        : `No diesel or machine activity in this date range.`}
                                 </Card>
                             ) : (
                                 <>

@@ -28,10 +28,10 @@ export const useMachineHistory = (machineId: string | undefined, range: { from?:
     enabled: !!machineId,
   });
 
-export const useLedger = (p: { firmId?: string | null; month: string; includeIdle?: boolean }) =>
+export const useLedger = (p: { firmId?: string | null; month?: string; from?: string; to?: string; includeIdle?: boolean }) =>
   useQuery({
     queryKey: [K, 'ledger', p],
-    queryFn: () => fleetApi.ledger({ firmId: p.firmId!, month: p.month, includeIdle: p.includeIdle }),
+    queryFn: () => fleetApi.ledger({ firmId: p.firmId!, month: p.month, from: p.from, to: p.to, includeIdle: p.includeIdle }),
     enabled: isFirmId(p.firmId),
     placeholderData: keepPreviousData,
   });

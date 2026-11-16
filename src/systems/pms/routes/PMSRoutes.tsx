@@ -57,6 +57,8 @@ const PmsManagementApprovalView = React.lazy(() => import('../views/indents/PmsM
 const PmsPendingPOView = React.lazy(() => import('../views/indents/PmsPendingPOView'));
 const PmsCreatePOView = React.lazy(() => import('../views/indents/PmsCreatePOView'));
 const PmsPOHistoryView = React.lazy(() => import('../views/indents/PmsPOHistoryView'));
+const PmsApprovalView = React.lazy(() => import('../views/indents/PmsApprovalView'));
+const PmsPurchaseOrdersView = React.lazy(() => import('../views/indents/PmsPurchaseOrdersView'));
 
 export const PMSRoutes: React.FC = () => {
   return (
@@ -139,11 +141,13 @@ export const PMSRoutes: React.FC = () => {
           <Route path="indents/create" element={<PmsCreateIndentView />} />
           <Route path="indents/approve" element={<PmsIndentApprovalView />} />
           <Route path="indents/vendor-rates" element={<PmsVendorRateView />} />
-          <Route path="indents/technical-approval" element={<PmsTechnicalApprovalView />} />
-          <Route path="indents/management-approval" element={<PmsManagementApprovalView />} />
-          <Route path="indents/pending-po" element={<PmsPendingPOView />} />
-          <Route path="indents/create-po" element={<PmsCreatePOView />} />
-          <Route path="indents/po-history" element={<PmsPOHistoryView />} />
+          <Route path="indents/approval" element={<PmsApprovalView />} />
+          <Route path="indents/technical-approval" element={<Navigate to="/pms/indents/approval" replace />} />
+          <Route path="indents/management-approval" element={<Navigate to="/pms/indents/approval" replace />} />
+          <Route path="indents/purchase-orders" element={<PmsPurchaseOrdersView />} />
+          <Route path="indents/pending-po" element={<Navigate to="/pms/indents/purchase-orders" replace />} />
+          <Route path="indents/create-po" element={<Navigate to="/pms/indents/purchase-orders" replace />} />
+          <Route path="indents/po-history" element={<Navigate to="/pms/indents/purchase-orders" replace />} />
 
           {/* Settings */}
           <Route path="settings" element={<ComingSoon title="PMS Settings" />} />
