@@ -28,7 +28,7 @@ import {
 } from '@/features/organization/components/CompanySelectField';
 import { useProject } from '@/context/ProjectContext';
 import { cn } from '@/lib/utils';
-import { apiErrorMessage, fmtDay, fmtNum, istMonth, shiftMonth } from '../lib/format';
+import { apiErrorMessage, fmtDay, fmtNum, istMonth, istToday } from '../lib/format';
 import { useDieselLogs, useFleetMachines } from '../server/tanstackQuery/useFleetQueries';
 import type { DieselLogRow } from '../types/types';
 import { OwnershipBadge } from './OwnershipBadge';
@@ -61,7 +61,14 @@ const SOURCE_LABELS: Record<string, { label: string; className: string }> = {
 export function DieselTransactionLedger({ initialFirm = null, initialMonth = istMonth() }: Props) {
     const { selectProject, availableProjects } = useProject();
     const [firm, setFirm] = useState<CompanyOption | null>(initialFirm);
-    const [month, setMonth] = useState(initialMonth);
+    const [fromDate, setFromDate] = useState(`${initialMonth}-01`);
+    const [toDate, setToDate] = useState(() => {
+        const [y, m] = initialMonth.split('-').map(Number);
+        const last = `${initialMonth}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+        const today = istToday();
+        return last > today ? today : last;
+    });
+    const month = `${fromDate}_${toDate}`;
     const [machineId, setMachineId] = useState<string>('ALL');
     const [sourceFilter, setSourceFilter] = useState<string>('ALL');
     const [search, setSearch] = useState('');
@@ -72,14 +79,6 @@ export function DieselTransactionLedger({ initialFirm = null, initialMonth = ist
     }, [initialFirm]);
 
     const firmId = firm?.id ? String(firm.id) : undefined;
-
-    // Month date bounds for API
-    const fromDate = useMemo(() => `${month}-01`, [month]);
-    const toDate = useMemo(() => {
-        const [y, m] = month.split('-').map(Number);
-        const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-        return `${month}-${String(lastDay).padStart(2, '0')}`;
-    }, [month]);
 
     // Load accessible machines for the filter dropdown
     const machinesQ = useFleetMachines({ firmId });
@@ -319,50 +318,36 @@ export function DieselTransactionLedger({ initialFirm = null, initialMonth = ist
                             </div>
                         </div>
 
-                        {/* Month Selector */}
+                        {/* Date range */}
                         <div className="flex items-center gap-2">
-                            <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-                                Month:
-                            </Label>
-                            <div className="flex items-center gap-1">
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="size-9 shrink-0"
-                                    onClick={() => {
-                                        setMonth((m) => shiftMonth(m, -1));
+                            <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">From:</Label>
+                            <Input
+                                type="date"
+                                value={fromDate}
+                                max={toDate || istToday()}
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        setFromDate(e.target.value);
+                                        if (toDate && e.target.value > toDate) setToDate(e.target.value);
                                         setPage(1);
-                                    }}
-                                    aria-label="Previous month"
-                                >
-                                    <ChevronLeft className="size-4" />
-                                </Button>
-                                <Input
-                                    type="month"
-                                    value={month}
-                                    max={istMonth()}
-                                    onChange={(e) => {
-                                        if (e.target.value) {
-                                            setMonth(e.target.value);
-                                            setPage(1);
-                                        }
-                                    }}
-                                    className="h-9 w-36 text-xs font-medium"
-                                />
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="size-9 shrink-0"
-                                    disabled={month >= istMonth()}
-                                    onClick={() => {
-                                        setMonth((m) => shiftMonth(m, 1));
+                                    }
+                                }}
+                                className="h-9 w-40 text-xs font-medium"
+                            />
+                            <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">To:</Label>
+                            <Input
+                                type="date"
+                                value={toDate}
+                                min={fromDate}
+                                max={istToday()}
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        setToDate(e.target.value);
                                         setPage(1);
-                                    }}
-                                    aria-label="Next month"
-                                >
-                                    <ChevronRight className="size-4" />
-                                </Button>
-                            </div>
+                                    }
+                                }}
+                                className="h-9 w-40 text-xs font-medium"
+                            />
                         </div>
 
                         {/* Vehicle / Machine Filter */}

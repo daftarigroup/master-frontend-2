@@ -92,7 +92,6 @@ export function formProblems(f: FormState, ctx: FormContext): string[] {
     if (r.stopBelowStart && !f.meterReset) p.push('Stop reading is lower than start. Switch on "Meter was reset" if the meter rolled over or was replaced.');
     if (f.meterReset && f.resetReason.trim().length < 3) p.push('Give a reason for the meter reset.');
     if (!f.meterReset && (r.gap !== 0 || ctx.asks.continuity) && f.continuityReason.trim().length < 3) p.push('Start differs from the last stop: say why.');
-    if (r.stopN !== null && !f.stopTime) p.push('Enter the stop time.');
   }
   return p;
 }

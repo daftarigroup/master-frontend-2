@@ -131,7 +131,8 @@ function FormInner({ target, date, machines, onClose, onEditById }: Omit<Props, 
 
   function onStopReading(v: string) {
     set('stopReading', v);
-    if (v.trim() && !f.stopTime && f.date === istToday()) set('stopTime', istNowTime());
+    // stop time is not asked: stamp it automatically once a stop reading is entered
+    if (v.trim() && !f.stopTime) set('stopTime', f.date === istToday() ? istNowTime() : f.startTime);
   }
 
   function afterSave(another: boolean) {
@@ -213,14 +214,6 @@ function FormInner({ target, date, machines, onClose, onEditById }: Omit<Props, 
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="wl-date">Date</Label>
             <Input id="wl-date" type="date" value={f.date} max={istToday()} onChange={(e) => set('date', e.target.value)} className="h-11" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wl-start-time">Start time <span className="font-normal text-muted-foreground">(not compared with meter)</span></Label>
-            <Input id="wl-start-time" type="time" value={f.startTime} onChange={(e) => set('startTime', e.target.value)} className="h-11" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wl-stop-time">Stop time <span className="font-normal text-muted-foreground">(not compared with meter)</span></Label>
-            <Input id="wl-stop-time" type="time" value={f.stopTime} onChange={(e) => set('stopTime', e.target.value)} className="h-11" />
           </div>
         </div>
 

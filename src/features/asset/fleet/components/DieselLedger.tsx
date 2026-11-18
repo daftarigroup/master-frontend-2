@@ -310,7 +310,7 @@ export function DieselLedger() {
     const [from, setFrom] = useState(`${istMonth()}-01`);
     const [to, setTo] = useState(istToday());
     const month = from.slice(0, 7);
-    const rangeOk = !!from && !!to && from <= to && Date.parse(to) - Date.parse(from) <= 92 * 86_400_000;
+    const rangeOk = !!from && !!to && from <= to && Date.parse(to) - Date.parse(from) <= 365 * 86_400_000;
     const [includeIdle, setIncludeIdle] = useState(true);
     const [exporting, setExporting] = useState<'xlsx' | 'csv' | null>(null);
 
@@ -664,7 +664,7 @@ export function DieselLedger() {
                                 <Input type="date" value={from} max={to || istToday()} onChange={(e) => e.target.value && setFrom(e.target.value)} className="h-9 w-40 text-xs font-medium" />
                                 <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">To:</Label>
                                 <Input type="date" value={to} min={from} max={istToday()} onChange={(e) => e.target.value && setTo(e.target.value)} className="h-9 w-40 text-xs font-medium" />
-                                {!rangeOk && <span className="text-xs text-destructive">Pick a valid range (max 93 days)</span>}
+                                {!rangeOk && <span className="text-xs text-destructive">Pick a valid range (max 1 year)</span>}
                             </div>
                         </div>
 

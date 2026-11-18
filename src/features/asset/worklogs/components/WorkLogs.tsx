@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCheck, Columns3, Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { DateNavigator } from '@/components/shared/DateNavigator';
 import { formatDayLong } from '@/lib/dayFormat';
 import { PaginationBar } from '@/components/shared/PaginationBar';
 import { Button } from '@/components/ui/button';
@@ -40,7 +39,10 @@ export function WorkLogs() {
   const dateParam = params.get('date') ?? '';
   const date = DATE_RE.test(dateParam) ? dateParam : today;
   const allMachines = params.get('view') === 'all';
+  const fromParam = params.get('from') ?? '';
   const week = params.get('range') === 'week';
+  const from = DATE_RE.test(fromParam) && fromParam <= date ? fromParam : week ? addDays(date, -6) : '';
+  const ranged = !!from;
   const machineParam = params.get('machineId') ?? '';
 
   const patch = useCallback(
@@ -75,7 +77,7 @@ export function WorkLogs() {
   const prefillQ = useWorkLogPrefill(machineId || undefined);
 
   const listQ = useWorkLogs(
-    { firmId, machineId: machineId || undefined, ...(week ? { from: addDays(date, -6), to: date } : { date }), limit, offset: (page - 1) * limit },
+    { firmId, machineId: machineId || undefined, ...(ranged ? { from, to: date } : { date }), limit, offset: (page - 1) * limit },
     allMachines || !!machineId,
   );
   const rows = useMemo(() => listQ.data?.rows ?? [], [listQ.data]);
@@ -148,7 +150,14 @@ export function WorkLogs() {
           onSelectAllMachines={() => patch({ view: 'all' })}
         />
         <div className="flex flex-wrap items-center gap-2">
-          <DateNavigator className="w-full sm:w-auto sm:min-w-[16rem]" value={date} max={today} onChange={(d) => patch({ date: d === today ? null : d })} />
+          <label className="flex items-center gap-1.5 text-sm">
+            From
+            <input type="date" value={from} max={date} onChange={(e) => patch({ from: e.target.value || null, range: null })} className="h-11 rounded-md border bg-background px-2" aria-label="Start date" />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            To
+            <input type="date" value={date} min={from || undefined} max={today} onChange={(e) => patch({ date: !e.target.value || e.target.value === today ? null : e.target.value })} className="h-11 rounded-md border bg-background px-2" aria-label="End date" />
+          </label>
           <Button type="button" className="h-11 w-full sm:w-auto lg:hidden" disabled={!addTarget} onClick={() => openAdd(addTarget)}>
             <Plus className="mr-1.5 size-4" aria-hidden /> Add Work Log
           </Button>
@@ -161,10 +170,10 @@ export function WorkLogs() {
           All machines (day sheet)
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <Switch checked={week} onCheckedChange={(v) => patch({ range: v ? 'week' : null })} aria-label="Show the last 7 days" />
+          <Switch checked={week} onCheckedChange={(v) => patch({ range: v ? 'week' : null, from: null })} aria-label="Show the last 7 days" />
           Last 7 days
         </label>
-        <span className="text-sm text-muted-foreground">{week ? `${formatDayLong(addDays(date, -6))} to ${formatDayLong(date)}` : formatDayLong(date)}</span>
+        <span className="text-sm text-muted-foreground">{ranged ? `${formatDayLong(from)} to ${formatDayLong(date)}` : formatDayLong(date)}</span>
         <div className="ml-auto flex items-center gap-2">
           {chosen.length > 0 && (
             <Button type="button" variant="outline" className="h-10" disabled={bulk.isPending} onClick={() => void runBulk()}>
@@ -205,7 +214,7 @@ export function WorkLogs() {
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center">
           <p className="font-semibold">{machines.length === 0 && !allMachines ? 'No machines to log work for' : 'No work logs here yet'}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{week ? 'Nothing in these 7 days.' : `Nothing recorded for ${formatDayLong(date)}.`}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{ranged ? 'Nothing in this date range.' : `Nothing recorded for ${formatDayLong(date)}.`}</p>
           {addTarget && (
             <Button type="button" variant="outline" className="mt-3 h-11" onClick={() => openAdd(addTarget)}>
               <Plus className="mr-1.5 size-4" aria-hidden /> Add Work Log

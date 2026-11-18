@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { apiErrorMessage } from '@/features/asset/fleet/lib/format';
-import { useApproveWorkLog, useRejectWorkLog, useReopenWorkLog } from '../server/useWorkLogQueries';
+import { useApproveWorkLog, useDeleteWorkLog, useRejectWorkLog, useReopenWorkLog } from '../server/useWorkLogQueries';
 import type { WorkLog } from '../types';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ReasonDialog, type LogHandlers } from './LogActions';
 
 /** Approve / reject / reopen with their toasts and the reason dialog. The page renders `dialog` once. */
@@ -10,6 +12,8 @@ export function useLogActions(onEdit: (log: WorkLog) => void): { handlers: LogHa
   const approve = useApproveWorkLog();
   const reject = useRejectWorkLog();
   const reopen = useReopenWorkLog();
+  const del = useDeleteWorkLog();
+  const [toDelete, setToDelete] = useState<WorkLog | null>(null);
   const [ask, setAsk] = useState<{ kind: 'reject' | 'reopen'; log: WorkLog } | null>(null);
 
   const run = async (p: Promise<unknown>, ok: string) => {
@@ -27,6 +31,7 @@ export function useLogActions(onEdit: (log: WorkLog) => void): { handlers: LogHa
     approve: (log) => {
       if (!approve.isPending) void run(approve.mutateAsync(log.id), `${log.logNumber ?? 'Work log'} approved`);
     },
+    remove: (log) => setToDelete(log),
     reject: (log) => setAsk({ kind: 'reject', log }),
     reopen: (log) => setAsk({ kind: 'reopen', log }),
   };
@@ -47,5 +52,21 @@ export function useLogActions(onEdit: (log: WorkLog) => void): { handlers: LogHa
       }
     />
   );
-  return { handlers, dialog };
+  const deleteDialog = toDelete && (
+    <Dialog open onOpenChange={(o) => !o && !del.isPending && setToDelete(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete {toDelete.logNumber ?? 'work log'}?</DialogTitle>
+          <DialogDescription>This entry will be removed from the work logs and the meter chain.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" className="h-11" disabled={del.isPending} onClick={() => setToDelete(null)}>Cancel</Button>
+          <Button type="button" variant="destructive" className="h-11" disabled={del.isPending} onClick={() => void run(del.mutateAsync(toDelete.id).then(() => setToDelete(null)), 'Work log deleted')}>
+            {del.isPending ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+  return { handlers, dialog: <>{dialog}{deleteDialog}</> };
 }

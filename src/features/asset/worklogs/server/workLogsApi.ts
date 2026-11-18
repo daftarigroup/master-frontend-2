@@ -15,6 +15,7 @@ export const workLogsApi = {
 
   create: (body: CreateWorkLogBody) => api.post('/fleet/work-logs', body).then((r) => unwrap<WorkLogSaveResult>(r)),
   update: (id: string, body: WorkLogFields) => api.patch(`/fleet/work-logs/${id}`, body).then((r) => unwrap<WorkLogSaveResult>(r)),
+  remove: (id: string) => api.delete(`/fleet/work-logs/${id}`).then((r) => unwrap<{ id: string; deleted: boolean }>(r)),
   approve: (id: string) => api.post(`/fleet/work-logs/${id}/approve`).then((r) => unwrap<{ log: WorkLog }>(r)),
   reject: (id: string, reason: string) => api.post(`/fleet/work-logs/${id}/reject`, { reason }).then((r) => unwrap<{ log: WorkLog }>(r)),
   reopen: (id: string, note: string) => api.post(`/fleet/work-logs/${id}/reopen`, { note }).then((r) => unwrap<{ log: WorkLog }>(r)),

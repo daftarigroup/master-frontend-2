@@ -44,6 +44,10 @@ export const useReopenWorkLog = () => {
   const refresh = useRefresh();
   return useMutation({ mutationFn: (v: { id: string; note: string }) => workLogsApi.reopen(v.id, v.note), onSuccess: refresh });
 };
+export const useDeleteWorkLog = () => {
+  const refresh = useRefresh();
+  return useMutation({ mutationFn: (id: string) => workLogsApi.remove(id), onSuccess: refresh });
+};
 export const useBulkApprove = () => {
   const refresh = useRefresh();
   return useMutation({ mutationFn: (ids: string[]) => workLogsApi.bulkApprove(ids), onSuccess: refresh });

@@ -12,6 +12,7 @@ export interface LogHandlers {
   approve: (log: WorkLog) => void;
   reject: (log: WorkLog) => void;
   reopen: (log: WorkLog) => void;
+  remove: (log: WorkLog) => void;
 }
 
 const hasActions = (log: WorkLog) => !!(log.canEdit || log.canApprove || log.canReopen);
@@ -29,6 +30,7 @@ export function LogMenu({ log, handlers }: { log: WorkLog; handlers: LogHandlers
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {log.canEdit && <DropdownMenuItem onSelect={() => handlers.edit(log)}>Edit</DropdownMenuItem>}
+        {log.canEdit && <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => handlers.remove(log)}>Delete</DropdownMenuItem>}
         {log.canApprove && <DropdownMenuItem onSelect={() => handlers.approve(log)}>Approve</DropdownMenuItem>}
         {log.canApprove && <DropdownMenuItem onSelect={() => handlers.reject(log)}>Reject</DropdownMenuItem>}
         {log.canReopen && <DropdownMenuItem onSelect={() => handlers.reopen(log)}>Reopen</DropdownMenuItem>}
