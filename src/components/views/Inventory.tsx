@@ -686,12 +686,14 @@ export default () => {
                     </DialogHeader>
                     {(() => {
                         const q = dialogSearch.toLowerCase().trim();
+                        const showMachineCol = detailDialog.title.startsWith('Issued History') && detailDialog.title.toUpperCase().includes('DIESEL');
                         const visibleRows = q
                             ? detailDialog.rows.filter(row =>
                                 row.refNo?.toLowerCase().includes(q) ||
                                 row.party?.toLowerCase().includes(q) ||
                                 row.projectName?.toLowerCase().includes(q) ||
-                                row.siteLocation?.toLowerCase().includes(q)
+                                row.siteLocation?.toLowerCase().includes(q) ||
+                                row.machineName?.toLowerCase().includes(q)
                             )
                             : detailDialog.rows;
                         const totalQty = visibleRows.reduce((sum, r) => sum + (r.quantity || 0), 0);
@@ -711,6 +713,7 @@ export default () => {
                                                 {visibleCols.projectName && (
                                                     <TableHead>{detailDialog.title.includes('Stock Transfer') ? 'To' : 'Project'}</TableHead>
                                                 )}
+                                                {showMachineCol && <TableHead>Machine</TableHead>}
                                                 {visibleCols.siteLocation && <TableHead>Site Location</TableHead>}
                                                 {visibleCols.quantity && <TableHead className="text-right">Qty</TableHead>}
                                                 {visibleCols.rate && <TableHead className="text-right">Rate</TableHead>}
@@ -741,6 +744,7 @@ export default () => {
                                                         {visibleCols.refNo && <TableCell className="font-mono text-sm whitespace-nowrap">{row.refNo}</TableCell>}
                                                         {visibleCols.party && <TableCell className="whitespace-nowrap">{row.party}</TableCell>}
                                                         {visibleCols.projectName && <TableCell className="whitespace-nowrap">{row.projectName}</TableCell>}
+                                                        {showMachineCol && <TableCell className="whitespace-nowrap">{row.machineName || '-'}</TableCell>}
                                                         {visibleCols.siteLocation && <TableCell className="whitespace-nowrap">{row.siteLocation || 'N/A'}</TableCell>}
                                                         {visibleCols.quantity && <TableCell className="text-right font-bold">{row.quantity}</TableCell>}
                                                         {visibleCols.rate && (

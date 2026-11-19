@@ -446,6 +446,7 @@ export interface InventoryTransactionDetailRow {
     party: string;
     projectName: string;
     siteLocation?: string;
+    machineName?: string;
 }
 
 export type InventoryTransactionType =
@@ -788,7 +789,8 @@ export function resolveInventoryTransactionDetails(params: {
                         amount: Number((quantity * itemFallbackRate).toFixed(2)),
                         party: is.constructorName || is.constructor_name || is.issuePersonName || is.issue_person_name || is.issueTo || is.issue_to || is.party || 'N/A',
                         projectName: is.projectName || is.firm_name || 'N/A',
-                        siteLocation: is.siteLocation || is.site_location || is.location || 'N/A'
+                        siteLocation: is.siteLocation || is.site_location || is.location || 'N/A',
+                        machineName: is.machineName || '-'
                     };
                 });
             break;

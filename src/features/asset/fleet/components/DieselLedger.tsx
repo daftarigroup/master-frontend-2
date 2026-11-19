@@ -120,6 +120,9 @@ function LedgerTable({ ledger }: { ledger: MonthLedger }) {
                         <th rowSpan={2} className={th}>
                             Total
                         </th>
+                        <th rowSpan={2} className={th}>
+                            Closing Balance
+                        </th>
                     </tr>
                     <tr>
                         {ledger.machines.map((m) =>
@@ -179,6 +182,9 @@ function LedgerTable({ ledger }: { ledger: MonthLedger }) {
                             })}
                             {showOther && <td className={td}>{dash(r.other, true)}</td>}
                             <td className={cn(td, 'font-semibold')}>{dash(r.total, true)}</td>
+                            <td className={cn(td, 'font-medium', (r.closing ?? 0) < 0 && 'text-red-600')}>
+                                {fmtNum(r.closing ?? 0)}
+                            </td>
                         </tr>
                     ))}
                 </tbody>
@@ -211,6 +217,7 @@ function LedgerTable({ ledger }: { ledger: MonthLedger }) {
                             <td className={cn(td, 'bg-muted')}>{fmtNum(ledger.totals.other)}</td>
                         )}
                         <td className={cn(td, 'bg-muted')}>{fmtNum(ledger.totals.total)}</td>
+                        <td className={cn(td, 'bg-muted')}>{fmtNum(ledger.rows[ledger.rows.length - 1]?.closing ?? 0)}</td>
                     </tr>
                 </tfoot>
             </table>
