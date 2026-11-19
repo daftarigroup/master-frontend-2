@@ -46,6 +46,7 @@ interface DetailRow {
     party: string;
     projectName: string;
     siteLocation?: string;
+    machineName?: string;
 }
 
 export default () => {
