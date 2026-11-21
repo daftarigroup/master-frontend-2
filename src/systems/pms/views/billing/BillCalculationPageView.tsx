@@ -21,6 +21,8 @@ import {
 import { getTodayDate } from '@/systems/pms/utils/helpers';
 import { getRMBills, updateRMBill, getProjectOrMinor, syncBackendPOsToLocal } from '@/systems/pms/utils/storageManager';
 import { computeBillFromExecutionEntries } from '@/systems/pms/utils/dynamicBillCalculator';
+import { pmsApi } from '@/systems/pms/services/pmsApi';
+import { setContractCache, getCachedContracts } from '@/systems/pms/utils/contractCache';
 import { getAvailablePOsForProject, resolvePoNumberForProject } from '@/systems/pms/utils/table1RateMaster';
 
 interface Props {
@@ -86,6 +88,26 @@ export default function BillCalculationPage({ mode }: Props) {
   useEffect(() => {
     syncBackendPOsToLocal().then(() => setPoSyncTick((t) => t + 1));
   }, []);
+
+  // Contracts (database): rates come from the contract's items. Picking a contract vendor as the party links its CON- PO.
+  useEffect(() => {
+    pmsApi.get('/contract-vendors').then((res: any) => {
+      setContractCache(Array.isArray(res) ? res : res?.data || []);
+      const list = getCachedContracts();
+      // Only one contract exists and the bill has no party of its own -> use it by default
+      if (list.length === 1 && !bill?.subContractorName && !bill?.poNumber) {
+        setSubContractorName(list[0].name);
+        setSelectedPoNumber(list[0].poNumber);
+      }
+      setPoSyncTick((t) => t + 1);
+    }).catch(() => {});
+  }, [billId, bill?.id]);
+
+  const onPartyChange = (name: string) => {
+    setSubContractorName(name);
+    const c = getCachedContracts().find((x) => x.name?.toLowerCase() === name.trim().toLowerCase());
+    if (c) setSelectedPoNumber(c.poNumber);
+  };
 
   // Discover available POs
   const availablePOs = useMemo(() => {
@@ -300,13 +322,19 @@ export default function BillCalculationPage({ mode }: Props) {
               {isSubContractor ? 'Sub-Contractor Party' : 'Remarks / Note'}
             </label>
             {isSubContractor ? (
+              <>
+              <datalist id="party-options">
+                {getCachedContracts().map(c => <option key={c.poNumber} value={c.name} />)}
+              </datalist>
               <input
                 type="text"
                 value={subContractorName}
-                onChange={e => setSubContractorName(e.target.value)}
+                onChange={e => onPartyChange(e.target.value)}
+                list="party-options"
                 placeholder="Subcontractor Name"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white font-medium text-gray-900"
               />
+              </>
             ) : (
               <input
                 type="text"

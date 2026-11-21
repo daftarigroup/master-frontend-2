@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeByProjectOrMinor, getActiveProject } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -32,6 +33,8 @@ import {
   getExternalPurchaseOrders,
   getSubContractorsForProject as getProjectSubContractors,
 } from '@/systems/pms/utils/storageManager';
+import { pmsApi } from '@/systems/pms/services/pmsApi';
+import { setContractCache, getCachedContracts } from '@/systems/pms/utils/contractCache';
 import { buildChainageDiffMap } from '@/systems/pms/utils/helpers';
 import { computeBillFromExecutionEntries } from '@/systems/pms/utils/dynamicBillCalculator';
 
@@ -53,7 +56,16 @@ export default function RM2() {
   const [subContractorsList, setSubContractorsList] = useState<string[]>([]);
 
   const refresh = () => {
-    const allBills = getRMBills();
+    const rawBills = getRMBills();
+    const active = getActiveProject();
+    const scoped = scopeByProjectOrMinor(rawBills);
+    // Also keep bills that belong to the open project by name (minor ids that don't resolve to the parent)
+    const byName = active
+      ? rawBills.filter((b) => !scoped.includes(b) && b.projectName && b.projectName === (active.projectName || active.project_name))
+      : [];
+    const allBills = [...scoped, ...byName];
+    console.debug('[SubContractorBilling] bills total/scoped/byName:', rawBills.length, scoped.length, byName.length,
+      rawBills.filter((b) => b.billType === 'Actual').map((b) => ({ rmNo: b.rmNo, projectNo: b.projectNo, projectName: b.projectName, status: b.status })));
     // Sub-Contractor bills are those of type 'Actual' sent from Actual Details
     const actualBills = allBills.filter(b => b.billType === 'Actual');
     setBills(actualBills);
@@ -79,6 +91,7 @@ export default function RM2() {
     getExternalPurchaseOrders().forEach((p: any) => {
       if (p.name?.trim()) subs.add(p.name.trim());
     });
+    getCachedContracts().forEach((c) => { if (c.name?.trim()) subs.add(c.name.trim()); });
 
     const subList = Array.from(subs);
     if (subList.length === 0) {
@@ -88,6 +101,14 @@ export default function RM2() {
     if (!selectedSubContractor && subList.length > 0) setSelectedSubContractor(subList[0]);
     if (!selectedMinor && projects.length > 0) setSelectedMinor(projects[0].minorName || projects[0].serialNo || 'injewada');
   };
+
+  // Contracts live in the database; load them into the in-memory cache used for PO rates, then refresh
+  useEffect(() => {
+    pmsApi.get('/contract-vendors').then((res: any) => {
+      setContractCache(Array.isArray(res) ? res : res?.data || []);
+      refresh();
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     refresh();

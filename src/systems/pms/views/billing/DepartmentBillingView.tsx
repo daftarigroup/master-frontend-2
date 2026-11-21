@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeByProjectOrMinor, getActiveProject } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -48,7 +49,14 @@ export default function RM1() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const refresh = () => {
-    const all = getRMBills();
+    const rawBills = getRMBills();
+    const active = getActiveProject();
+    const scoped = scopeByProjectOrMinor(rawBills);
+    // Also keep bills that belong to the open project by name (minor ids that don't resolve to the parent)
+    const byName = active
+      ? rawBills.filter((b) => !scoped.includes(b) && b.projectName && b.projectName === (active.projectName || active.project_name))
+      : [];
+    const all = [...scoped, ...byName];
     // Only bills sent from Execution Details (billType === 'Execution')
     const executionBills = all.filter(b => b.billType === 'Execution');
     setBills(executionBills);

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -122,7 +123,7 @@ export default function Documentation() {
   useEffect(() => {
     loadDocs();
     try {
-      const projs = getProjects() || [];
+      const projs = scopeProjects(getProjects() || []);
       if (Array.isArray(projs)) {
         setProjectsList(projs);
         const projParam = searchParams.get('project');

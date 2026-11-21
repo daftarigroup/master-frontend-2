@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -41,7 +42,7 @@ export default function ShareLogs() {
   // Load projects & check URL query params
   useEffect(() => {
     try {
-      const projs = getProjects() || [];
+      const projs = scopeProjects(getProjects() || []);
       setProjectsList(projs);
 
       const projParam = searchParams.get('project');

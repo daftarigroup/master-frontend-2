@@ -68,7 +68,7 @@ export default function ProjectMinors() {
     return (
       <div className="p-6 space-y-4">
         <button
-          onClick={() => navigate('/pms/execution')}
+          onClick={() => navigate('/pms/execution?list=1')}
           className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 text-sm font-semibold"
         >
           <ArrowLeft size={16} /> Back
@@ -88,13 +88,6 @@ export default function ProjectMinors() {
     <div className="p-0 sm:p-2 md:p-6 space-y-3 md:space-y-6 flex flex-col h-full min-h-0 overflow-y-auto pb-16">
       {/* Row 1: Back + Search */}
       <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 w-full px-2 sm:px-0">
-        <button
-          onClick={() => navigate('/pms/execution')}
-          className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 text-sm font-semibold w-fit flex-shrink-0"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-
         <div className="flex-1 flex items-center min-w-0 relative">
           <Search className="absolute left-2.5 top-[9px] md:top-[11px] text-gray-400" size={14} />
           <input

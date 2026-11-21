@@ -22,6 +22,9 @@ import { cn, formatDate } from '@/lib/utils';
 import POPdf, { type POPdfProps } from '@/components/element/POPdf';
 import { PDFViewer, pdf } from '@react-pdf/renderer';
 import { emailApi } from '@/lib/apiClient';
+import { fetchContractVendors } from '../../utils/contractVendors';
+import { upsertExternalPurchaseOrder, saveProductsForPONumber } from '../../utils/storageManager';
+import { getActiveProject } from '../../utils/activeProject';
 
 // ── Financial Year & Number Helpers ──────────────────────────────────────────
 
@@ -40,7 +43,12 @@ function getFinancialYear(): string {
   return `${startYear.toString().slice(-2)}-${endYear.toString().slice(-2)}`;
 }
 
-function generateNextPoNumber(existingPOs: any[]): string {
+function generateNextPoNumber(existingPOs: any[], kind: 'po' | 'contract' = 'po'): string {
+  if (kind === 'contract') {
+    const cp = `CON/${getFinancialYear()}/`;
+    const mx = (existingPOs || []).map((p) => String(p.po_number || p.poNumber || '').trim()).filter((n) => n.startsWith(cp)).map((n) => parseInt(n.slice(cp.length), 10) || 0);
+    return `${cp}${String((mx.length ? Math.max(...mx) : 0) + 1).padStart(2, '0')}`;
+  }
   const fy = getFinancialYear();
   const prefix = `${fy}/`;
 
@@ -166,7 +174,8 @@ const FALLBACK_SUPPLIERS = [
   },
 ];
 
-export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { indentId: any; itemId: any } | null; onCreated?: () => void } = {}) {
+export default function PmsCreatePOView({ prefill, onCreated, variant = 'po', editPo = null }: { prefill?: { indentId: any; itemId: any } | null; onCreated?: () => void; variant?: 'po' | 'contract'; editPo?: any } = {}) {
+  const isContract = variant === 'contract';
   const [mode, setMode] = useState<'create' | 'revise'>('create');
 
   // Main Form State
@@ -219,6 +228,8 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedIndent, setSelectedIndent] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [contractVendors, setContractVendors] = useState<any[]>([]);
+  useEffect(() => { if (isContract) fetchContractVendors().then(setContractVendors); }, [isContract]);
 
   // Preview Dialog
   const [showPreview, setShowPreview] = useState(false);
@@ -231,7 +242,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
     setLoadingData(true);
     try {
       const [posRes, indentsRes, projectsRes] = await Promise.all([
-        pmsApi.get('/pos'),
+        pmsApi.get('/pos?scope=all'), // all POs: PO numbers must stay unique across projects
         pmsApi.get('/indents?stage=ManagementApproved'),
         pmsApi.get('/projects'),
       ]);
@@ -244,8 +255,8 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
       setApprovedIndents(indentList);
       setProjects(projectList);
 
-      if (mode === 'create') {
-        const nextPo = generateNextPoNumber(poList);
+      if (mode === 'create' && !editPo) {
+        const nextPo = generateNextPoNumber(poList, variant);
         setPoNumber(nextPo);
       }
     } catch (e) {
@@ -253,7 +264,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
     } finally {
       setLoadingData(false);
     }
-  }, [mode]);
+  }, [mode, variant]);
 
   useEffect(() => {
     loadData();
@@ -264,7 +275,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
   const handleModeChange = (newMode: 'create' | 'revise') => {
     setMode(newMode);
     if (newMode === 'create') {
-      const nextPo = generateNextPoNumber(existingPOs);
+      const nextPo = generateNextPoNumber(existingPOs, variant);
       setPoNumber(nextPo);
       setSelectedPoToRevise('');
     } else {
@@ -348,6 +359,14 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
       indentObj?: any;
     }> = [];
 
+    if (isContract) {
+      return contractVendors.map((v) => ({
+        name: v.name, address: v.address, gstin: v.gstin, email: v.email,
+        project: getActiveProject()?.name || getActiveProject()?.project_name || 'Project Name',
+        destination: '', items: v.items.map((it) => ({ ...it, indent_number: 'CONTRACT', quotation_number: '', payment_terms: '', amount: calculateRowAmount(it.quantity, it.rate, it.discount_percent, it.gst_percent) })),
+      }));
+    }
+
     // 1. Extract from approved PMS indents
     approvedIndents.forEach((ind: any) => {
       // Only approved items that don't have a PO yet; one supplier entry per approved vendor
@@ -411,14 +430,14 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
     });
 
     // 2. Add fallbacks if empty or to ensure rich supplier selection
-    FALLBACK_SUPPLIERS.forEach((f) => {
+    if (!isContract) FALLBACK_SUPPLIERS.forEach((f) => {
       if (!list.some((existing) => existing.name.toLowerCase() === f.name.toLowerCase())) {
         list.push(f);
       }
     });
 
     return list;
-  }, [approvedIndents, projects]);
+  }, [approvedIndents, projects, contractVendors, isContract]);
 
   // Handle supplier change
   const handleSelectSupplier = (selectedName: string) => {
@@ -469,6 +488,15 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
       setLineItems([]);
     }
   };
+
+  // Edit mode (contract history): load the saved contract once
+  const editDone = useRef(false);
+  useEffect(() => {
+    if (!editPo || editDone.current) return;
+    editDone.current = true;
+    loadPoForRevision(editPo);
+    setPoNumber(editPo.po_number || editPo.poNumber || '');
+  }, [editPo]);
 
   // Autofill from the Pending PO queue row the user clicked
   const location = useLocation();
@@ -554,7 +582,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
   // ── Reset Handler ────────────────────────────────────────────────────────────
 
   const handleReset = () => {
-    const nextPo = generateNextPoNumber(existingPOs);
+    const nextPo = generateNextPoNumber(existingPOs, variant);
     setPoNumber(nextPo);
     setPoDate(format(new Date(), 'yyyy-MM-dd'));
     setSupplierName('');
@@ -663,7 +691,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
         po_date: poDate,
         indent_id: selectedIndent?.id || null,
         indent_number: selectedIndent?.indent_number || (lineItems[0]?.indent_number ?? ''),
-        project_id: selectedIndent?.project_id || (projects[0]?.id ? String(projects[0].id) : '1'),
+        project_id: selectedIndent?.project_id || (isContract && getActiveProject()?.id != null ? String(getActiveProject()!.id) : projects[0]?.id ? String(projects[0].id) : '1'),
         project_name: projectName || 'Pooja Project',
         vendor_name: supplierName,
         vendor_address: supplierAddress,
@@ -700,15 +728,31 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
         })),
       };
 
-      const res = await pmsApi.post('/pos', payload);
+      const res = editPo?.id ? await pmsApi.patch(`/pos/${editPo.id}`, payload) : await pmsApi.post('/pos', payload);
 
       if (res?.error && !res?.success) {
         toast.error(res.error || 'Failed to create PO');
         return;
       }
 
+      // Contracts feed Sub Contractor Billing: register as PO master + PO products (rates) under the contract number
+      if (isContract) {
+        upsertExternalPurchaseOrder({
+          po_number: poNumber, poDate, vendor_name: supplierName, sub_contractor_name: supplierName,
+          sub_contractor_phone: subContractorPhone, sub_contractor_email: supplierEmail,
+          total_po_amount: grandTotal, remarks: description || 'Contract',
+        });
+        saveProductsForPONumber(poNumber, lineItems.map((it, i) => ({
+          sn: i + 1, internalCode: it.indent_number || `CON-${i + 1}`, product: it.product_name,
+          qty: Number(it.quantity) || 0, unit: it.uom || 'Nos', rate: Number(it.rate) || 0,
+          gst: Number(it.gst_percent) || 0, discount: Number(it.discount_percent) || 0,
+        })));
+      }
+
       // If supplier has email, attempt to email the PO
-      if (supplierEmail && supplierEmail.includes('@') && emailApi?.sendEmail) {
+      if (isContract || editPo) {
+        toast.success(`${isContract ? 'Contract' : 'PO'} ${poNumber} ${editPo ? 'updated' : 'created'} successfully!`);
+      } else if (supplierEmail && supplierEmail.includes('@') && emailApi?.sendEmail) {
         try {
           const emailSubject = `Purchase Order - ${poNumber}`;
           const emailHtml = `
@@ -740,7 +784,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
 
       // Refresh list & reset
       await loadData();
-      handleReset();
+      if (!editPo) handleReset();
       onCreated?.();
     } catch (err: any) {
       toast.error(err?.message || 'Error creating Purchase Order');
@@ -752,7 +796,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
   return (
     <div className="min-h-screen bg-[#f0f4fd] p-2 sm:p-4 md:p-6 flex flex-col items-center justify-start text-slate-800">
       {/* ── Top Tabs: Create | Revise ─────────────────────────────────────── */}
-      <div className="w-full max-w-6xl">
+      {!isContract && <div className="w-full max-w-6xl">
         <Tabs
           value={mode}
           onValueChange={(v) => handleModeChange(v as 'create' | 'revise')}
@@ -773,7 +817,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </div>
+      </div>}
 
       {/* ── Main Form White Card Container ───────────────────────────────── */}
       <div className="w-full max-w-6xl bg-white shadow-md rounded-b-md p-4 sm:p-6 space-y-4 border border-slate-200/80">
@@ -795,14 +839,14 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
         <hr className="border-slate-200" />
 
         {/* Section Title */}
-        <h2 className="text-center font-bold text-lg text-slate-800">Purchase Order</h2>
+        <h2 className="text-center font-bold text-lg text-slate-800">{isContract ? 'Contract' : 'Purchase Order'}</h2>
 
         <hr className="border-slate-200" />
 
         {/* ── Header Form Fields ─────────────────────────────────────────── */}
         <div className="space-y-3.5">
           {/* Row 1: PO Number & PO Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {!isContract && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700">PO Number</Label>
               {mode === 'create' ? (
@@ -855,7 +899,7 @@ export default function PmsCreatePOView({ prefill, onCreated }: { prefill?: { in
                 onChange={(e) => setPoDate(e.target.value)}
               />
             </div>
-          </div>
+          </div>}
 
           {/* Row 2: Supplier Name */}
           <div className="space-y-1.5">

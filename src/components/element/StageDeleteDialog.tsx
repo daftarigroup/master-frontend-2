@@ -9,6 +9,7 @@ import {
     DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { AlertTriangle, Trash2, RotateCcw } from 'lucide-react';
 import { ClipLoader } from 'react-spinners';
 
@@ -44,6 +45,7 @@ export const StageDeleteDialog: React.FC<StageDeleteDialogProps> = ({
             onOpenChange(false);
         } catch (error) {
             console.error('Error during delete action:', error);
+            toast.error((error as any)?.message || 'Delete failed');
         } finally {
             setLoading(false);
         }

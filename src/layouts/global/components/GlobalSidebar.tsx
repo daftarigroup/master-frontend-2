@@ -31,7 +31,8 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { LayoutDashboard, ChevronRight, KeyRound } from 'lucide-react';
+import { LayoutDashboard, ChevronRight, KeyRound, ArrowLeft, Building2 } from 'lucide-react';
+import { useActiveProject, setActiveProject } from '@/systems/pms/utils/activeProject';
 
 gsap.registerPlugin(useGSAP);
 
@@ -67,6 +68,9 @@ export const GlobalSidebar: React.FC = () => {
     const navigate = useNavigate();
     const contentRef = useRef<HTMLDivElement>(null);
     const isRail = !isMobile && state === 'collapsed';
+
+    const activeProject = useActiveProject();
+    const isPmsProjectsPage = location.pathname.startsWith('/pms/projects');
 
     const targetSystemId = getSystemIdFromPath(location.pathname);
     const effectiveActiveSystemId = targetSystemId !== 'global' ? targetSystemId : activeSystemId;
@@ -356,9 +360,42 @@ export const GlobalSidebar: React.FC = () => {
                                         <CollapsibleSection isOpen={isOpen}>
                                             <SidebarGroupContent className="pt-0.5 pb-1">
                                                 <SidebarMenu className="space-y-0.5 pl-3 my-0.5">
+                                                    {system.id === 'pms' && activeProject && !isPmsProjectsPage && (
+                                                        <div className="mb-1.5 mr-1 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-2 group-data-[collapsible=icon]:hidden">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <Building2 size={14} className="text-emerald-600 shrink-0" />
+                                                                <div className="min-w-0">
+                                                                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-700/80 leading-none">
+                                                                        {activeProject.serialNo}
+                                                                    </div>
+                                                                    <div className="text-xs font-semibold truncate mt-0.5" title={activeProject.projectName}>
+                                                                        {activeProject.projectName}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setActiveProject(null);
+                                                                    navigate('/pms/projects');
+                                                                    if (isMobile) setOpenMobile(false);
+                                                                }}
+                                                                className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-primary"
+                                                            >
+                                                                <ArrowLeft size={12} /> All Projects
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     {system.groups
                                                         .flatMap((grp) => grp.items)
                                                         .filter((item) => !item.hidden && isPermitted(item.gateKey))
+                                                        .filter((item) => {
+                                                            if (system.id !== 'pms') return true;
+                                                            const isRegistry = item.path === '/pms/projects';
+                                                            // Registry page: only the project list.
+                                                            // Inside a project: only that project's flow.
+                                                            return activeProject && !isPmsProjectsPage ? !isRegistry : isRegistry;
+                                                        })
                                                         .map((item) => {
                                                             const count = getBadgeCount(item.path);
                                                             const isSelected =

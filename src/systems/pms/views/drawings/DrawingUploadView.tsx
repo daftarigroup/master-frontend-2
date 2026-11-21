@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -136,7 +137,7 @@ export default function DrawingUpload() {
     try {
       const allProjects = await fetchProjects();
       const approvals = await fetchFinalApprovals(allProjects);
-      eligibleProjects = allProjects.filter(p => {
+      eligibleProjects = scopeProjects(allProjects).filter(p => {
         const fa = approvals.find(a => a.projectNo === p.serialNo);
         const rec = drawings.find(d => d.projectNo === p.serialNo);
         return isFinalApprovalComplete(fa) || isDrawingUploadComplete(rec);

@@ -53,8 +53,6 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
   const [hardRockValue, setHardRockValue] = useState('');
   const [excavation, setExcavation] = useState(true);
   const [pipeLaying, setPipeLaying] = useState(true);
-  const [backFilling, setBackFilling] = useState(true);
-  const [backFillingValue, setBackFillingValue] = useState('');
   const [valve, setValve] = useState(false);
   const [valveName, setValveName] = useState('');
 
@@ -70,8 +68,6 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       setHardRockValue('');
       setExcavation(true);
       setPipeLaying(true);
-      setBackFilling(true);
-      setBackFillingValue('');
       const rName = getRowValveName(designRow);
       setValve(Boolean(rName || isValveTruthy(designRow.valve)));
       setValveName(rName);
@@ -79,7 +75,7 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
   }, [isOpen, designRow]);
 
   // Remarks becomes mandatory the moment any of the three stage checkboxes is unchecked
-  const allStagesDone = excavation && pipeLaying && backFilling;
+  const allStagesDone = excavation && pipeLaying;
 
   if (!isOpen || !project || !designRow) return null;
 
@@ -103,12 +99,8 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       toast.error('Please enter the Hard Rock value');
       return;
     }
-    if (backFilling && !String(backFillingValue).trim()) {
-      toast.error('Please enter the Back Filling value');
-      return;
-    }
     if (!allStagesDone && !String(remarks).trim()) {
-      toast.error('Remarks is mandatory when Excavation / Pipe Laying / Back Filling is unchecked');
+      toast.error('Remarks is mandatory when Excavation / Pipe Laying is unchecked');
       return;
     }
 
@@ -139,8 +131,6 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       hardRockValue: isHardRock ? hardRockValue : '',
       excavation,
       pipeLaying,
-      backFilling,
-      backFillingValue: backFilling ? backFillingValue : '',
       valve,
       valveName: finalValveName,
       isValve: valve,
@@ -277,14 +267,6 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
           {[
             { label: 'Excavation', value: excavation, setValue: setExcavation },
             { label: 'Pipe Laying', value: pipeLaying, setValue: setPipeLaying },
-            {
-              label: 'Back Filling',
-              value: backFilling,
-              setValue: (val) => {
-                setBackFilling(val);
-                if (!val) setBackFillingValue('');
-              }
-            },
           ].map(({ label, value, setValue }) => (
             <label key={label} className="flex items-center gap-2 h-[34px] md:h-[38px] cursor-pointer select-none">
               <input
@@ -297,20 +279,6 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
             </label>
           ))}
 
-          {backFilling && (
-            <div className="flex items-center gap-2">
-              <label className="text-[10px] md:text-[12px] text-gray-700 uppercase tracking-tighter whitespace-nowrap">
-                Back Filling Value:
-              </label>
-              <input
-                type="text"
-                value={backFillingValue}
-                onChange={(e) => setBackFillingValue(e.target.value)}
-                placeholder="Enter back filling value"
-                className="w-[140px] md:w-[180px] border border-emerald-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-[12px] md:text-[13px] h-[32px] md:h-[36px]"
-              />
-            </div>
-          )}
         </div>
 
         {/* Design row (read-only, pre-filled) */}

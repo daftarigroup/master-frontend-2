@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/
 import { fetchProjects, deleteProject, type Project } from '@/systems/pms/services/pmsApiClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import Edit_Add_Project from './EditProjectView';
+import { setActiveProject } from '@/systems/pms/utils/activeProject';
 
 export default function AllProject() {
   const navigate = useNavigate();
@@ -34,6 +35,11 @@ export default function AllProject() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
+  const openProject = (p: Project) => {
+    setActiveProject(p);
+    navigate('/pms/indents/create');
+  };
+
   const loadProjects = async () => {
     setLoading(true);
     try {
@@ -47,6 +53,7 @@ export default function AllProject() {
   };
 
   useEffect(() => {
+    setActiveProject(null); // registry = no project open
     loadProjects();
   }, []);
 
@@ -168,7 +175,7 @@ export default function AllProject() {
   ], []);
 
   const renderCard = (item: Project) => (
-    <div key={item.serialNo} onClick={() => setViewProject(item)} className="cursor-pointer bg-white rounded-lg border border-indigo-50 shadow-sm p-3 space-y-2">
+    <div key={item.serialNo} onClick={() => openProject(item)} className="cursor-pointer bg-white rounded-lg border border-indigo-50 shadow-sm p-3 space-y-2">
       <div className="flex justify-between items-start border-b border-gray-100 pb-2">
         <div>
           <span className="text-[9px] text-indigo-500 uppercase tracking-widest leading-none block mb-1">{item.serialNo}</span>
@@ -413,7 +420,7 @@ export default function AllProject() {
             data={paginatedProjects}
             dataLoading={loading}
             className="h-[65dvh]"
-            onRowClick={setViewProject}
+            onRowClick={openProject}
           />
         </div>
 

@@ -125,7 +125,7 @@ export default function ViewDesign() {
         {DESIGN_COLUMNS.map(col => (
           <td key={col.key} className="px-4 py-3 text-center text-sm text-gray-700 whitespace-nowrap leading-none">
             {col.key === 'valve'
-              ? (item[col.key] !== undefined && item[col.key] !== null && String(item[col.key]).trim() !== ''
+              ? (item[col.key] !== undefined && item[col.key] !== null && String(item[col.key]).trim() !== '' && !['true', 'false'].includes(String(item[col.key]).trim().toLowerCase())
                 ? String(item[col.key])
                 : '-')
               : displayVal(item[col.key])}
@@ -186,7 +186,7 @@ export default function ViewDesign() {
             <span className="text-gray-500">{col.label}:</span>
             <span className="text-gray-800">
               {col.key === 'valve'
-                ? (item[col.key] !== undefined && item[col.key] !== null && String(item[col.key]).trim() !== ''
+                ? (item[col.key] !== undefined && item[col.key] !== null && String(item[col.key]).trim() !== '' && !['true', 'false'].includes(String(item[col.key]).trim().toLowerCase())
                   ? String(item[col.key])
                   : '-')
                 : displayVal(item[col.key])}
@@ -290,12 +290,14 @@ export default function ViewDesign() {
 
       {/* Row 2: Product IMF + Valve Report + Execution Details + Excavation & Murum + Actual Details + Auto Comparison */}
       <div className="flex items-center justify-end gap-2 flex-wrap w-full px-2 sm:px-0">
+        {/* Sub Contractor IMF - disabled for now
         <button
           onClick={() => navigate(`/pms/product-imf/${encodeURIComponent(project.serialNo)}`)}
           className="flex items-center justify-center gap-2 bg-white border border-blue-200 text-blue-600 rounded-lg px-3 h-[32px] md:h-[38px] text-xs md:text-sm font-semibold shadow-sm hover:bg-blue-50 transition"
         >
           <Package size={16} /> Sub Contractor IMF
         </button>
+        */}
         <button
           onClick={() => navigate(`/pms/valve-report/${encodeURIComponent(project.serialNo)}`)}
           className="flex items-center justify-center gap-2 bg-white border border-teal-200 text-teal-600 rounded-lg px-3 h-[32px] md:h-[38px] text-xs md:text-sm font-semibold shadow-sm hover:bg-teal-50 transition"

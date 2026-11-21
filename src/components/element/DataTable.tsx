@@ -152,22 +152,65 @@ interface DataTableProps<TData, TValue> {
     searchValue?: string;
 }
 
-function globalFilterFn<TData>(row: TData, columnIds: string[], filterValue: string) {
-    if (!filterValue) return true;
-    const lowerFilter = filterValue.toLowerCase();
-    if (columnIds && columnIds.length > 0) {
-        return columnIds.some((columnId) => {
-            const value = (row as any)[columnId];
-            return String(value ?? '')
-                .toLowerCase()
-                .includes(lowerFilter);
-        });
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Adds the dd/mm/yyyy (and time) forms the UI shows for a date, so they can be searched. */
+function pushDateForms(d: Date, out: string[]) {
+    if (isNaN(d.getTime())) return;
+    const dd = pad2(d.getDate()), mm = pad2(d.getMonth() + 1), yyyy = d.getFullYear();
+    out.push(`${dd}/${mm}/${yyyy}`, `${dd}-${mm}-${yyyy}`, `${Number(dd)}/${Number(mm)}/${yyyy}`);
+    let h = d.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    out.push(`${pad2(h)}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())} ${ap}`);
+}
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?.*)?$/;
+
+function collectText(val: unknown, out: string[], depth = 0) {
+    if (val === null || val === undefined || depth > 3) return;
+    if (val instanceof Date) {
+        out.push(val.toISOString());
+        pushDateForms(val, out);
+        return;
     }
-    return Object.values(row as any).some((val) =>
-        typeof val === 'object' && val !== null
-            ? Object.values(val).some((nestedVal) => String(nestedVal ?? '').toLowerCase().includes(lowerFilter))
-            : String(val ?? '').toLowerCase().includes(lowerFilter)
-    );
+    if (typeof val === 'object') {
+        Object.values(val as any).forEach((v) => collectText(v, out, depth + 1));
+        return;
+    }
+    const str = String(val);
+    out.push(str);
+    const m = typeof val === 'string' ? ISO_DATE.exec(str) : null;
+    if (m) {
+        if (m[4] === undefined) {
+            // date only: use the calendar parts as written (no timezone shift)
+            out.push(`${m[3]}/${m[2]}/${m[1]}`, `${m[3]}-${m[2]}-${m[1]}`, `${Number(m[3])}/${Number(m[2])}/${m[1]}`);
+        } else {
+            pushDateForms(new Date(str), out);
+        }
+    }
+}
+
+/**
+ * Search matches ANY value of the record: every raw field, every column's computed value
+ * (so derived columns like machine / contractor show up) and any explicitly listed searchFields.
+ * Multiple words must all match somewhere in the row.
+ */
+function globalFilterFn<TData>(tableRow: Row<TData>, columnIds: string[], filterValue: string) {
+    if (!filterValue) return true;
+    const terms = String(filterValue).toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+    const parts: string[] = [];
+    const raw: any = tableRow.original;
+    collectText(raw, parts);
+    (columnIds || []).forEach((id) => collectText(raw?.[id], parts));
+    try {
+        tableRow.getAllCells().forEach((cell) => collectText(cell.getValue(), parts));
+    } catch {
+        /* a column without an accessor has no value to search */
+    }
+    const haystack = parts.join(' | ').toLowerCase();
+    return terms.every((t) => haystack.includes(t));
 }
 
 export default function DataTable<TData, TValue>({
@@ -233,7 +276,7 @@ export default function DataTable<TData, TValue>({
         getFilteredRowModel: getFilteredRowModel(),
         enableRowSelection: !!onRowSelectionChange,
         globalFilterFn: (row, _, filterValue) =>
-            onSearch ? true : (row?.original ? globalFilterFn(row.original, searchFields || [], filterValue) : false),
+            onSearch ? true : (row?.original ? globalFilterFn(row, searchFields || [], filterValue) : false),
         getRowId,
         meta,
         state: {

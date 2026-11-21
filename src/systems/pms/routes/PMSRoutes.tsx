@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
+import { useActiveProject } from '../utils/activeProject';
 import PMSLayout from '../layout/PMSLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -17,9 +18,18 @@ const AllProjectsView = React.lazy(() => import('../views/projects/AllProjectsVi
 const NewProjectView = React.lazy(() => import('../views/projects/NewProjectView'));
 const DrawingUploadView = React.lazy(() => import('../views/drawings/DrawingUploadView'));
 const UploadDrawingView = React.lazy(() => import('../views/drawings/UploadDrawingView'));
+const PmsContractsView = React.lazy(() => import('../views/indents/PmsContractsView'));
 const FinalApprovalView = React.lazy(() => import('../views/FinalApprovalView'));
 
 const UploadDesignPageView = React.lazy(() => import('../views/execution/UploadDesignPageView'));
+// With an active project open, Execution goes straight to its Minors & Design page; "?list=1" shows the project list.
+function ExecutionEntry() {
+  const [params] = useSearchParams();
+  const active = useActiveProject();
+  const serial = active?.serialNo || active?.serial_no;
+  if (serial && !params.has('list')) return <Navigate to={`/pms/minors/${encodeURIComponent(serial)}`} replace />;
+  return <UploadDesignPageView />;
+}
 const ViewDesignView = React.lazy(() => import('../views/execution/ViewDesignView'));
 const ProjectMinorsView = React.lazy(() => import('../views/execution/ProjectMinorsView'));
 const ExecutionDetailsView = React.lazy(() => import('../views/execution/ExecutionDetailsView'));
@@ -86,10 +96,11 @@ export const PMSRoutes: React.FC = () => {
           <Route path="upload-drawing" element={<Navigate to="drawings/upload" replace />} />
 
           {/* Final Approval */}
+          <Route path="contracts" element={<PmsContractsView />} />
           <Route path="final-approval" element={<FinalApprovalView />} />
 
           {/* Execution & DPR */}
-          <Route path="execution" element={<UploadDesignPageView />} />
+          <Route path="execution" element={<ExecutionEntry />} />
           <Route path="upload-design" element={<Navigate to="execution" replace />} />
           <Route path="view-design/:projectNo" element={<ViewDesignView />} />
           <Route path="minors" element={<ProjectMinorsView />} />

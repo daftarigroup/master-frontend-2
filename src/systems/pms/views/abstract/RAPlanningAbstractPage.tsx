@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -26,7 +27,7 @@ export default function RAPlanningAbstractPage() {
   const [activeTab, setActiveTab] = useState<'ra2' | 'abstract'>('ra2');
 
   useEffect(() => {
-    const list = getProjects();
+    const list = scopeProjects(getProjects());
     setAllProjects(list);
     
     if (paramProjectNo) {

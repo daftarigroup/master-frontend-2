@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FileUp, Layers, Clock, History as HistoryIcon, Search, RotateCcw } from 'lucide-react';
@@ -30,7 +31,7 @@ export default function UploadDrawing() {
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   const refresh = () => {
-    const eligibleProjects = getProjects();
+    const eligibleProjects = scopeProjects(getProjects());
     setProjects(eligibleProjects);
     const map = {};
     eligibleProjects.forEach(p => { map[p.serialNo] = getDrawingsForProject(p.serialNo); });

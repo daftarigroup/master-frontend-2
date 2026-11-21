@@ -1,3 +1,4 @@
+import { getCachedContracts } from './contractCache';
 // @ts-nocheck
 // Rate Master & Item Mapping based on Table 1 Logic
 // Dynamically looks up rates:
@@ -218,7 +219,7 @@ export function getPipeRate(dia: number, projectNo?: string): number {
  */
 export function getAvailablePOsForProject(
   projectNo?: string,
-  subContractorName?: string
+  _subContractorName?: string
 ): Array<{ poNumber: string; vendorName: string; date?: string; type: string }> {
   const list: Array<{ poNumber: string; vendorName: string; date?: string; type: string }> = [];
   const seen = new Set<string>();
@@ -236,6 +237,8 @@ export function getAvailablePOsForProject(
     if (proj?.poNumber) addPo(proj.poNumber, proj.contractorName, '', 'Project PO');
 
   }
+
+  getCachedContracts().forEach((c) => addPo(c.poNumber, c.name, '', 'Contract'));
 
   // External PO master
   const extPos = getExternalPurchaseOrders();
@@ -259,6 +262,12 @@ export function resolvePoNumberForProject(projectNo?: string, subContractorName?
     const proj = getProjectOrMinor(projectNo);
     if (proj?.poNumber) return proj.poNumber.trim();
 
+  }
+
+  // Contracts (database) matched by vendor name
+  if (subContractorName) {
+    const c = getCachedContracts().find((x) => x.name?.toLowerCase() === subContractorName.toLowerCase());
+    if (c) return c.poNumber;
   }
 
   // Check External PO master
@@ -295,7 +304,9 @@ export function getPORate(
   // 1. Try finding in PO products
   if (poNum) {
     const diaRegex = diaNum > 0 ? new RegExp(`\\b${diaNum}\\b|${diaNum}\\s*mm`, 'i') : null;
-    const products = getProductsByPONumber(poNum);
+    const products = getProductsByPONumber(poNum).length
+      ? getProductsByPONumber(poNum)
+      : (getCachedContracts().find((c) => c.poNumber === poNum)?.items || []);
 
     if (products && products.length > 0) {
       const match = products.find((p: any) => {

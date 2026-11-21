@@ -285,3 +285,9 @@ export async function resetIssueStage(id: number): Promise<boolean> {
     }
 }
 
+
+/** Permanently delete an issue record (does not return it to Pending). */
+export async function deleteIssuePermanently(id: number): Promise<boolean> {
+    await apiClient.delete(`/store/issue-permanent/${id}`);
+    return true;
+}

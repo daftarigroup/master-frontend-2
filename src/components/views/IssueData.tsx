@@ -38,7 +38,7 @@ import {
     fetchIssueRecords,
     updateIssueApproval,
     updateIssuePlannedDate,
-    resetIssueStage,
+    deleteIssuePermanently,
     type IssueRecord
 } from '@/services/issueService';
 import { filterByFirmAccess } from '@/lib/firmAccess';
@@ -948,18 +948,18 @@ export default function IssueData() {
                 open={!!deleteTarget}
                 onOpenChange={(v) => !v && setDeleteTarget(null)}
                 stageName="Store Issue Approval"
-                isPermanentDelete={false}
+                isPermanentDelete={true}
                 indentNumber={deleteTarget?.issue_no}
                 productName={deleteTarget?.product_name}
-                customMessage={`Are you sure you want to delete approval for Issue ${deleteTarget?.issue_no} (${deleteTarget?.product_name})? This will revert the issue back to Pending state.`}
+                customMessage={`Are you sure you want to permanently delete Issue ${deleteTarget?.issue_no} (${deleteTarget?.product_name})? This cannot be undone.`}
                 onConfirm={async () => {
                     if (!deleteTarget || !deleteTarget.id) return;
                     const targetId = deleteTarget.id;
                     const issueNum = deleteTarget.issue_no;
-                    await resetIssueStage(targetId);
-                    toast.success(`Issue ${issueNum} approval reset to Pending`);
+                    await deleteIssuePermanently(targetId);
+                    toast.success(`Issue ${issueNum} deleted permanently`);
                     setDeleteTarget(null);
-                    setAllData(prev => prev.map(r => r.id === targetId ? { ...r, status: 'Pending', planned1: '', actual1: '' } : r));
+                    setAllData(prev => prev.filter(r => r.id !== targetId));
                     await fetchData();
                     updateAll(true);
                 }}

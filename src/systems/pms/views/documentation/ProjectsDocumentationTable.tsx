@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useState, useEffect } from 'react';
 import { Search, RotateCcw, FileText, Mail, ArrowRight, Eye, Building2, Tag, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,7 +35,7 @@ export default function ProjectsDocumentationTable({
 
   const loadData = () => {
     try {
-      const p = getProjects() || [];
+      const p = scopeProjects(getProjects() || []);
       setProjects(p);
       const docs = getDocumentationFiles() || [];
       setAllDocs(docs);

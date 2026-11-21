@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { pmsApi } from '../../services/pmsApi';
+import { getActiveProject } from '../../utils/activeProject';
 import { apiClient } from '@/lib/apiClient';
 import { ComboBox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
@@ -95,8 +96,9 @@ export default function PmsCreateIndentView() {
 
   // Form State
   const [indentDate, setIndentDate] = useState<string>(getTodayString());
-  const [projectId, setProjectId] = useState<string>('');
-  const [projectName, setProjectName] = useState<string>('');
+  const activeProj = getActiveProject();
+  const [projectId, setProjectId] = useState<string>(activeProj?.id != null ? String(activeProj.id) : '');
+  const [projectName, setProjectName] = useState<string>(activeProj?.projectName || '');
   const [projectSearch, setProjectSearch] = useState<string>('');
   const [indenterName, setIndenterName] = useState<string>('');
   const [priority, setPriority] = useState<'Non-Critical' | 'Critical'>('Non-Critical');
@@ -308,9 +310,11 @@ export default function PmsCreateIndentView() {
 
   // Filtered Project Options for Dropdown
   const filteredProjects = useMemo(() => {
-    if (!projectSearch.trim()) return projects;
+    // Inside a project: only that project can be indented against.
+    const pool = activeProj?.id != null ? projects.filter((p) => String(p.id) === String(activeProj.id)) : projects;
+    if (!projectSearch.trim()) return pool;
     const q = projectSearch.toLowerCase();
-    return projects.filter(
+    return pool.filter(
       (p) =>
         p.project_name.toLowerCase().includes(q) ||
         (p.serial_no && p.serial_no.toLowerCase().includes(q))
@@ -393,8 +397,8 @@ export default function PmsCreateIndentView() {
   // Reset Form
   const handleResetForm = () => {
     setIndentDate(getTodayString());
-    setProjectId('');
-    setProjectName('');
+    setProjectId(activeProj?.id != null ? String(activeProj.id) : '');
+    setProjectName(activeProj?.projectName || '');
     setProjectSearch('');
     setIndenterName(user?.username || '');
     setPriority('Non-Critical');
@@ -550,10 +554,6 @@ export default function PmsCreateIndentView() {
       if (eq.type === 'Rent') {
         if (!eq.expected_time.trim()) {
           toast.error(`Equipment #${i + 1}: Expected time is required for rented equipment`);
-          return;
-        }
-        if (!eq.day_charge || Number(eq.day_charge) <= 0) {
-          toast.error(`Equipment #${i + 1}: Day charge ₹ is required for rented equipment`);
           return;
         }
       }
@@ -1018,32 +1018,6 @@ export default function PmsCreateIndentView() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Group Head */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            Group Head
-                          </Label>
-                          <Input
-                            value={eq.group_head}
-                            onChange={(e) => handleEquipmentChange(idx, 'group_head', e.target.value)}
-                            placeholder="Group Head"
-                            className="bg-white h-9 text-xs border-amber-200 rounded-lg"
-                          />
-                        </div>
-
-                        {/* Area of Use */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            Area Of Use
-                          </Label>
-                          <Input
-                            value={eq.area_of_use}
-                            onChange={(e) => handleEquipmentChange(idx, 'area_of_use', e.target.value)}
-                            placeholder="Area Of Use"
-                            className="bg-white h-9 text-xs border-amber-200 rounded-lg"
-                          />
-                        </div>
-
                         {/* Equipment Name */}
                         <div className="space-y-1 lg:col-span-2">
                           <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
@@ -1110,22 +1084,6 @@ export default function PmsCreateIndentView() {
                                 onChange={(e) => handleEquipmentChange(idx, 'expected_time', e.target.value)}
                                 placeholder="e.g. 15 Days, 1 Month, 8 Hours"
                                 className="bg-white h-9 text-xs border-amber-300 rounded-lg font-medium"
-                                required
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-semibold text-amber-900 uppercase tracking-wide">
-                                Day Charge ₹ <span className="text-red-500">*</span>
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={eq.day_charge}
-                                onChange={(e) => handleEquipmentChange(idx, 'day_charge', e.target.value)}
-                                placeholder="₹ Charge per day"
-                                className="bg-white h-9 text-xs border-amber-300 rounded-lg font-bold text-amber-950"
                                 required
                               />
                             </div>

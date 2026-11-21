@@ -58,10 +58,19 @@ export const parseDesignFile = async (file) => {
   const hasData = (k) => jsonRows.some(r => String(r[k] ?? '').trim() !== '');
   const diaIdx = headerKeys.findIndex(k => HEADER_ALIASES[normalizeKey(k)] === 'pipeDia');
   const nextKey = diaIdx >= 0 ? headerKeys[diaIdx + 1] : undefined;
-  const namedValveKey = headerKeys.find(k => normalizeKey(k).includes('valve') && hasData(k));
-  const valveKey = namedValveKey !== undefined
-    ? namedValveKey
-    : (nextKey !== undefined && !HEADER_ALIASES[normalizeKey(nextKey)] ? nextKey : undefined);
+  // Valve name = first real (non-empty, not TRUE/FALSE) value in the columns after Pipe Dia, whatever their headers
+  // ("Valve", "Remark", blank ...). Rows without a name stay empty. Without a Pipe Dia header, a "valve" header is used.
+  const isBoolLike = (v) => typeof v === 'boolean' || ['true', 'false'].includes(String(v ?? '').trim().toLowerCase());
+  const valveKeys = diaIdx >= 0
+    ? headerKeys.slice(diaIdx + 1).filter(k => !HEADER_ALIASES[normalizeKey(k)] || HEADER_ALIASES[normalizeKey(k)] === 'valve')
+    : headerKeys.filter(k => normalizeKey(k).includes('valve'));
+  const pickValve = (row) => {
+    for (const k of valveKeys) {
+      const v = row[k];
+      if (String(v ?? '').trim() !== '' && !isBoolLike(v)) return v;
+    }
+    return '';
+  };
 
   let mappedRows = jsonRows.map(row => {
     const mapped = {};
@@ -69,9 +78,9 @@ export const parseDesignFile = async (file) => {
       const target = HEADER_ALIASES[normalizeKey(key)];
       if (target && target !== 'valve') mapped[target] = row[key];
     });
-    if (valveKey !== undefined) mapped.valve = row[valveKey];
+    mapped.valve = pickValve(row);
     return mapped;
-  }).filter(row => Object.keys(row).length > 0);
+  }).filter(row => Object.values(row).some(v => String(v ?? '').trim() !== ''));
 
   // Fallback: if header matching found almost nothing, assume columns are in the fixed order
   // Alignment/Chainage/.../Pipe Dia and skip the header row

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -60,7 +61,7 @@ export default function UploadDesignPage({ embedded = false }) {
       console.warn('Execution: could not load projects', e);
       allProjects = getProjects();
     }
-    const eligibleProjects = allProjects.filter(p => {
+    const eligibleProjects = scopeProjects(allProjects).filter(p => {
       const dRec = drawings.find(d => d.projectNo === p.serialNo);
       const hasMinors = allMinors.some(m => m.projectNo === p.serialNo);
       return isDrawingUploadComplete(dRec) || isUploadDesignComplete(p.serialNo) || hasMinors;

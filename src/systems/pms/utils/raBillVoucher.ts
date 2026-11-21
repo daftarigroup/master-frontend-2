@@ -35,7 +35,8 @@ export function openRaBillVoucher(input: RaVoucherInput): boolean {
   const billDate = input.billDate || bill.billDate || '';
   const party = input.partyName || (isSubContractor ? bill.subContractorName : '') || bill.contractorName || '';
   const poNo = input.poNumber || bill.poNumber || '';
-  const workName = `${bill.projectName || ''}${bill.minorName ? ` (${bill.minorName})` : ''}`;
+  const baseName = String(bill.projectName || '');
+  const workName = bill.minorName && !baseName.includes(bill.minorName) ? `${baseName} (${bill.minorName})` : baseName;
 
   // Previous bills of the same project / same party (same bill kind)
   const prevBills = getRMBills()
@@ -78,18 +79,20 @@ export function openRaBillVoucher(input: RaVoucherInput): boolean {
 <title>Running Account Bill - ${esc(billNo)}</title>
 <style>
   @page { size: A4; margin: 14mm; }
-  body { font-family: "Times New Roman", serif; font-size: 12px; color: #000; margin: 0; }
-  .page { page-break-after: always; padding: 4px 6px; min-height: 255mm; position: relative; }
+  body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; margin: 0; background: #fff; }
+  .page { page-break-after: always; padding: 8mm 10mm; min-height: 255mm; position: relative; max-width: 190mm; margin: 0 auto; box-sizing: border-box; }
   .page:last-child { page-break-after: auto; }
   .c { text-align: center; } .r { text-align: right; } .b { font-weight: bold; }
   .top { display: flex; justify-content: space-between; font-size: 11px; }
-  h1 { text-align: center; font-size: 19px; letter-spacing: 1px; margin: 18px 0 14px; text-decoration: underline; }
+  h1 { text-align: center; font-size: 22px; letter-spacing: 2px; margin: 22px 0 22px; text-decoration: underline; }
+  .cover { border: 2px solid #000; padding: 10mm 9mm; }
+  .cover .top { border-bottom: 1px solid #000; padding-bottom: 6px; margin-bottom: 14px; font-weight: bold; }
   h2 { text-align: center; font-size: 14px; margin: 6px 0 10px; }
-  .line { display: flex; margin: 9px 0; align-items: baseline; }
-  .line .k { width: 270px; flex-shrink: 0; }
-  .line .v { flex: 1; border-bottom: 1px dotted #000; min-height: 14px; padding: 0 4px; font-weight: bold; }
-  .alloc { float: left; width: 200px; border: 1px solid #000; margin-right: 18px; font-size: 11px; }
-  .alloc div { padding: 3px 6px; border-bottom: 1px solid #000; min-height: 14px; } .alloc div:last-child { border-bottom: 0; }
+  .line { display: flex; margin: 13px 0; align-items: baseline; gap: 8px; }
+  .line .k { width: 250px; flex-shrink: 0; }
+  .line .v { flex: 1; border-bottom: 1px dotted #000; min-height: 16px; padding: 0 4px; font-weight: bold; }
+  .alloc { float: left; width: 170px; border: 1px solid #000; margin-right: 16px; font-size: 11px; }
+  .alloc div { padding: 5px 7px; border-bottom: 1px solid #000; min-height: 18px; } .alloc div:last-child { border-bottom: 0; }
   table { width: 100%; border-collapse: collapse; }
   th, td { border: 1px solid #000; padding: 4px 5px; vertical-align: top; }
   th { text-align: center; font-size: 11px; }
@@ -102,7 +105,7 @@ export function openRaBillVoucher(input: RaVoucherInput): boolean {
 </style></head><body>
 
 <!-- ============ FRONT COVER ============ -->
-<div class="page">
+<div class="page"><div class="cover">
   <div class="top"><span>B &amp; C</span><span>${isSubContractor ? 'Sub Contractor' : 'Department'}</span><span>I. &amp; P.D.</span></div>
   <div class="line"><span class="k">Division -</span><span class="v">Water Resources Department</span></div>
   <div class="line"><span class="k">Sub - Division -</span><span class="v">${esc(bill.projectName || '')}</span></div>
@@ -118,15 +121,15 @@ export function openRaBillVoucher(input: RaVoucherInput): boolean {
       <div>Sub Divisional Engineer</div><div></div>
     </div>
     <div style="overflow:hidden">
-      <div class="line"><span class="k" style="width:190px">Name of work -</span><span class="v">${esc(workName)}</span></div>
-      <div class="line"><span class="k" style="width:190px">Purpose of Supply -</span><span class="v"></span></div>
-      <div class="line"><span class="k" style="width:190px">${isSubContractor ? 'PO / Agreement No.' : 'Agreement No.'} -</span><span class="v">${esc(poNo)}</span></div>
-      <div class="line"><span class="k" style="width:190px">Contractor's Ledger Folio No. -</span><span class="v"></span></div>
-      <div class="line"><span class="k" style="width:190px">Serial No. of this bill -</span><span class="v">${esc(billNo)}</span></div>
-      <div class="line"><span class="k" style="width:190px">No. and date of last bill for this work -</span><span class="v">${lastBill ? esc(`${lastBill.billNo || lastBill.rmNo} / ${fmtDate(lastBill.billDate)}`) : 'Nil (First Bill)'}</span></div>
+      <div class="line"><span class="k" style="width:200px">Name of work -</span><span class="v">${esc(workName)}</span></div>
+      <div class="line"><span class="k" style="width:200px">Purpose of Supply -</span><span class="v"></span></div>
+      <div class="line"><span class="k" style="width:200px">${isSubContractor ? 'PO / Agreement No.' : 'Agreement No.'} -</span><span class="v">${esc(poNo)}</span></div>
+      <div class="line"><span class="k" style="width:200px">Contractor's Ledger Folio No. -</span><span class="v"></span></div>
+      <div class="line"><span class="k" style="width:200px">Serial No. of this bill -</span><span class="v">${esc(billNo)}</span></div>
+      <div class="line"><span class="k" style="width:200px">No. and date of last bill for this work -</span><span class="v">${lastBill ? esc(`${lastBill.billNo || lastBill.rmNo} / ${fmtDate(lastBill.billDate)}`) : 'Nil (First Bill)'}</span></div>
     </div>
   </div>
-  <div class="line" style="margin-top:22px"><span class="k">Accepted by the ………………………………</span><span class="v" style="border:0;text-align:right">Competent Authority</span></div>
+  <div class="line" style="margin-top:30px"><span class="k">Accepted by the ………………………………</span><span class="v" style="border:0;text-align:right">Competent Authority</span></div>
   <div class="line"><span class="k">Date of written order to commence work -</span><span class="v"></span></div>
   <div class="line"><span class="k">Date of completion as stipulated in contract -</span><span class="v"></span></div>
   <div class="line"><span class="k">Extension granted upto -</span><span class="v"></span></div>
@@ -136,7 +139,7 @@ export function openRaBillVoucher(input: RaVoucherInput): boolean {
     <div style="display:flex;justify-content:space-between;margin-top:36px"><span>Checked<br><br>Accounts Clerk</span><span>Divisional Accountant</span><span>Audited<br><br>Auditor</span></div>
     <div class="r" style="margin-top:6px">Superintendent / Gazetted Officer</div>
   </div>
-</div>
+</div></div>
 
 <!-- ============ ACCOUNT II : MEASUREMENT ABSTRACT ============ -->
 <div class="page">

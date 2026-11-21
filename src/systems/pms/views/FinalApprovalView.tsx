@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { scopeProjects, scopeByProjectNo } from '@/systems/pms/utils/activeProject';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ShieldCheck, Clock, History as HistoryIcon, Search, RotateCcw } from 'lucide-react';
@@ -59,7 +60,7 @@ export default function FinalApproval() {
       const [allProjects, posRes] = await Promise.all([fetchProjects(), poApi.get('/pos')]);
       const poList = Array.isArray(posRes) ? posRes : posRes?.data || [];
       const withPo = new Set(poList.map((po) => String(po.project_id)));
-      const eligibleProjects = allProjects.filter((p) => withPo.has(String(p.id)));
+      const eligibleProjects = scopeProjects(allProjects).filter((p) => withPo.has(String(p.id)));
 
       const approvals = await fetchFinalApprovals(eligibleProjects);
       setProjects(eligibleProjects);
