@@ -270,7 +270,9 @@ export function calculateRealInventory(
         // Final Current Quantity Calculation:
         // Current = Opening + Lifting + NetStockTransfer - PurchaseReturn - (Issued - IssueReturn)
         const netTransferForBalance = isAllProjects ? 0 : (tSum.in - tSum.out);
-        const current = (item.opening || 0) + liftingQty + (sDet.stockTransfer || 0) + netTransferForBalance + (item.stockTransfer || 0) - purchaseReturn - (outQuantity - issueReturn);
+        // Quantities are kept to 2 decimals so float drift (e.g. 0.0001000000000111) never shows up
+        const round2 = (n: number) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
+        const current = round2((item.opening || 0) + liftingQty + (sDet.stockTransfer || 0) + netTransferForBalance + (item.stockTransfer || 0) - purchaseReturn - (outQuantity - issueReturn));
 
         // Filter: If party filtered, ensure the item has actual activity for this party
         if (isPartyFiltered) {
@@ -396,17 +398,17 @@ export function calculateRealInventory(
 
         return {
             ...item,
-            indented,
-            approved,
-            purchaseQuantity,
-            purchaseReturn,
-            liftingQty,
-            inTransit,
-            outQuantity,
-            issueReturn,
-            stockTransfer,
-            stockTransferGiven,
-            stockTransferReceiving,
+            indented: round2(indented),
+            approved: round2(approved),
+            purchaseQuantity: round2(purchaseQuantity),
+            purchaseReturn: round2(purchaseReturn),
+            liftingQty: round2(liftingQty),
+            inTransit: round2(inTransit),
+            outQuantity: round2(outQuantity),
+            issueReturn: round2(issueReturn),
+            stockTransfer: round2(stockTransfer),
+            stockTransferGiven: round2(stockTransferGiven),
+            stockTransferReceiving: round2(stockTransferReceiving),
             fromProject,
             toProject,
             current,

@@ -524,6 +524,35 @@ export default function Dashboard() {
         },
     } satisfies ChartConfig;
 
+    // Spend by Group Head: value of received material (Store In, stage 6) for the selected project(s),
+    // group head taken from the indent the material was bought against. Honors the dashboard date filter.
+    const groupHeadSpend = useMemo(() => {
+        const ghByIndent = new Map<string, string>();
+        indents.forEach((ind) => {
+            if (ind.indent_number) ghByIndent.set(String(ind.indent_number).trim(), (ind.group_head || '').trim());
+        });
+        const totals = new Map<string, number>();
+        storeIns.forEach((r) => {
+            if (!r.actual6) return;
+            if (filteredProjects.length > 0 && r.firmNameMatch && !filteredProjects.includes(r.firmNameMatch)) return;
+            const d = r.timestamp ? new Date(r.timestamp) : null;
+            if (d && startDate && d < startDate) return;
+            if (d && endDate && d > endDate) return;
+            const amount = Number(r.amount) || (Number(r.receivedQuantity) || 0) * (Number(r.rate) || Number(r.priceAsPerPo) || 0);
+            if (!(amount > 0)) return;
+            const gh = ghByIndent.get(String(r.indentNumber || r.indentNo || '').trim()) || 'Unassigned';
+            totals.set(gh, (totals.get(gh) || 0) + amount);
+        });
+        const rows = Array.from(totals, ([name, value]) => ({ name, value: Math.round(value * 100) / 100 })).sort((a, b) => b.value - a.value);
+        const TOP = 10;
+        if (rows.length > TOP + 1) {
+            const rest = rows.slice(TOP).reduce((sum, r) => sum + r.value, 0);
+            return [...rows.slice(0, TOP), { name: 'Other', value: Math.round(rest * 100) / 100 }];
+        }
+        return rows;
+    }, [indents, storeIns, filteredProjects, startDate, endDate]);
+    const groupHeadTotal = groupHeadSpend.reduce((sum, r) => sum + r.value, 0);
+
     return (
         <div>
             <Heading heading="Dashboard" subtext="View your analytics">
@@ -684,6 +713,50 @@ export default function Dashboard() {
                         </CardContent>
                     </Card>
                 </div>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                        <div>
+                            <CardTitle className="text-xl">Spend by Group Head</CardTitle>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Received material value{!isAllProjects && selectedProject?.name ? ` - ${selectedProject.name}` : ' - all projects'}
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold">&#8377;{groupHeadTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {groupHeadSpend.length === 0 ? (
+                            <div className="h-[120px] flex items-center justify-center text-sm text-muted-foreground">
+                                No received material with an amount for this selection.
+                            </div>
+                        ) : (
+                            <div style={{ height: Math.max(180, groupHeadSpend.length * 38 + 30) }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={groupHeadSpend} layout="vertical" margin={{ left: 8, right: 90, top: 4, bottom: 4 }} barCategoryGap={10}>
+                                        <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.12} />
+                                        <XAxis type="number" hide />
+                                        <YAxis type="category" dataKey="name" width={150} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} />
+                                        <Tooltip
+                                            cursor={{ fill: 'currentColor', fillOpacity: 0.06 }}
+                                            formatter={(v: number) => [`\u20B9${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`, 'Spend']}
+                                        />
+                                        <Bar dataKey="value" name="Spend" fill="#2563eb" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                                            <LabelList
+                                                dataKey="value"
+                                                position="right"
+                                                formatter={(v: number) => `\u20B9${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                                                style={{ fontSize: 11, fill: 'currentColor' }}
+                                            />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                     <Card className="lg:col-span-2">

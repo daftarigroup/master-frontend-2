@@ -611,7 +611,7 @@ export default () => {
                         toast.error(`Cannot issue "${product.productName}". Available stock is 0 or less (${availableStock}).`);
                         return;
                     }
-                    if (Number(product.quantity) > availableStock) {
+                    if (Math.round(Number(product.quantity) * 100) / 100 > Math.round(availableStock * 100) / 100) {
                         toast.error(`Cannot issue ${product.quantity} of "${product.productName}". Available stock is only ${availableStock}.`);
                         return;
                     }

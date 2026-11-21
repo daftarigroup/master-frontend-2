@@ -384,7 +384,7 @@ export default () => {
             className={`w-full text-center hover:underline hover:text-primary transition-colors ${value > 0 ? 'text-blue-600 font-medium cursor-pointer' : 'text-muted-foreground'}`}
             disabled={value === 0}
         >
-            {value}
+            {Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100}
         </button>
     ), [handleDetailClick]);
 
@@ -486,7 +486,7 @@ export default () => {
             header: 'Quantity',
             footer: ({ table }) => {
                 const total = table.getFilteredRowModel().rows.reduce((sum, r) => sum + (Number(r.original?.current) || 0), 0);
-                return <span className="font-bold">{total.toLocaleString('en-IN')}</span>;
+                return <span className="font-bold">{total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>;
             },
         },
         {
@@ -595,7 +595,7 @@ export default () => {
                             </div>
                             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
                                 <span>Total Qty:</span>
-                                <span className="font-bold text-foreground">{totalQty.toLocaleString('en-IN')}</span>
+                                <span className="font-bold text-foreground">{totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-3.5 py-1.5 shadow-xs">
                                 <span className="text-xs sm:text-sm font-semibold text-emerald-800 dark:text-emerald-300">
@@ -747,7 +747,7 @@ export default () => {
                                                         {visibleCols.projectName && <TableCell className="whitespace-nowrap">{row.projectName}</TableCell>}
                                                         {showMachineCol && <TableCell className="whitespace-nowrap">{row.machineName || '-'}</TableCell>}
                                                         {visibleCols.siteLocation && <TableCell className="whitespace-nowrap">{row.siteLocation || 'N/A'}</TableCell>}
-                                                        {visibleCols.quantity && <TableCell className="text-right font-bold">{row.quantity}</TableCell>}
+                                                        {visibleCols.quantity && <TableCell className="text-right font-bold">{Math.round(((Number(row.quantity) || 0) + Number.EPSILON) * 100) / 100}</TableCell>}
                                                         {visibleCols.rate && (
                                                             <TableCell className="text-right font-medium whitespace-nowrap text-blue-600">
                                                                 {row.rate ? `₹${row.rate.toLocaleString('en-IN')}` : '₹0'}
@@ -773,7 +773,7 @@ export default () => {
                                 <div className="flex justify-end items-center gap-6 pt-2 text-sm border-t mt-2">
                                     <div className="flex items-center gap-2">
                                         <span className="text-muted-foreground">Total Qty:</span>
-                                        <span className="font-bold text-base">{totalQty.toLocaleString('en-IN')}</span>
+                                        <span className="font-bold text-base">{totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
                                     </div>
                                     {avgPrice > 0 && (
                                         <div className="flex items-center gap-2">

@@ -328,6 +328,25 @@ export default function IssueData() {
         );
     };
 
+    // Permanent delete (Pending / Return tabs) - Admin / Super Admin only
+    const canDeleteIssue = canDeleteStoreStage(user, 'store_data');
+    const deleteCol: ColumnDef<IssueRecord> = {
+        id: 'delete',
+        header: 'Delete',
+        cell: ({ row }) => (
+            <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(row.original); }}
+                className="flex items-center gap-1 text-red-600 hover:text-red-800 hover:bg-red-50 h-8 px-2 text-xs"
+                title="Delete this issue permanently"
+            >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+            </Button>
+        ),
+    };
+
     const columns: ColumnDef<IssueRecord>[] = useMemo(() => {
         const actionCol: ColumnDef<IssueRecord>[] = user.issueData
             ? [
@@ -353,6 +372,7 @@ export default function IssueData() {
                 },
             ]
             : [];
+        if (canDeleteIssue) actionCol.push(deleteCol);
 
         const plannedDateCol: ColumnDef<IssueRecord> = {
             accessorKey: 'planned1',
@@ -606,7 +626,7 @@ export default function IssueData() {
             issueSlipCol,
             actionsCol,
         ];
-    }, [user, kindFilter, hasMachineKinds]);
+    }, [user, kindFilter, hasMachineKinds, canDeleteIssue]);
 
 
     const returnColumns: ColumnDef<IssueRecord>[] = [
@@ -653,6 +673,7 @@ export default function IssueData() {
                 </button>
             ),
         },
+        ...(canDeleteIssue ? [deleteCol] : []),
     ];
 
     const schema = z.object({
