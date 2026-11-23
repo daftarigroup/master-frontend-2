@@ -151,7 +151,11 @@ export function computeBillFromExecutionEntries(
       totalLengthMeters += diff;
 
       // Estimate trench excavation and bedding if depth/cuttingLevel is recorded
-      const depth = Number(data.cuttingLevel || data.elevation || 1.5) || 1.5;
+      // Trench depth = ground elevation - cutting level (both are absolute levels / RL).
+      const groundLevel = Number(data.elevation);
+      const cutLevel = Number(data.cuttingLevel);
+      const computedDepth = groundLevel - cutLevel;
+      const depth = Number.isFinite(computedDepth) && computedDepth > 0 ? computedDepth : 1.5;
       const width = Math.max(0.8, (dia / 1000) + 0.6); // trench width
       const trenchVol = diff * width * depth;
 
