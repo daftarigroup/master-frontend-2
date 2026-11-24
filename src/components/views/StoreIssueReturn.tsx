@@ -31,6 +31,7 @@ import { useProject } from '@/context/ProjectContext';
 import { calculateRealInventory } from '@/lib/inventoryUtils';
 import { isAllowedFirm } from '@/lib/firmAccess';
 import { IssueKindPicker, type IssueKind } from '@/components/element/IssueKindPicker';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { MaintenanceIssueReturnForm } from '@/components/views/MaintenanceIssueReturnForm';
 import { useSearchParams } from 'react-router-dom';
 import { hasPageAccess } from '@/lib/permissions';
@@ -250,6 +251,20 @@ export default () => {
         }
     };
 
+    const fmtDate = (v?: string) => {
+        if (!v) return '';
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB');
+    };
+
+    const returnableIssues = (sheetIssues || []).filter((i: any) => {
+        const isFirmMatch = isAllowedFirm({ id: i.firm_id, name: i.projectName || i.firm_name }, user?.firm_access || []);
+        const isIssued = i.actual1 && i.actual1 !== '';
+        const isNotReturned = !(i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
+        const isMaterial = !i.issueKind || i.issueKind === 'MATERIAL';
+        return isFirmMatch && isIssued && isNotReturned && isMaterial;
+    });
+
     return (
         <div className="pb-10">
             <Heading
@@ -289,33 +304,21 @@ export default () => {
                                         name="id"
                                         render={({ field }) => (
                                             <FormItem className="lg:col-span-1">
-                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Select Issue Number <span className="text-destructive">*</span></FormLabel>
-                                                <Select
-                                                    onValueChange={(val) => handleIssueSelect(val)}
+                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Date <span className="text-destructive">*</span></FormLabel>
+                                                <SearchableSelect
+                                                    options={returnableIssues.map((issue: any) => ({
+                                                        value: String(issue.id),
+                                                        label: `${fmtDate(issue.timestamp)} - ${issue.productName}`,
+                                                        sublabel: `${issue.issueNo || ''} ${issue.projectName || ''}`,
+                                                        keywords: [String(issue.issueNo || ''), String(issue.projectName || ''), String(issue.productName || ''), fmtDate(issue.timestamp)],
+                                                    }))}
                                                     value={field.value ? String(field.value) : ''}
-                                                >
-                                                    <FormControl>
-                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200 focus:ring-primary/20">
-                                                            <SelectValue placeholder="Search issue no." />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {sheetIssues
-                                                            .filter(i => {
-                                                                const isFirmMatch = isAllowedFirm({ id: i.firm_id, name: i.projectName || i.firm_name }, user?.firm_access || []);
-                                                                const isIssued = i.actual1 && i.actual1 !== '';
-                                                                const isNotReturned = !(i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
-                                                                // returns are for material issues only (store_issue_kind_v1)
-                                                                const isMaterial = !i.issueKind || i.issueKind === 'MATERIAL';
-                                                                return isFirmMatch && isIssued && isNotReturned && isMaterial;
-                                                            })
-                                                            .map((issue) => (
-                                                                <SelectItem key={issue.id} value={String(issue.id)}>
-                                                                    {issue.issueNo} - {issue.productName}
-                                                                </SelectItem>
-                                                            ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                    onValueChange={(val) => handleIssueSelect(val)}
+                                                    placeholder="Search by date / product"
+                                                    searchPlaceholder="Search date, product, issue no."
+                                                    emptyText="No issue found"
+                                                    className="h-11 w-full bg-white"
+                                                />
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -328,7 +331,7 @@ export default () => {
                                             <FormItem>
                                                 <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Project Name</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} disabled className="h-11 bg-slate-50" />
+                                                    <Input {...field} className="h-11 bg-white border-slate-200" />
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -341,7 +344,7 @@ export default () => {
                                             <FormItem>
                                                 <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Contractor Name</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} disabled className="h-11 bg-slate-50" />
+                                                    <Input {...field} className="h-11 bg-white border-slate-200" />
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -354,7 +357,7 @@ export default () => {
                                             <FormItem>
                                                 <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Site Location</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} disabled className="h-11 bg-slate-50" />
+                                                    <Input {...field} className="h-11 bg-white border-slate-200" />
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -383,19 +386,7 @@ export default () => {
                                         )}
                                     />
 
-                                    <FormField
-                                        control={form.control}
-                                        name="issuePersonName"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-slate-600 font-semibold">Original Issuer</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} disabled className="h-11 bg-slate-50" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-
+                                    
                                     <FormField
                                         control={form.control}
                                         name="damageRemark"
@@ -409,19 +400,7 @@ export default () => {
                                         )}
                                     />
                                     
-                                    <FormField
-                                        control={form.control}
-                                        name="remarks"
-                                        render={({ field }) => (
-                                            <FormItem className="lg:col-span-3">
-                                                <FormLabel className="text-slate-600 font-semibold">Original Issue Remarks</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} disabled className="h-11 bg-slate-50" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
+                                                                    </div>
                             </CardContent>
                         </Card>
 
