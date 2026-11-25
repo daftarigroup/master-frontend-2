@@ -19,11 +19,11 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { ClipLoader as Loader } from 'react-spinners';
-import { RotateCcw, Trash, Package, ClipboardList } from 'lucide-react';
+import { RotateCcw, Trash, Plus } from 'lucide-react';
 import Heading from '../element/Heading';
 import { useEffect, useState, useMemo } from 'react';
 
-import { fetchIssueRecords, updateIssueRecordById, type IssueRecord } from '@/services/issueService';
+import { createIssueRecords, type IssueRecord } from '@/services/issueService';
 import { fetchMasterOptions, type MasterData } from '@/services/masterService';
 import { useAuth } from '@/context/AuthContext';
 import { useSheets } from '@/context/SheetsContext';
@@ -39,7 +39,7 @@ import { hasPageAccess } from '@/lib/permissions';
 
 export default () => {
     const { user } = useAuth();
-    const { effectivePermittedFirms } = useProject();
+    const { effectivePermittedFirms, selectedProjectName, isAllProjects } = useProject();
     const {
         inventorySheet,
         indentSheet,
@@ -95,128 +95,125 @@ export default () => {
     }, [effectivePermittedFirms]);
 
     const schema = z.object({
-        constructorName: z.string().nonempty('Contractor Name is required'),
-        siteLocation: z.string().nonempty('Site Location is required'),
-        projectName: z.string().nonempty('Project Name is required'),
-        remarks: z.string().optional(),
-        issuePersonName: z.string().optional(),
+        returnDate: z.string().nonempty('Return date is required'),
+        projectName: z.string().optional(),
         returnPersonName: z.string().nonempty('Returner Name is required'),
         damageRemark: z.string().optional(),
-        rejectedDamageQty: z.coerce.number().optional(),
-        id: z.coerce.number({ invalid_type_error: 'Please select an issue to return' }).min(1, 'Please select an issue to return'),
         products: z
             .array(
                 z.object({
-                    // department: z.string().optional(),
-                    groupHead: z.string().nonempty(),
-                    productName: z.string().nonempty(),
-                    quantity: z.coerce.number().gt(0, 'Must be greater than 0'),
-                    uom: z.string().nonempty(),
-                    givenQuantity: z.coerce.number().gt(0, 'Must be greater than 0').optional(),
+                    groupHead: z.string().nonempty('Select group head'),
+                    productName: z.string().nonempty('Select product'),
+                    uom: z.string().optional(),
+                    quantity: z.coerce.number().min(0, 'Cannot be negative'),
+                    damageQty: z.coerce.number().min(0, 'Cannot be negative'),
+                }).refine((p) => p.quantity > 0 || p.damageQty > 0, {
+                    message: 'Enter good or damaged qty',
+                    path: ['quantity'],
                 })
             )
             .min(1, 'At least one product is required'),
     });
 
+    const emptyItem = { groupHead: '', productName: '', uom: '', quantity: 0, damageQty: 0 };
+    const todayStr = () => new Date().toLocaleDateString('en-CA');
+
     const form = useForm({
         resolver: zodResolver(schema),
         defaultValues: {
-            constructorName: '',
-            siteLocation: '',
+            returnDate: todayStr(),
             projectName: '',
-            remarks: '',
-            issuePersonName: '',
             returnPersonName: '',
             damageRemark: '',
-            rejectedDamageQty: 0,
-            products: [
-                {
-                    uom: '',
-                    productName: '',
-                    quantity: 0,
-                    groupHead: '',
-                    // department: '',
-                },
-            ],
+            products: [{ ...emptyItem }],
         },
     });
 
     const products = form.watch('products');
-    const { fields } = useFieldArray({
+    const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: 'products',
     });
 
-    const selectedProject = form.watch('projectName') || 'All';
+    // Return is booked against the active project; with "All Projects" the user picks one.
+    const needsProjectPick = isAllProjects || !selectedProjectName;
+    const effectiveProjectName = needsProjectPick ? (form.watch('projectName') || '') : selectedProjectName;
 
-    const realInventory = useMemo(() => {
-        if (!inventorySheet) return [];
-        return calculateRealInventory(
-            inventorySheet,
-            indentSheet || [],
-            storeInSheet || [],
-            sheetIssues || [],
-            stockTransferSheet || [],
-        );
-    }, [inventorySheet, indentSheet, storeInSheet, sheetIssues, stockTransferSheet, selectedProject]);
+    const allGroupHeads = options?.allGroupHeads || [];
+    const productsFor = (groupHead: string): string[] => {
+        if (groupHead && options?.products?.[groupHead]) return options.products[groupHead];
+        return Object.values(options?.products || {}).flat();
+    };
+
+    // Net quantity still out with the project for a product = issued - already returned.
+    const netIssued = (productName: string, projectName: string) =>
+        (sheetIssues || []).reduce((sum: number, i: any) => {
+            if (i.productName !== productName) return sum;
+            if (projectName && (i.projectName || i.firm_name) !== projectName) return sum;
+            return sum + Number(i.givenQty || 0) - Number(i.rejected_damage_qty || 0);
+        }, 0);
 
     async function onSubmit(data: z.infer<typeof schema>) {
         try {
-            if (!data.id) {
-                toast.error('Please select an issue to return');
+            const projectName = effectiveProjectName;
+            if (!projectName) {
+                toast.error('Please select a project');
                 return;
             }
 
-            const rows: Partial<IssueRecord>[] = [];
-            for (const product of data.products) {
-                const row: Partial<IssueRecord> = {
-                    timestamp: new Date().toISOString(),
-                    uom: product.uom,
-                    group_head: product.groupHead,
-                    product_name: product.productName,
-                    constructor_name: data.constructorName,
-                    site_location: data.siteLocation,
-                    firm_name: data.projectName,
-                    issue_person_name: data.issuePersonName,
-                    return_person_name: data.returnPersonName,
-                    damage_remark: data.damageRemark,
-                    rejected_damage_qty: String(product.quantity || data.rejectedDamageQty || 0),
-                };
-
-                rows.push(row);
+            // Combine repeated products so the stock check sees the full quantity.
+            const totals: Record<string, number> = {};
+            for (const p of data.products) totals[p.productName] = (totals[p.productName] || 0) + Number(p.quantity || 0);
+            for (const [name, qty] of Object.entries(totals)) {
+                const max = Math.round(netIssued(name, projectName) * 100) / 100;
+                if (qty > max) {
+                    toast.error(`Cannot return ${qty} of "${name}". Only ${max} is issued to ${projectName}.`);
+                    return;
+                }
             }
 
-            // Return Logic
-            const updateData: Partial<IssueRecord> = rows[0];
+            const firmId = options?.firmObjects?.find((f) => f.name === projectName)?.id;
+            const stamp = new Date(`${data.returnDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString();
 
-            await updateIssueRecordById(data.id, updateData);
-            toast.success('Return updated successfully');
+            const rows: Partial<IssueRecord>[] = data.products.map((p) => {
+                const remark = [
+                    data.damageRemark?.trim(),
+                    p.damageQty > 0 ? `Damaged qty: ${p.damageQty}` : '',
+                ].filter(Boolean).join(' | ');
+                return {
+                    timestamp: stamp,
+                    uom: p.uom || options?.itemUomMap?.[p.productName] || '',
+                    group_head: p.groupHead,
+                    product_name: p.productName,
+                    quantity: 0,
+                    given_qty: 0,
+                    status: 'Returned',
+                    actual1: stamp,
+                    firm_name: projectName,
+                    firm_id: firmId,
+                    return_person_name: data.returnPersonName,
+                    damage_remark: remark,
+                    // inventory counts rejected_damage_qty as stock coming back; only good qty goes back to stock
+                    rejected_damage_qty: String(p.quantity || 0),
+                };
+            });
 
-            fetchData(); // Refresh data
+            await createIssueRecords(rows);
+            toast.success(`${rows.length} item(s) returned successfully`);
+
+            fetchData();
             updateAll(true);
 
             form.reset({
-                constructorName: '',
-                siteLocation: '',
+                returnDate: todayStr(),
                 projectName: '',
-                remarks: '',
-                issuePersonName: '',
                 returnPersonName: '',
                 damageRemark: '',
-                rejectedDamageQty: 0,
-                products: [
-                    {
-                        uom: '',
-                        productName: '',
-                        quantity: 0,
-                        groupHead: '',
-                        // department: '',
-                    },
-                ],
+                products: [{ ...emptyItem }],
             });
         } catch (error) {
             console.error('Error in onSubmit:', error);
-            toast.error('Error while updating return! Please try again');
+            toast.error('Error while processing return! Please try again');
         }
     }
 
@@ -224,46 +221,6 @@ export default () => {
         console.error(e);
         toast.error('Please fill all required fields');
     }
-
-    const handleIssueSelect = (issueId: string) => {
-        const selected = sheetIssues.find(i => String(i.id) === issueId);
-        if (selected) {
-            form.setValue('constructorName', selected.constructorName || '');
-            form.setValue('siteLocation', selected.siteLocation || '');
-            form.setValue('projectName', selected.projectName || '');
-            form.setValue('remarks', selected.issueTo || '');
-            form.setValue('issuePersonName', selected.issuePersonName || '');
-
-            const approvedQty = (Number(selected.givenQty) > 0) ? Number(selected.givenQty) : Number(selected.quantity || 0);
-
-            // Map the product
-            form.setValue('products', [
-                {
-                    // department: selected.department,
-                    groupHead: selected.groupHead,
-                    productName: selected.productName,
-                    quantity: approvedQty,
-                    uom: selected.uom,
-                }
-            ]);
-            form.setValue('id', Number(selected.id), { shouldValidate: true });
-            toast.info(`Loaded issue ${selected.issueNo}`);
-        }
-    };
-
-    const fmtDate = (v?: string) => {
-        if (!v) return '';
-        const d = new Date(v);
-        return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB');
-    };
-
-    const returnableIssues = (sheetIssues || []).filter((i: any) => {
-        const isFirmMatch = isAllowedFirm({ id: i.firm_id, name: i.projectName || i.firm_name }, user?.firm_access || []);
-        const isIssued = i.actual1 && i.actual1 !== '';
-        const isNotReturned = !(i.return_slip || i.return_person_name || (i.rejected_damage_qty && i.rejected_damage_qty !== '0' && i.rejected_damage_qty !== ''));
-        const isMaterial = !i.issueKind || i.issueKind === 'MATERIAL';
-        return isFirmMatch && isIssued && isNotReturned && isMaterial;
-    });
 
     return (
         <div className="pb-10">
@@ -295,83 +252,48 @@ export default () => {
                     <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-8">
                         <Card className="border-slate-200 shadow-sm overflow-hidden">
                             <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                                <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-500">Return Context</CardTitle>
+                                <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-500">Return Details</CardTitle>
                             </CardHeader>
                             <CardContent className="p-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     <FormField
                                         control={form.control}
-                                        name="id"
+                                        name="returnDate"
                                         render={({ field }) => (
-                                            <FormItem className="lg:col-span-1">
-                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Date <span className="text-destructive">*</span></FormLabel>
-                                                <SearchableSelect
-                                                    options={returnableIssues.map((issue: any) => ({
-                                                        value: String(issue.id),
-                                                        label: `${fmtDate(issue.timestamp)} - ${issue.productName}`,
-                                                        sublabel: `${issue.issueNo || ''} ${issue.projectName || ''}`,
-                                                        keywords: [String(issue.issueNo || ''), String(issue.projectName || ''), String(issue.productName || ''), fmtDate(issue.timestamp)],
-                                                    }))}
-                                                    value={field.value ? String(field.value) : ''}
-                                                    onValueChange={(val) => handleIssueSelect(val)}
-                                                    placeholder="Search by date / product"
-                                                    searchPlaceholder="Search date, product, issue no."
-                                                    emptyText="No issue found"
-                                                    className="h-11 w-full bg-white"
-                                                />
+                                            <FormItem>
+                                                <FormLabel className="text-slate-600 font-semibold">Date <span className="text-destructive">*</span></FormLabel>
+                                                <FormControl>
+                                                    <Input type="date" className="h-11 bg-white border-slate-200" {...field} />
+                                                </FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
 
-                                    <FormField
-                                        control={form.control}
-                                        name="projectName"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Project Name</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} className="h-11 bg-white border-slate-200" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    
-                                    <FormField
-                                        control={form.control}
-                                        name="constructorName"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Contractor Name</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} className="h-11 bg-white border-slate-200" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                    {needsProjectPick && (
+                                        <FormField
+                                            control={form.control}
+                                            name="projectName"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-slate-600 font-semibold">Project <span className="text-destructive">*</span></FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="w-full h-11 bg-white border-slate-200">
+                                                                <SelectValue placeholder="Select project" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            {(options?.firmObjects || []).map((f: any) => (
+                                                                <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
 
-                                    <FormField
-                                        control={form.control}
-                                        name="siteLocation"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-slate-600 font-semibold text-xs uppercase">Site Location</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} className="h-11 bg-white border-slate-200" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-slate-200 shadow-sm overflow-hidden">
-                            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                                <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-500">Return Details</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     <FormField
                                         control={form.control}
                                         name="returnPersonName"
@@ -386,7 +308,6 @@ export default () => {
                                         )}
                                     />
 
-                                    
                                     <FormField
                                         control={form.control}
                                         name="damageRemark"
@@ -394,13 +315,12 @@ export default () => {
                                             <FormItem>
                                                 <FormLabel className="text-slate-600 font-semibold">Damage Remarks</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="Condition of returned item" className="h-11 bg-white border-slate-200 focus:ring-primary/20" {...field} />
+                                                    <Input placeholder="Condition of returned items" className="h-11 bg-white border-slate-200 focus:ring-primary/20" {...field} />
                                                 </FormControl>
                                             </FormItem>
                                         )}
                                     />
-                                    
-                                                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 
@@ -413,7 +333,10 @@ export default () => {
                             <div className="grid grid-cols-1 gap-4">
                                 {fields.map((field, index) => {
                                     const groupHead = products[index]?.groupHead;
-                                    const originalIssue = sheetIssues.find(i => i.id === form.watch('id'));
+                                    const productName = products[index]?.productName;
+                                    const maxQty = productName && effectiveProjectName
+                                        ? Math.round(netIssued(productName, effectiveProjectName) * 100) / 100
+                                        : null;
 
                                     return (
                                         <Card
@@ -425,17 +348,79 @@ export default () => {
                                                     <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                                         Returning Item #{index + 1}
                                                     </div>
+                                                    {fields.length > 1 && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
+                                                            onClick={() => remove(index)}
+                                                        >
+                                                            <Trash size={16} />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                                                    <FormItem>
-                                                        <FormLabel className="text-xs font-semibold text-slate-500 uppercase">Group Head</FormLabel>
-                                                        <Input value={groupHead} disabled className="h-11 bg-slate-50" />
-                                                    </FormItem>
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`products.${index}.groupHead`}
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">Group Head <span className="text-destructive">*</span></FormLabel>
+                                                                <Select
+                                                                    onValueChange={(val) => {
+                                                                        field.onChange(val);
+                                                                        const cur = form.getValues(`products.${index}.productName`);
+                                                                        if (cur && options?.products?.[val] && !options.products[val].includes(cur)) {
+                                                                            form.setValue(`products.${index}.productName`, '');
+                                                                            form.setValue(`products.${index}.uom`, '');
+                                                                        }
+                                                                    }}
+                                                                    value={field.value}
+                                                                >
+                                                                    <FormControl>
+                                                                        <SelectTrigger className="w-full h-11 bg-white border-slate-200">
+                                                                            <SelectValue placeholder="Select Head" className="truncate" />
+                                                                        </SelectTrigger>
+                                                                    </FormControl>
+                                                                    <SelectContent>
+                                                                        {allGroupHeads.map((gh) => (
+                                                                            <SelectItem key={gh} value={gh}>{gh}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
 
-                                                    <FormItem className="md:col-span-1">
-                                                        <FormLabel className="text-xs font-semibold text-slate-500 uppercase">Product Name</FormLabel>
-                                                        <Input value={products[index]?.productName} disabled className="h-11 bg-slate-50" />
-                                                    </FormItem>
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`products.${index}.productName`}
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase">Product Name <span className="text-destructive">*</span></FormLabel>
+                                                                <FormControl>
+                                                                    <SearchableSelect
+                                                                        options={productsFor(groupHead).map((p) => ({ value: p, label: p }))}
+                                                                        value={field.value}
+                                                                        onValueChange={(val) => {
+                                                                            field.onChange(val);
+                                                                            if (!form.getValues(`products.${index}.groupHead`) && options?.itemGroupHeadMap?.[val]) {
+                                                                                form.setValue(`products.${index}.groupHead`, options.itemGroupHeadMap[val]);
+                                                                            }
+                                                                            form.setValue(`products.${index}.uom`, options?.itemUomMap?.[val] || '');
+                                                                        }}
+                                                                        placeholder="Select Product"
+                                                                        searchPlaceholder="Search product name..."
+                                                                        emptyText="No products found"
+                                                                        className="w-full h-11 bg-white border-slate-200"
+                                                                    />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
 
                                                     <FormField
                                                         control={form.control}
@@ -443,37 +428,26 @@ export default () => {
                                                         render={({ field }) => (
                                                             <FormItem>
                                                                 <FormLabel className="text-xs font-semibold text-slate-700 uppercase">
-                                                                    Good Qty to Return {originalIssue ? `(Max: ${(Number(originalIssue.givenQty) > 0) ? Number(originalIssue.givenQty) : Number(originalIssue.quantity || 0)})` : ''}
+                                                                    Good Qty to Return {maxQty !== null ? `(Max: ${maxQty})` : ''}
                                                                 </FormLabel>
                                                                 <FormControl>
-                                                                    <Input
-                                                                        type="number"
-                                                                        step="any"
-                                                                        className="h-11 bg-white border-primary/20 focus:ring-primary/20 font-bold text-primary"
-                                                                        {...field}
-                                                                    />
+                                                                    <Input type="number" step="any" min={0} className="h-11 bg-white border-primary/20 focus:ring-primary/20 font-bold text-primary" {...field} />
                                                                 </FormControl>
+                                                                <FormMessage />
                                                             </FormItem>
                                                         )}
                                                     />
 
                                                     <FormField
                                                         control={form.control}
-                                                        name="rejectedDamageQty"
+                                                        name={`products.${index}.damageQty`}
                                                         render={({ field }) => (
                                                             <FormItem>
-                                                                <FormLabel className="text-xs font-semibold text-red-500 uppercase">
-                                                                    Rejected/Damage Qty
-                                                                </FormLabel>
+                                                                <FormLabel className="text-xs font-semibold text-red-500 uppercase">Rejected/Damage Qty</FormLabel>
                                                                 <FormControl>
-                                                                    <Input
-                                                                        type="number"
-                                                                        step="any"
-                                                                        placeholder="0"
-                                                                        className="h-11 bg-white border-red-200 focus:ring-red-100 text-red-600 font-bold"
-                                                                        {...field}
-                                                                    />
+                                                                    <Input type="number" step="any" min={0} placeholder="0" className="h-11 bg-white border-red-200 focus:ring-red-100 text-red-600 font-bold" {...field} />
                                                                 </FormControl>
+                                                                <FormMessage />
                                                             </FormItem>
                                                         )}
                                                     />
@@ -483,6 +457,15 @@ export default () => {
                                     );
                                 })}
                             </div>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full h-11 border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                                onClick={() => append({ ...emptyItem })}
+                            >
+                                <Plus size={18} className="mr-2" /> Add Returning Item
+                            </Button>
                         </div>
 
                         <div className="pt-4 pb-10">
