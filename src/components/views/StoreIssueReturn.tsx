@@ -97,6 +97,7 @@ export default () => {
     const schema = z.object({
         returnDate: z.string().nonempty('Return date is required'),
         projectName: z.string().optional(),
+        constructorName: z.string().nonempty('Contractor Name is required'),
         returnPersonName: z.string().nonempty('Returner Name is required'),
         damageRemark: z.string().optional(),
         products: z
@@ -123,6 +124,7 @@ export default () => {
         defaultValues: {
             returnDate: todayStr(),
             projectName: '',
+            constructorName: '',
             returnPersonName: '',
             damageRemark: '',
             products: [{ ...emptyItem }],
@@ -138,6 +140,14 @@ export default () => {
     // Return is booked against the active project; with "All Projects" the user picks one.
     const needsProjectPick = isAllProjects || !selectedProjectName;
     const effectiveProjectName = needsProjectPick ? (form.watch('projectName') || '') : selectedProjectName;
+
+    // Contractors of the chosen project; falls back to the full registry when none are tagged to it.
+    const contractorNames = useMemo(() => {
+        const all = (options?.contractors || []) as any[];
+        const mine = all.filter((c) => effectiveProjectName && (c.firmName || '').trim().toLowerCase() === effectiveProjectName.trim().toLowerCase());
+        const list = (mine.length ? mine : all).map((c) => (c.contractorName || '').trim()).filter(Boolean);
+        return Array.from(new Set(list)).sort();
+    }, [options?.contractors, effectiveProjectName]);
 
     const allGroupHeads = options?.allGroupHeads || [];
     const productsFor = (groupHead: string): string[] => {
@@ -190,6 +200,7 @@ export default () => {
                     status: 'Returned',
                     actual1: stamp,
                     firm_name: projectName,
+                    constructor_name: data.constructorName,
                     firm_id: firmId,
                     return_person_name: data.returnPersonName,
                     damage_remark: remark,
@@ -207,6 +218,7 @@ export default () => {
             form.reset({
                 returnDate: todayStr(),
                 projectName: '',
+                constructorName: '',
                 returnPersonName: '',
                 damageRemark: '',
                 products: [{ ...emptyItem }],
@@ -293,6 +305,26 @@ export default () => {
                                             )}
                                         />
                                     )}
+
+                                    <FormField
+                                        control={form.control}
+                                        name="constructorName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-slate-600 font-semibold">Contractor Name <span className="text-destructive">*</span></FormLabel>
+                                                <SearchableSelect
+                                                    options={contractorNames.map((n) => ({ value: n, label: n }))}
+                                                    value={field.value}
+                                                    onValueChange={field.onChange}
+                                                    placeholder="Select contractor"
+                                                    searchPlaceholder="Search contractor..."
+                                                    emptyText="No contractor found"
+                                                    className="h-11 w-full bg-white border-slate-200"
+                                                />
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
                                     <FormField
                                         control={form.control}
