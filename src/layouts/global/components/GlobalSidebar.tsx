@@ -31,7 +31,7 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { LayoutDashboard, ChevronRight, KeyRound, ArrowLeft, Building2 } from 'lucide-react';
+import { LayoutDashboard, ChevronRight, KeyRound, ArrowLeft, Building2, FolderOpen } from 'lucide-react';
 import { useActiveProject, setActiveProject } from '@/systems/pms/utils/activeProject';
 
 gsap.registerPlugin(useGSAP);
@@ -159,6 +159,8 @@ export const GlobalSidebar: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [isMobile, openMobile]);
+
+    const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
 
     const toggleSystem = (systemId: string) => {
         setOpenSystems((prev) => {
@@ -396,15 +398,20 @@ export const GlobalSidebar: React.FC = () => {
                                                             // Inside a project: only that project's flow.
                                                             return activeProject && !isPmsProjectsPage ? !isRegistry : isRegistry;
                                                         })
-                                                        .map((item) => {
+                                                        .map((item, itemIndex, items) => {
                                                             const count = getBadgeCount(item.path);
                                                             const isSelected =
                                                                 location.pathname === item.path;
                                                             const ItemIcon = item.icon;
 
-                                                            return (
+                                                            const startsDropdown = !!item.parent && items[itemIndex - 1]?.parent !== item.parent;
+                                                            const hasActiveChild = !!item.parent && items.some((i) => i.parent === item.parent && i.path === location.pathname);
+                                                            const dropdownOpen = !!item.parent && (openDropdowns[item.parent] ?? hasActiveChild);
+
+                                                            const menuItem = (
                                                                 <SidebarMenuItem
                                                                     key={item.path}
+                                                                    className={item.parent ? 'pl-3' : undefined}
                                                                     data-active={
                                                                         isSelected
                                                                             ? 'true'
@@ -464,6 +471,28 @@ export const GlobalSidebar: React.FC = () => {
                                                                         </NavLink>
                                                                     </SidebarMenuButton>
                                                                 </SidebarMenuItem>
+                                                            );
+
+                                                            if (!item.parent) return menuItem;
+                                                            return (
+                                                                <React.Fragment key={item.path}>
+                                                                    {startsDropdown && (
+                                                                        <SidebarMenuItem>
+                                                                            <SidebarMenuButton
+                                                                                aria-expanded={dropdownOpen}
+                                                                                onClick={() => setOpenDropdowns((prev) => ({ ...prev, [item.parent!]: !dropdownOpen }))}
+                                                                                className="py-1.5 px-2.5 h-auto text-[13px] rounded-md flex items-center justify-between w-full select-none text-slate-600 dark:text-slate-300"
+                                                                            >
+                                                                                <span className="flex items-center gap-2">
+                                                                                    <FolderOpen size={15} className="shrink-0 text-slate-400" />
+                                                                                    {item.parent}
+                                                                                </span>
+                                                                                <ChevronRight size={14} className={cn('text-slate-400 transition-transform', dropdownOpen && 'rotate-90')} />
+                                                                            </SidebarMenuButton>
+                                                                        </SidebarMenuItem>
+                                                                    )}
+                                                                    {dropdownOpen && menuItem}
+                                                                </React.Fragment>
                                                             );
                                                         })}
                                                 </SidebarMenu>

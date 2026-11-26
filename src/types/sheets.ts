@@ -391,6 +391,7 @@ export type UserPermissions = {
     assetWorkLogs?: boolean;
     assetWorkLogApprove?: boolean;
     assetDocuments?: boolean;
+    assetOnboarding?: boolean;
 
     // Maintenance System Permissions
     maintDash?: boolean;
@@ -447,6 +448,12 @@ export type UserPermissions = {
     pmsDocuments?: boolean;
     pmsFinalApproval?: boolean;
     pmsShareLogs?: boolean;
+    pmsCreateIndent?: boolean;
+    pmsIndentApproval?: boolean;
+    pmsVendorRate?: boolean;
+    pmsRateApproval?: boolean;
+    pmsPo?: boolean;
+    pmsSubBilling?: boolean;
 };
 
 export interface PaymentsSheet {
@@ -557,6 +564,7 @@ export const allPermissionKeys = [
     "assetWorkLogs",
     "assetWorkLogApprove",
     "assetDocuments",
+    "assetOnboarding",
     "maintDash",
     "maintMachines",
     "maintWorkOrders",
@@ -592,6 +600,18 @@ export const allPermissionKeys = [
     "hrLetter",
     "hrCalendar",
     "hrReports",
+    "pmsCreateIndent",
+    "pmsIndentApproval",
+    "pmsVendorRate",
+    "pmsRateApproval",
+    "pmsPo",
+    "pmsFinalApproval",
+    "pmsDrawings",
+    "pmsExecution",
+    "pmsBilling",
+    "pmsSubBilling",
+    "pmsDocuments",
+    "pmsShareLogs",
 ] as const;
 
 

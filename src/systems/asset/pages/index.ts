@@ -22,6 +22,8 @@ export const PublicAssetDetailPage = React.lazy(
 
 export const EquipmentMasterPage = React.lazy(() => import('@/features/asset/equipment/components/EquipmentMaster'));
 
+export const EquipmentOnboardingPage = React.lazy(() => import('@/features/asset/onboarding/components/EquipmentOnboarding'));
+
 export const CostTrackingPage = React.lazy(() => import('@/features/asset/cost/components/CostTracking'));
 
 export const FleetCostsPage = React.lazy(() => import('@/features/asset/cost/components/FleetCosts'));

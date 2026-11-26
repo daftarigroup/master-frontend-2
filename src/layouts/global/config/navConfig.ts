@@ -51,6 +51,8 @@ export interface NavItem {
   icon: LucideIcon;
   gateKey?: string;
   hidden?: boolean;
+  /** Consecutive items with the same parent are shown under one sidebar dropdown */
+  parent?: string;
 }
 
 export interface NavGroup {
@@ -377,6 +379,7 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         items: [
           { name: 'Dashboard', path: '/asset/dashboard', icon: LayoutDashboard, gateKey: 'assetDash' },
           { name: 'All Assets', path: '/asset/assets', icon: Package, gateKey: 'assetAll' },
+          { name: 'Onboarding', path: '/asset/onboarding', icon: PackageCheck, gateKey: 'assetOnboarding' },
           { name: 'Equipment Master', path: '/asset/equipment', icon: Truck, gateKey: 'assetAll' },
           { name: 'Equipment Cost', path: '/asset/costs', icon: IndianRupee, gateKey: 'assetCost' },
           { name: 'Work Logs', path: '/asset/work-logs', icon: Fuel, gateKey: 'assetWorkLogs' },
@@ -421,20 +424,18 @@ export const NAV_CONFIG: SystemNavConfig[] = [
         title: '',
         items: [
           { name: 'All Projects', path: '/pms/projects', icon: Building2 },
-          { name: 'Create Indent', path: '/pms/indents/create', icon: PlusCircle },
-          { name: 'Indent Approval', path: '/pms/indents/approve', icon: CheckSquare },
-          { name: 'Vendor Rate Update', path: '/pms/indents/vendor-rates', icon: UserCog },
-          { name: 'Technical & Mgmt Approval', path: '/pms/indents/approval', icon: ShieldCheck },
-          { name: 'PO', path: '/pms/indents/purchase-orders', icon: FilePlus },
-          { name: 'Contracts', path: '/pms/contracts', icon: FileText },
-          { name: 'Final Approval', path: '/pms/final-approval', icon: ShieldCheck },
-          { name: 'Drawing & Design Upload', path: '/pms/drawings', icon: FileSpreadsheet },
-          { name: 'Execution & Actual Report', path: '/pms/execution', icon: FileSpreadsheet },
-          { name: 'Department Billing', path: '/pms/billing/department', icon: CreditCard },
-          { name: 'Sub Contractor Billings', path: '/pms/billing/subcontractor', icon: History },
-          { name: 'Documentation', path: '/pms/documentation', icon: FileText },
-          { name: 'Share Logs', path: '/pms/share-logs', icon: Send },
-          { name: 'Settings', path: '/pms/settings', icon: Settings },
+          { name: 'Create Indent', path: '/pms/indents/create', icon: PlusCircle, gateKey: 'pmsCreateIndent', parent: 'Contracts' },
+          { name: 'Indent Approval', path: '/pms/indents/approve', icon: CheckSquare, gateKey: 'pmsIndentApproval', parent: 'Contracts' },
+          { name: 'Vendor Rate Update', path: '/pms/indents/vendor-rates', icon: UserCog, gateKey: 'pmsVendorRate', parent: 'Contracts' },
+          { name: 'Technical & Mgmt Approval', path: '/pms/indents/approval', icon: ShieldCheck, gateKey: 'pmsRateApproval', parent: 'Contracts' },
+          { name: 'PO', path: '/pms/indents/purchase-orders', icon: FilePlus, gateKey: 'pmsPo', parent: 'Contracts' },
+          { name: 'Final Approval', path: '/pms/final-approval', icon: ShieldCheck, gateKey: 'pmsFinalApproval' },
+          { name: 'Drawing & Design Upload', path: '/pms/drawings', icon: FileSpreadsheet, gateKey: 'pmsDrawings' },
+          { name: 'Execution & Actual Report', path: '/pms/execution', icon: FileSpreadsheet, gateKey: 'pmsExecution' },
+          { name: 'Department Billing', path: '/pms/billing/department', icon: CreditCard, gateKey: 'pmsBilling' },
+          { name: 'Sub Contractor Billings', path: '/pms/billing/subcontractor', icon: History, gateKey: 'pmsSubBilling' },
+          { name: 'Documentation', path: '/pms/documentation', icon: FileText, gateKey: 'pmsDocuments' },
+          { name: 'Share Logs', path: '/pms/share-logs', icon: Send, gateKey: 'pmsShareLogs' },
         ],
       },
     ],

@@ -269,7 +269,6 @@ export default function PmsIndentApprovalView() {
                       <TableHead className="text-xs font-bold text-slate-700">Product / Equipment</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700 text-right">Qty</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">UOM</TableHead>
-                      <TableHead className="text-xs font-bold text-slate-700">Area of Use</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">Expected Date</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">Specs / Remarks</TableHead>
                     </TableRow>
@@ -277,7 +276,7 @@ export default function PmsIndentApprovalView() {
                   <TableBody>
                     {loadingPending ? (
                       <TableRow>
-                        <TableCell colSpan={13} className="h-32 text-center text-xs text-slate-500">
+                        <TableCell colSpan={12} className="h-32 text-center text-xs text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-2">
                             <RefreshCw className="w-5 h-5 animate-spin text-emerald-600" />
                             Loading pending indents...
@@ -286,7 +285,7 @@ export default function PmsIndentApprovalView() {
                       </TableRow>
                     ) : filteredPending.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} className="h-32 text-center text-xs text-slate-500">
+                        <TableCell colSpan={12} className="h-32 text-center text-xs text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-1">
                             <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                             No pending indents awaiting approval.
@@ -338,9 +337,6 @@ export default function PmsIndentApprovalView() {
                             </TableCell>
                             <TableCell className="text-xs text-right font-bold text-slate-900">{row.quantity ?? '-'}</TableCell>
                             <TableCell className="text-xs text-slate-600">{row.uom || '-'}</TableCell>
-                            <TableCell className="text-xs text-slate-600 max-w-[140px] truncate" title={row.area_of_use}>
-                              {row.area_of_use || '-'}
-                            </TableCell>
                             <TableCell className="text-xs text-slate-600 whitespace-nowrap">
                               {formatDate(row.expected_date)}
                             </TableCell>
@@ -531,10 +527,6 @@ export default function PmsIndentApprovalView() {
                     <span className="font-bold text-blue-700 block mt-0.5">
                       {selectedIndent.quantity} {selectedIndent.uom || ''}
                     </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-medium">Area of Use:</span>{' '}
-                    <span className="text-slate-700 block mt-0.5">{selectedIndent.area_of_use || '-'}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium">Required By:</span>{' '}

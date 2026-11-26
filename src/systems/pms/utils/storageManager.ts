@@ -156,7 +156,7 @@ export const deleteProject = (id: string): void => {
   saveReqMaterials(getReqMaterials().filter(r => r.projectNo !== projectNo));
   saveDesigns(getDesigns().filter(r => r.projectNo !== projectNo));
   saveExecutions(getExecutions().filter(r => r.projectNo !== projectNo));
-  saveActuals(getActuals().filter(r => r.projectNo !== projectNo));
+  saveActuals(getAllActuals().filter(r => r.projectNo !== projectNo));
   saveStageEntries(getStageEntries().filter(r => r.projectNo !== projectNo));
   saveDocumentations(getDocumentations().filter(d => d.projectNo !== projectNo));
 
@@ -437,14 +437,21 @@ export const updateExecution = (id: string, updates: any): any => {
 };
 
 // --- Actual Measurement Operations ---
-export const getActuals = (): any[] => {
+// Actual measurements are saved stage by stage; an entry is complete once all three stages are saved.
+// Entries saved before stage-wise saving have no `staged` flag and count as complete.
+const isActualComplete = (a: any): boolean => !a.staged || Boolean(a.excavation && a.pipeLaying && a.backFilling);
+
+export const getAllActuals = (): any[] => {
   return getFromStorage(STORAGE_KEYS.ACTUALS) || [];
 };
+
+// Only completed entries: what reports and billing use
+export const getActuals = (): any[] => getAllActuals().filter(isActualComplete);
 
 export const saveActuals = (data: any[]): void => saveToStorage(STORAGE_KEYS.ACTUALS, data);
 
 export const saveActual = (entry: any): any => {
-  const data = getActuals();
+  const data = getAllActuals();
   const now = new Date();
   const timestamp = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   const completeEntry = {
@@ -466,13 +473,13 @@ export const saveActual = (entry: any): any => {
 };
 
 export const updateActual = (id: string, updates: any): any => {
-  const data = getActuals();
+  const data = getAllActuals();
   const idx = data.findIndex(a => a.id === id);
   if (idx === -1) return null;
   data[idx] = { ...data[idx], ...updates };
   saveActuals(data);
 
-  pmsApi.updateActual(id, updates).catch(err => {
+  pmsApi.updateActual(id, { data: data[idx] }).catch(err => {
     console.warn('PMS API: Failed to sync actual update to backend', err);
   });
 
@@ -598,7 +605,7 @@ export const deleteMinor = (minorId: string): void => {
   saveMinors(getMinors().filter(m => m.id !== minorId));
   saveDesigns(getDesigns().filter(d => d.projectNo !== minorId));
   saveExecutions(getExecutions().filter(e => e.projectNo !== minorId));
-  saveActuals(getActuals().filter(a => a.projectNo !== minorId));
+  saveActuals(getAllActuals().filter(a => a.projectNo !== minorId));
   saveStageEntries(getStageEntries().filter(s => s.projectNo !== minorId));
   saveSchedules(getSchedules().filter(s => s.minorId !== minorId));
 

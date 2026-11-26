@@ -157,6 +157,8 @@ export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
     // Equipment Documents and the documents register; also the key that lets a site engineer upload / edit compliance documents
     assetDocuments: 'asset_documents',
     asset_documents: 'asset_documents',
+    assetOnboarding: 'asset_onboarding',
+    asset_onboarding: 'asset_onboarding',
     asset_work_log_approve: 'asset_work_log_approve',
 
     // Maintenance Management
@@ -234,6 +236,32 @@ export const GATEKEY_TO_PAGE_ID: Record<string, string> = {
     hrCalendar: 'hr_calendar',
     hr_calendar: 'hr_calendar',
     hrReports: 'hr_reports',
+
+    // Project Management (PMS)
+    pmsCreateIndent: 'pms_create_indent',
+    pms_create_indent: 'pms_create_indent',
+    pmsIndentApproval: 'pms_indent_approval',
+    pms_indent_approval: 'pms_indent_approval',
+    pmsVendorRate: 'pms_vendor_rate',
+    pms_vendor_rate: 'pms_vendor_rate',
+    pmsRateApproval: 'pms_rate_approval',
+    pms_rate_approval: 'pms_rate_approval',
+    pmsPo: 'pms_po',
+    pms_po: 'pms_po',
+    pmsFinalApproval: 'pms_final_approval',
+    pms_final_approval: 'pms_final_approval',
+    pmsDrawings: 'pms_drawings',
+    pms_drawings: 'pms_drawings',
+    pmsExecution: 'pms_execution',
+    pms_execution: 'pms_execution',
+    pmsBilling: 'pms_billing',
+    pms_billing: 'pms_billing',
+    pmsSubBilling: 'pms_sub_billing',
+    pms_sub_billing: 'pms_sub_billing',
+    pmsDocuments: 'pms_documents',
+    pms_documents: 'pms_documents',
+    pmsShareLogs: 'pms_share_logs',
+    pms_share_logs: 'pms_share_logs',
     hr_reports: 'hr_reports',
 };
 
@@ -310,6 +338,7 @@ export const PAGE_ID_TO_GATEKEY: Record<string, string> = {
     asset_work_logs: 'assetWorkLogs',
     asset_work_log_approve: 'assetWorkLogApprove',
     asset_documents: 'assetDocuments',
+    asset_onboarding: 'assetOnboarding',
 
     maint_dash: 'maintDash',
     maint_machines: 'maintMachines',
@@ -348,4 +377,17 @@ export const PAGE_ID_TO_GATEKEY: Record<string, string> = {
     hr_letter: 'hrLetter',
     hr_calendar: 'hrCalendar',
     hr_reports: 'hrReports',
+
+    pms_create_indent: 'pmsCreateIndent',
+    pms_indent_approval: 'pmsIndentApproval',
+    pms_vendor_rate: 'pmsVendorRate',
+    pms_rate_approval: 'pmsRateApproval',
+    pms_po: 'pmsPo',
+    pms_final_approval: 'pmsFinalApproval',
+    pms_drawings: 'pmsDrawings',
+    pms_execution: 'pmsExecution',
+    pms_billing: 'pmsBilling',
+    pms_sub_billing: 'pmsSubBilling',
+    pms_documents: 'pmsDocuments',
+    pms_share_logs: 'pmsShareLogs',
 };

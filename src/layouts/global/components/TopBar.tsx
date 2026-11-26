@@ -408,7 +408,8 @@ export const TopBar: React.FC = () => {
                     <ChevronDown className="size-3 text-muted-foreground hidden sm:inline shrink-0" />
                 </Button>
 
-                {/* Project Switcher — icon-only on mobile to prevent crowding search/action buttons */}
+                {/* Project Switcher — hidden inside PMS (PMS has its own project handling) */}
+                {!location.pathname.startsWith('/pms') && (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
@@ -460,6 +461,7 @@ export const TopBar: React.FC = () => {
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
+                )}
                 {/*
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

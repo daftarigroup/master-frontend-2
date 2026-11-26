@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ArrowLeft, Building2, MapPin, Calendar, Tag, Search, RotateCcw, Hammer, Ruler, ListChecks, Check, GitCompare, Mountain, Layers, Workflow, FileUp, UploadCloud, User, Sliders, Package, CheckSquare, CalendarClock, Download, ExternalLink, X, FileText, Table, Loader2 } from 'lucide-react';
-import { getDesignByProject, getExecutions, getActuals, getMinors, getProjectOrMinor, getScheduleForMinor, saveScheduleForMinor, getDrawingUploadForProject, syncProjectsCache } from '@/systems/pms/utils/storageManager';
+import { getDesignByProject, getExecutions, getAllActuals, getMinors, getProjectOrMinor, getScheduleForMinor, saveScheduleForMinor, getDrawingUploadForProject, syncProjectsCache } from '@/systems/pms/utils/storageManager';
 import { getFileFromIndexedDB, getMemoryFile, saveFileToIndexedDB, setMemoryFile } from '@/systems/pms/utils/fileStorage';
 import { parsePdfTableFile } from '@/systems/pms/utils/pdfTableParser';
 import { buildChainageDiffMap } from '@/systems/pms/utils/helpers';
@@ -43,7 +43,7 @@ export default function ViewDesign() {
     setProject(found || null);
     setRows(getDesignByProject(decodedNo));
     setExecutions(getExecutions());
-    setActuals(getActuals());
+    setActuals(getAllActuals());
     if (!found) {
       syncProjectsCache().then(() => setProject(getProjectOrMinor(decodedNo) || null)).catch(() => {});
     }
@@ -63,9 +63,14 @@ export default function ViewDesign() {
   const executedKeys = new Set(
     executions.filter(e => e.projectNo === project?.serialNo).map(entryDesignKey)
   );
-  const actualDoneKeys = new Set(
-    actuals.filter(e => e.projectNo === project?.serialNo).map(entryDesignKey)
+  // Saved actual entry (partial or complete) and execution entry for each design row
+  const actualByKey = new Map(
+    actuals.filter(e => e.projectNo === project?.serialNo).map(e => [entryDesignKey(e), e])
   );
+  const executionByKey = new Map(
+    executions.filter(e => e.projectNo === project?.serialNo).map(e => [entryDesignKey(e), e])
+  );
+  const stageCount = (entry) => [entry.excavation, entry.pipeLaying, entry.backFilling].filter(Boolean).length;
 
   // Unique Pipe Dia values across all uploaded design rows, sorted ascending (small to high) -
   // rendered as extra headers after "Actual Measurement"
@@ -114,7 +119,9 @@ export default function ViewDesign() {
   const renderRow = (item, idx) => {
     const key = rowKey(item);
     const isExecuted = executedKeys.has(key);
-    const isActualDone = actualDoneKeys.has(key);
+    const actualEntry = actualByKey.get(key);
+    const isActualDone = Boolean(actualEntry) && (!actualEntry.staged || stageCount(actualEntry) === 3);
+    const actualLabel = isActualDone ? 'Done' : actualEntry ? `Actual ${stageCount(actualEntry)}/3` : 'Actual';
     const serialNo = rowIndexMap.get(item);
 
     return (
@@ -152,7 +159,7 @@ export default function ViewDesign() {
                 : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
               }`}
           >
-            {isActualDone ? <Check size={12} /> : <Ruler size={12} />} {isActualDone ? 'Done' : 'Actual'}
+            {isActualDone ? <Check size={12} /> : <Ruler size={12} />} {actualLabel}
           </button>
         </td>
         {uniquePipeDias.map(dia => {
@@ -172,7 +179,9 @@ export default function ViewDesign() {
   const renderCard = (item, idx) => {
     const key = rowKey(item);
     const isExecuted = executedKeys.has(key);
-    const isActualDone = actualDoneKeys.has(key);
+    const actualEntry = actualByKey.get(key);
+    const isActualDone = Boolean(actualEntry) && (!actualEntry.staged || stageCount(actualEntry) === 3);
+    const actualLabel = isActualDone ? 'Done' : actualEntry ? `Actual ${stageCount(actualEntry)}/3` : 'Actual';
     const serialNo = rowIndexMap.get(item);
 
     return (
@@ -212,7 +221,7 @@ export default function ViewDesign() {
                 : 'bg-emerald-50 text-emerald-600 border-emerald-200'
               }`}
           >
-            {isActualDone ? <Check size={11} /> : <Ruler size={11} />} {isActualDone ? 'Done' : 'Actual'}
+            {isActualDone ? <Check size={11} /> : <Ruler size={11} />} {actualLabel}
           </button>
         </div>
       </div>
@@ -422,7 +431,9 @@ export default function ViewDesign() {
         onClose={() => setActualRow(null)}
         project={project}
         designRow={actualRow}
-        onSaved={() => { setActualRow(null); setActuals(getActuals()); }}
+        existingEntry={actualRow ? actualByKey.get(rowKey(actualRow)) : undefined}
+        executionEntry={actualRow ? executionByKey.get(rowKey(actualRow)) : undefined}
+        onSaved={() => { setActualRow(null); setActuals(getAllActuals()); }}
       />
     </div>
   );

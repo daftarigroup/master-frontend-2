@@ -184,7 +184,7 @@ import {
 
 // Asset Management System Components
 import AssetSystemLayout from '@/systems/asset/layout/AssetSystemLayout';
-import { AssetDashboardPage, AssetListPage, AssetDetailPage, PublicAssetDetailPage, DieselLedgerPage, MachineLogbookPage, EquipmentMasterPage, CostTrackingPage, FleetCostsPage, WorkLogsPage, DocumentsRegisterPage, EquipmentDocumentsPage } from '@/systems/asset/pages';
+import { AssetDashboardPage, AssetListPage, AssetDetailPage, PublicAssetDetailPage, DieselLedgerPage, MachineLogbookPage, EquipmentMasterPage, CostTrackingPage, FleetCostsPage, WorkLogsPage, DocumentsRegisterPage, EquipmentDocumentsPage, EquipmentOnboardingPage } from '@/systems/asset/pages';
 
 // Maintenance & Repair (one merged system)
 import MaintenanceSystemLayout from '@/systems/maintenance/layout/MaintenanceSystemLayout';
@@ -1221,6 +1221,7 @@ if (rootElement) {
                                 <Route path="asset" element={<AssetSystemLayout />}>
                                     <Route index element={<Navigate to="/asset/dashboard" replace />} />
                                     <Route path="dashboard" element={<GatedRoute identifier="assetDash"><AssetDashboardPage /></GatedRoute>} />
+                                    <Route path="onboarding" element={<GatedRoute identifier="assetOnboarding"><EquipmentOnboardingPage /></GatedRoute>} />
                                     <Route path="equipment" element={<GatedRoute identifier="assetAll"><EquipmentMasterPage /></GatedRoute>} />
                                     <Route path="equipment/:id/cost" element={<GatedRoute identifier="assetCost"><CostTrackingPage /></GatedRoute>} />
                                     <Route path="costs" element={<GatedRoute identifier="assetCost"><FleetCostsPage /></GatedRoute>} />

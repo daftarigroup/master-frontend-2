@@ -197,7 +197,7 @@ export default function PmsVendorRateView() {
         existing.map((v: any) => ({
           ...blankVendor(),
           ...v,
-          rate: v.rate ?? '',
+          rate: Number(v.rate) > 0 ? v.rate : '',
           gst_percent: String(v.gst_percent ?? '18'),
           delivery_days: v.delivery_days ?? '',
           enquiry_date: v.enquiry_date ? String(v.enquiry_date).slice(0, 10) : '',
@@ -288,6 +288,10 @@ export default function PmsVendorRateView() {
         toast.error(`Vendor #${i + 1}: Name is required`);
         return;
       }
+      if (!(Number(v.rate) > 0)) {
+        toast.error(`Vendor #${i + 1}: Rate is required`);
+        return;
+      }
       if (!v.payment_terms) {
         toast.error(`Vendor #${i + 1}: Payment term is required`);
         return;
@@ -326,6 +330,7 @@ export default function PmsVendorRateView() {
         comparison_sheet_filename: comparisonFile?.name || selectedIndent.comparison_sheet_filename || null,
         vendors: vendors.map((v, i) => ({
           vendor_name: v.vendor_name,
+          rate: Number(v.rate),
           gst_percent: Number(v.gst_percent) || 0,
           payment_terms: v.payment_terms,
           delivery_days: Number(v.delivery_days) || 0,
@@ -437,7 +442,6 @@ export default function PmsVendorRateView() {
                       <TableHead className="text-xs font-bold text-slate-700">Product / Item</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700 text-right">Qty</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">UOM</TableHead>
-                      <TableHead className="text-xs font-bold text-slate-700">Area of Use</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">Expected Date</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700">Specs</TableHead>
                       <TableHead className="text-xs font-bold text-slate-700 text-right">Action</TableHead>
@@ -446,7 +450,7 @@ export default function PmsVendorRateView() {
                   <TableBody>
                     {loadingPending ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="h-32 text-center text-xs text-slate-500">
+                        <TableCell colSpan={11} className="h-32 text-center text-xs text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-2">
                             <RefreshCw className="w-5 h-5 animate-spin text-sky-600" />
                             Loading indents awaiting vendor rates...
@@ -455,7 +459,7 @@ export default function PmsVendorRateView() {
                       </TableRow>
                     ) : filteredPending.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="h-32 text-center text-xs text-slate-500">
+                        <TableCell colSpan={11} className="h-32 text-center text-xs text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-1">
                             <CheckCircle2 className="w-5 h-5 text-sky-500" />
                             No pending indents awaiting vendor rates.
@@ -497,9 +501,6 @@ export default function PmsVendorRateView() {
                             </TableCell>
                             <TableCell className="text-xs text-right font-bold text-slate-900">{row.quantity ?? '-'}</TableCell>
                             <TableCell className="text-xs text-slate-600">{row.uom || '-'}</TableCell>
-                            <TableCell className="text-xs text-slate-600 max-w-[140px] truncate" title={row.area_of_use}>
-                              {row.area_of_use || '-'}
-                            </TableCell>
                             <TableCell className="text-xs text-slate-600 whitespace-nowrap">
                               {formatDate(row.expected_date)}
                             </TableCell>
@@ -789,6 +790,31 @@ export default function PmsVendorRateView() {
                           readOnly
                           placeholder="Auto-generated on save"
                           className="bg-slate-100 text-slate-500 text-xs h-9 cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div className="space-y-1 md:col-span-2">
+                        <Label className="text-xs font-medium text-slate-600">
+                          Rate per {vendor.rate_unit || selectedIndent.uom || 'Unit'} (₹) <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={vendor.rate}
+                          onChange={(e) => handleVendorChange(idx, 'rate', e.target.value)}
+                          placeholder="Enter rate"
+                          className="bg-white text-xs h-9"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium text-slate-600">Amount (₹, excl. GST)</Label>
+                        <Input
+                          value={((Number(selectedIndent.quantity) || 0) * (Number(vendor.rate) || 0)).toLocaleString('en-IN')}
+                          readOnly
+                          className="bg-slate-100 text-slate-500 text-xs h-9"
                         />
                       </div>
 

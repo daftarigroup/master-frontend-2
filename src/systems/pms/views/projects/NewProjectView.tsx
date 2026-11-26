@@ -92,6 +92,39 @@ export default function NewProjectView() {
 
   const [formData, setFormData] = useState({ ...initialFormData });
 
+  // Master firms (= projects in master) for Project Name dropdown
+  const [masterFirms, setMasterFirms] = useState<any[]>([]);
+  const [selectedFirmId, setSelectedFirmId] = useState<string | null>(null);
+  const [showFirmList, setShowFirmList] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res: any = await apiClient.get('/store/entity/firm', {
+          params: { active: true, order: 'firm_name.asc', limit: 'all' },
+        });
+        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        setMasterFirms(list);
+      } catch {
+        // dropdown is optional; typing a new name still works
+      }
+    })();
+  }, []);
+
+  const handleSelectFirm = (f: any) => {
+    setSelectedFirmId(String(f.id));
+    setShowFirmList(false);
+    setFormData((prev) => ({
+      ...prev,
+      projectName: f.firm_name || '',
+      projectLocation: f.destination_address || f.billing_address || prev.projectLocation,
+    }));
+  };
+
+  const filteredFirms = masterFirms.filter((f) =>
+    (f.firm_name || '').toLowerCase().includes(formData.projectName.trim().toLowerCase())
+  );
+
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
@@ -257,6 +290,30 @@ export default function NewProjectView() {
     setLoading(true);
 
     try {
+      // New project (not picked from dropdown): create it in master as a firm,
+      // unless a firm with the same name already exists.
+      if (!selectedFirmId) {
+        const name = formData.projectName.trim();
+        const existing = masterFirms.find(
+          (f) => (f.firm_name || '').trim().toLowerCase() === name.toLowerCase()
+        );
+        if (!existing) {
+          try {
+            const res: any = await apiClient.post('/store/entity/firm', {
+              firm_name: name,
+              destination_address: formData.projectLocation || null,
+              billing_address: formData.contractorAddress || null,
+              active: true,
+            });
+            if (!res) throw new Error('empty response');
+          } catch (err: any) {
+            toast.error('Could not create project in master: ' + (err?.message || 'error'));
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const payload = {
         ...formData,
         tenderAmountWords: tenderWords,
@@ -349,12 +406,43 @@ export default function NewProjectView() {
                   <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block">
                     Project Name <span className="text-red-500">*</span>
                   </label>
-                  <Input
-                    placeholder="Enter project name"
-                    value={formData.projectName}
-                    onChange={(e) => handleChange('projectName', e.target.value)}
-                    className="h-10"
-                  />
+                  <div className="relative">
+                    <Input
+                      placeholder="Select from master or type a new project name"
+                      value={formData.projectName}
+                      onChange={(e) => {
+                        handleChange('projectName', e.target.value);
+                        setSelectedFirmId(null);
+                        setShowFirmList(true);
+                      }}
+                      onFocus={() => setShowFirmList(true)}
+                      onBlur={() => setTimeout(() => setShowFirmList(false), 150)}
+                      className="h-10"
+                      autoComplete="off"
+                    />
+                    {showFirmList && filteredFirms.length > 0 && (
+                      <div className="absolute z-40 mt-1 w-full max-h-56 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                        {filteredFirms.map((f) => (
+                          <button
+                            type="button"
+                            key={f.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleSelectFirm(f)}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                          >
+                            {f.firm_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      {selectedFirmId
+                        ? 'Linked to existing master project'
+                        : formData.projectName.trim()
+                          ? 'New project — will also be added to master'
+                          : ''}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Agreement Number */}

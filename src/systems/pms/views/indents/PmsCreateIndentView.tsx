@@ -18,6 +18,8 @@ import {
   CheckCircle2,
   X,
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -232,7 +234,6 @@ export default function PmsCreateIndentView() {
               group_head: p.group_head || '-',
               item_name: p.product_name || '-',
               quantity: p.quantity ?? '-',
-              current_stock: p.current_stock_qty ?? p.current_stock ?? 0,
               uom: p.uom || 'Nos',
               area_of_use: p.area_of_use || '-',
               expected_date: p.expected_requirement_date || p.expected_date,
@@ -251,7 +252,6 @@ export default function PmsCreateIndentView() {
               group_head: eq.group_head || '-',
               item_name: eq.equipment_name || '-',
               quantity: eq.type === 'Rent' ? (eq.expected_time || '1 Rent') : '1 Owned',
-              current_stock: 0,
               uom: eq.type || 'Equipment',
               area_of_use: eq.area_of_use || '-',
               expected_date: eq.expected_date || '-',
@@ -270,7 +270,6 @@ export default function PmsCreateIndentView() {
               group_head: it.group_head || '-',
               item_name: it.product_name || it.item_name || '-',
               quantity: it.quantity ?? '-',
-              current_stock: it.current_stock_qty ?? it.current_stock ?? 0,
               uom: it.uom || 'Nos',
               area_of_use: it.area_of_use || '-',
               expected_date: it.expected_date || it.expected_requirement_date,
@@ -286,7 +285,6 @@ export default function PmsCreateIndentView() {
             group_head: ind.group_head || '-',
             item_name: ind.product_name || ind.product || '-',
             quantity: ind.quantity ?? '-',
-            current_stock: ind.current_stock_qty ?? ind.current_stock ?? 0,
             uom: ind.uom || 'Nos',
             area_of_use: ind.area_of_use || '-',
             expected_date: ind.expected_date || ind.expected_requirement_date,
@@ -365,6 +363,19 @@ export default function PmsCreateIndentView() {
       return true;
     });
   }, [indentRows, searchQuery, filterProject, filterPriority]);
+
+  // One table row per indent; its items are listed when the row is expanded
+  const groupedRows = useMemo(() => {
+    const groups = new Map<any, any[]>();
+    filteredRows.forEach((row) => {
+      if (!groups.has(row.indent_id)) groups.set(row.indent_id, []);
+      groups.get(row.indent_id)!.push(row);
+    });
+    return Array.from(groups.values());
+  }, [filteredRows]);
+
+  // Which indent is expanded to show its items
+  const [expandedId, setExpandedId] = useState<any>(null);
 
   const uniqueProjectNames = useMemo(() => {
     const set = new Set<string>();
@@ -782,185 +793,63 @@ export default function PmsCreateIndentView() {
                     <Package className="w-3.5 h-3.5" /> Product Items ({products.length})
                   </span>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddProduct}
-                  className="text-xs font-semibold text-blue-700 border-blue-200 bg-white hover:bg-blue-50/80 h-8 gap-1.5 shadow-2xs"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Item
-                </Button>
               </CardHeader>
 
-              <CardContent className="p-6 space-y-5">
-                {products.length === 0 ? (
-                  <div className="p-8 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 bg-slate-50/40">
-                    No product items added. Click "+ Add Item" to request materials.
-                  </div>
-                ) : (
-                  products.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-5 border border-slate-200 rounded-xl bg-gradient-to-b from-white to-slate-50/50 relative space-y-4 shadow-xs transition-all hover:border-slate-300"
-                    >
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider bg-blue-600 text-white px-2.5 py-1 rounded-md shadow-2xs">
-                            ITEM #{idx + 1}
-                          </span>
-                          {item.product_name && (
-                            <span className="text-xs font-semibold text-slate-800">
-                              {item.product_name}
-                            </span>
-                          )}
-                        </div>
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveProduct(idx)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2.5 text-xs gap-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Group Head */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            Group Head
-                          </Label>
-                          <Input
-                            value={item.group_head}
-                            readOnly
-                            placeholder="Auto-filled from product"
-                            className="bg-slate-100 cursor-not-allowed h-9 text-xs border-slate-200 rounded-lg"
-                          />
-                        </div>
-
-                        {/* Area of Use */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            Area Of Use
-                          </Label>
-                          <Input
-                            value={item.area_of_use}
-                            onChange={(e) => handleProductChange(idx, 'area_of_use', e.target.value)}
-                            placeholder="Area Of Use"
-                            className="bg-white h-9 text-xs border-slate-200 rounded-lg"
-                          />
-                        </div>
-
-                        {/* Product Name */}
-                        <div className="space-y-1 lg:col-span-2">
-                          <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
-                            Product Name <span className="text-red-500">*</span>
-                          </Label>
-<ComboBox
-                            options={storeItems.map((i) => ({ label: i.groupHead ? `${i.name} (${i.groupHead})` : i.name, value: i.key }))}
-                            value={storeItems.find((i) => i.name === item.product_name && i.groupHead === item.group_head)?.key ? [storeItems.find((i) => i.name === item.product_name && i.groupHead === item.group_head)!.key] : []}
-                            onChange={(v) => v[0] && handleSelectStoreItem(idx, v[0])}
-                            placeholder="Select Product from Store"
-                          />
-                        </div>
-
-                        {/* Quantity */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
-                            Quantity <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            type="number"
-                            step="any"
-                            min="0"
-                            value={item.quantity}
-                            onChange={(e) => handleProductChange(idx, 'quantity', e.target.value)}
-                            placeholder="0"
-                            className="bg-white h-9 text-xs border-slate-200 rounded-lg font-bold text-slate-900"
-                            required
-                          />
-                        </div>
-
-                        {/* Current Stock */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                            Current Stock Qty
-                          </Label>
-                          <Input
-                            type="number"
-                            readOnly
-                            value={item.current_stock_qty}
-                            className="bg-slate-100 text-slate-500 h-9 text-xs border-slate-200 rounded-lg cursor-not-allowed"
-                          />
-                        </div>
-
-                        {/* UOM */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            UOM
-                          </Label>
-                          <Input
-                            value={item.uom}
-                            readOnly
-                            placeholder="Auto-filled"
-                            className="bg-slate-100 cursor-not-allowed h-9 text-xs border-slate-200 rounded-lg"
-                          />
-                        </div>
-
-                        {/* Expected Requirement Date */}
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
-                            Expected Requirement Date <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            type="date"
-                            min={getTodayString()}
-                            value={item.expected_requirement_date}
-                            onChange={(e) => handleProductChange(idx, 'expected_requirement_date', e.target.value)}
-                            className="bg-white h-9 text-xs border-slate-200 rounded-lg font-medium"
-                            required
-                          />
-                        </div>
-
-                        {/* File Attachment */}
-                        <div className="space-y-1 lg:col-span-2">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            Attachment (Optional)
-                          </Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="file"
-                              onChange={(e) => handleProductFileUpload(idx, e.target.files?.[0] || null)}
-                              className="bg-white h-9 text-xs border-slate-200 rounded-lg file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700"
-                            />
-                            {item.attachment_name && (
-                              <Badge variant="secondary" className="text-[10px] truncate max-w-[140px] shrink-0">
-                                {item.attachment_name}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Specifications / Remarks */}
-                        <div className="space-y-1 lg:col-span-2">
-                          <Label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                            Specifications / Remarks
-                          </Label>
-                          <Textarea
-                            value={item.specifications}
-                            onChange={(e) => handleProductChange(idx, 'specifications', e.target.value)}
-                            placeholder="Specifications / Remarks"
-                            rows={2}
-                            className="bg-white text-xs border-slate-200 rounded-lg"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+              <CardContent className="p-4 sm:p-6 space-y-4">
+                <div className="rounded-[3px] overflow-x-auto border border-slate-200">
+                  <Table className="min-w-[1000px]">
+                    <TableHeader className="bg-[#f1f5f9]">
+                      <TableRow>
+                        {['S/N', 'Product Name *', 'Group Head', 'Qty *', 'Unit', 'Required Date *', 'Attachment', 'Specifications / Remarks', ''].map((h) => (
+                          <TableHead key={h} className="text-xs font-semibold">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {products.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-8 text-xs text-slate-400 italic">
+                            No product items added. Click "+ Add Item" to request materials.
+                          </TableCell>
+                        </TableRow>
+                      ) : products.map((item, idx) => {
+                        const sel = storeItems.find((i) => i.name === item.product_name && i.groupHead === item.group_head);
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell className="text-xs">{idx + 1}</TableCell>
+                            <TableCell className="min-w-[230px]">
+                              <ComboBox
+                                options={storeItems.map((i) => ({ label: i.groupHead ? `${i.name} (${i.groupHead})` : i.name, value: i.key }))}
+                                value={sel?.key ? [sel.key] : []}
+                                onChange={(v) => v[0] && handleSelectStoreItem(idx, v[0])}
+                                placeholder="Select Product from Store"
+                              />
+                            </TableCell>
+                            <TableCell><Input className="h-8 w-32 text-xs bg-slate-100" readOnly value={item.group_head} placeholder="Auto" /></TableCell>
+                            <TableCell><Input type="number" step="any" min="0" className="h-8 w-20 text-xs" value={item.quantity} onChange={(e) => handleProductChange(idx, 'quantity', e.target.value)} placeholder="0" /></TableCell>
+                            <TableCell><Input className="h-8 w-20 text-xs bg-slate-100" readOnly value={item.uom} /></TableCell>
+                            <TableCell><Input type="date" min={getTodayString()} className="h-8 w-36 text-xs" value={item.expected_requirement_date} onChange={(e) => handleProductChange(idx, 'expected_requirement_date', e.target.value)} /></TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Input type="file" className="h-8 w-40 text-xs file:text-[11px]" onChange={(e) => handleProductFileUpload(idx, e.target.files?.[0] || null)} />
+                                {item.attachment_name && <Badge variant="secondary" className="text-[10px] truncate max-w-[90px]">{item.attachment_name}</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell><Input className="h-8 min-w-[160px] text-xs" value={item.specifications} onChange={(e) => handleProductChange(idx, 'specifications', e.target.value)} placeholder="Specifications / Remarks" /></TableCell>
+                            <TableCell>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveProduct(idx)}>
+                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddProduct}>
+                  <Plus className="w-4 h-4 mr-1" /> Add Item
+                </Button>
               </CardContent>
             </Card>
 
@@ -1232,13 +1121,7 @@ export default function PmsCreateIndentView() {
                   <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Date</TableHead>
                   <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Project</TableHead>
                   <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Indenter</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Group Head</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Product / Equipment</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 text-right whitespace-nowrap">Qty</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 text-center whitespace-nowrap">Current Stock</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">UOM</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Area of Use</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Expected Date</TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Items</TableHead>
                   <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Priority</TableHead>
                   <TableHead className="text-xs font-bold text-slate-700 whitespace-nowrap">Status</TableHead>
                 </TableRow>
@@ -1246,7 +1129,7 @@ export default function PmsCreateIndentView() {
               <TableBody>
                 {loadingTable ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="h-36 text-center text-xs text-slate-500">
+                    <TableCell colSpan={8} className="h-36 text-center text-xs text-slate-500">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
                         Loading indents...
@@ -1255,7 +1138,7 @@ export default function PmsCreateIndentView() {
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="h-36 text-center text-xs text-slate-500">
+                    <TableCell colSpan={8} className="h-36 text-center text-xs text-slate-500">
                       <div className="flex flex-col items-center justify-center gap-1">
                         <AlertCircle className="w-5 h-5 text-slate-400" />
                         No indents found. Click "+ Create Indent" to raise a new requisition.
@@ -1263,17 +1146,25 @@ export default function PmsCreateIndentView() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRows.map((row) => {
+                  groupedRows.map((group) => {
+                    const row = group[0];
                     const isCritical = row.priority === 'Critical';
-                    const isEquipment = row.item_type === 'Equipment';
+                    const isOpen = expandedId === row.indent_id;
 
                     return (
-                      <TableRow key={row.row_key} className="hover:bg-slate-50/70 transition-colors">
+                      <React.Fragment key={row.indent_id}>
+                        <TableRow
+                          onClick={() => setExpandedId(isOpen ? null : row.indent_id)}
+                          className="cursor-pointer hover:bg-slate-50/70 transition-colors"
+                        >
                         <TableCell className="text-xs whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteIndent(row.indent_id, row.indent_number)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteIndent(row.indent_id, row.indent_number);
+                              }}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 w-7 p-0"
                             title="Delete Indent"
                           >
@@ -1281,7 +1172,10 @@ export default function PmsCreateIndentView() {
                           </Button>
                         </TableCell>
                         <TableCell className="font-semibold text-xs text-blue-700 whitespace-nowrap">
-                          {row.indent_number}
+                          <button type="button" className="inline-flex items-center gap-1" aria-expanded={isOpen}>
+                              {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                              {row.indent_number}
+                            </button>
                         </TableCell>
                         <TableCell className="text-xs text-slate-600 whitespace-nowrap">
                           {formatDate(row.date)}
@@ -1292,38 +1186,9 @@ export default function PmsCreateIndentView() {
                         <TableCell className="text-xs text-slate-600 whitespace-nowrap">
                           {row.indenter_name}
                         </TableCell>
-                        <TableCell className="text-xs text-slate-600 whitespace-nowrap">
-                          {row.group_head}
-                        </TableCell>
-                        <TableCell className="text-xs font-semibold text-slate-900 max-w-[180px] truncate" title={row.item_name}>
-                          <div className="flex items-center gap-1.5">
-                            {isEquipment ? (
-                              <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] px-1 py-0">
-                                Eq
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1 py-0">
-                                Pr
-                              </Badge>
-                            )}
-                            <span className="truncate">{row.item_name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-right font-bold text-slate-900 whitespace-nowrap">
-                          {row.quantity}
-                        </TableCell>
-                        <TableCell className="text-xs text-center text-slate-500 whitespace-nowrap">
-                          {row.current_stock}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-600 whitespace-nowrap">
-                          {row.uom}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-600 max-w-[140px] truncate whitespace-nowrap" title={row.area_of_use}>
-                          {row.area_of_use}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-600 whitespace-nowrap">
-                          {formatDate(row.expected_date)}
-                        </TableCell>
+                          <TableCell className="text-xs text-slate-600 whitespace-nowrap">
+                            {group.length} {group.length === 1 ? 'item' : 'items'}
+                          </TableCell>
                         <TableCell className="text-xs whitespace-nowrap">
                           {isCritical ? (
                             <Badge className="bg-red-50 text-red-700 border-red-200 text-[11px] font-semibold">
@@ -1348,7 +1213,45 @@ export default function PmsCreateIndentView() {
                             {row.status || 'Pending'}
                           </Badge>
                         </TableCell>
-                      </TableRow>
+                        </TableRow>
+                        {isOpen && (
+                          <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                            <TableCell colSpan={8} className="p-3">
+                              <Table className="bg-white border border-slate-200">
+                                <TableHeader className="bg-slate-100">
+                                  <TableRow>
+                                    <TableHead className="text-xs font-semibold h-8">Group Head</TableHead>
+                                    <TableHead className="text-xs font-semibold h-8">Product / Equipment</TableHead>
+                                    <TableHead className="text-xs font-semibold h-8">Qty</TableHead>
+                                    <TableHead className="text-xs font-semibold h-8">UOM</TableHead>
+                                    <TableHead className="text-xs font-semibold h-8">Expected Date</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {group.map((item) => (
+                                    <TableRow key={item.row_key}>
+                                      <TableCell className="text-xs text-slate-600">{item.group_head}</TableCell>
+                                      <TableCell className="text-xs font-semibold text-slate-900">
+                                        <div className="flex items-center gap-1.5">
+                                          {item.item_type === 'Equipment' ? (
+                                            <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] px-1 py-0">Eq</Badge>
+                                          ) : (
+                                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1 py-0">Pr</Badge>
+                                          )}
+                                          <span>{item.item_name}</span>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-xs font-bold text-slate-900">{item.quantity}</TableCell>
+                                      <TableCell className="text-xs text-slate-600">{item.uom}</TableCell>
+                                      <TableCell className="text-xs text-slate-600">{formatDate(item.expected_date)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}

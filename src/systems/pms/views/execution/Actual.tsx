@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Sparkles } from 'lucide-react';
 import { generateId, getTodayDate } from '@/systems/pms/utils/helpers';
-import { saveActual } from '@/systems/pms/utils/storageManager';
+import { saveActual, updateActual } from '@/systems/pms/utils/storageManager';
 import ModalForm from '@/systems/pms/components/ModalForm';
 import { DESIGN_COLUMNS } from './UploadDesign';
 
@@ -43,7 +43,7 @@ const getRowValveName = (row) => {
 const prefillValues = (designRow) =>
   MEASURE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.key]: designRow?.[col.key] ?? '' }), {});
 
-export default function Actual({ isOpen, onClose, project, designRow, onSaved }) {
+export default function Actual({ isOpen, onClose, project, designRow, existingEntry, executionEntry, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [values, setValues] = useState({});
   const [submitDate, setSubmitDate] = useState(getTodayDate());
@@ -51,8 +51,10 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
   const [remarks, setRemarks] = useState('');
   const [isHardRock, setIsHardRock] = useState(false);
   const [hardRockValue, setHardRockValue] = useState('');
-  const [excavation, setExcavation] = useState(true);
-  const [pipeLaying, setPipeLaying] = useState(true);
+  const [excavation, setExcavation] = useState(false);
+  const [pipeLaying, setPipeLaying] = useState(false);
+  const [backFilling, setBackFilling] = useState(false);
+  const [backFillingValue, setBackFillingValue] = useState('');
   const [valve, setValve] = useState(false);
   const [valveName, setValveName] = useState('');
 
@@ -66,16 +68,31 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       setRemarks('');
       setIsHardRock(false);
       setHardRockValue('');
-      setExcavation(true);
-      setPipeLaying(true);
+      setExcavation(false);
+      setPipeLaying(false);
+      setBackFilling(false);
+      // Back Filling value starts from what was entered in the Execution entry
+      setBackFillingValue(executionEntry?.backFillingValue ?? '');
       const rName = getRowValveName(designRow);
       setValve(Boolean(rName || isValveTruthy(designRow.valve)));
       setValveName(rName);
+
+      // Reopened after an earlier stage: continue from what was saved
+      if (existingEntry) {
+        const { valve: _v, valveName: _n, ...saved } = existingEntry.actual || {};
+        setValues(prev => ({ ...prev, ...saved }));
+        setRemarks(existingEntry.remarks || '');
+        setIsHardRock(Boolean(existingEntry.isHardRock));
+        setHardRockValue(existingEntry.hardRockValue || '');
+        setExcavation(Boolean(existingEntry.excavation));
+        setPipeLaying(Boolean(existingEntry.pipeLaying));
+        setBackFilling(Boolean(existingEntry.backFilling));
+        if (existingEntry.backFilling) setBackFillingValue(existingEntry.backFillingValue || '');
+        setValve(Boolean(existingEntry.valve));
+        setValveName(existingEntry.valveName || '');
+      }
     }
   }, [isOpen, designRow]);
-
-  // Remarks becomes mandatory the moment any of the three stage checkboxes is unchecked
-  const allStagesDone = excavation && pipeLaying;
 
   if (!isOpen || !project || !designRow) return null;
 
@@ -99,8 +116,16 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       toast.error('Please enter the Hard Rock value');
       return;
     }
-    if (!allStagesDone && !String(remarks).trim()) {
-      toast.error('Remarks is mandatory when Excavation / Pipe Laying is unchecked');
+    const newStage =
+      (excavation && !existingEntry?.excavation) ||
+      (pipeLaying && !existingEntry?.pipeLaying) ||
+      (backFilling && !existingEntry?.backFilling);
+    if (!newStage) {
+      toast.error('Please tick the stage you have completed');
+      return;
+    }
+    if (backFilling && !String(backFillingValue).trim()) {
+      toast.error('Please enter the Back Filling value');
       return;
     }
 
@@ -116,12 +141,13 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
     const finalValveName = valve ? (valveName.trim() || rowValveName || 'Valve') : '';
 
     const entry = {
-      id: generateId(),
+      id: existingEntry?.id || generateId(),
+      staged: true,
       timestamp,
       submissionDateTime: timestamp,
       submitDate,
       submitTime: timeToUse,
-      createdAt: now.toISOString(),
+      createdAt: existingEntry?.createdAt || now.toISOString(),
       projectNo: project.serialNo,
       projectName: project.projectName,
       serialNo: designRow.__serialNo,
@@ -131,6 +157,8 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       hardRockValue: isHardRock ? hardRockValue : '',
       excavation,
       pipeLaying,
+      backFilling,
+      backFillingValue: backFilling ? backFillingValue : '',
       valve,
       valveName: finalValveName,
       isValve: valve,
@@ -145,8 +173,11 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
       }
     };
 
-    saveActual(entry);
-    toast.success('Actual measurement saved');
+    if (existingEntry) updateActual(existingEntry.id, entry);
+    else saveActual(entry);
+    toast.success(excavation && pipeLaying && backFilling
+      ? 'All 3 stages saved. Entry is now in Actual Details'
+      : 'Stage saved. Open again to add the next stage');
     setLoading(false);
     onSaved && onSaved();
     onClose();
@@ -262,22 +293,36 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
           </div>
         </div>
 
-        {/* Stage checkboxes - default checked; unchecking any one makes Remarks mandatory */}
+        {/* Stage checkboxes - each stage can be saved separately; saved stages stay locked */}
         <div className="pb-2 border-b border-gray-100 flex flex-wrap items-center gap-3 md:gap-5">
           {[
-            { label: 'Excavation', value: excavation, setValue: setExcavation },
-            { label: 'Pipe Laying', value: pipeLaying, setValue: setPipeLaying },
-          ].map(({ label, value, setValue }) => (
+            { label: 'Excavation', value: excavation, setValue: setExcavation, saved: existingEntry?.excavation },
+            { label: 'Pipe Laying', value: pipeLaying, setValue: setPipeLaying, saved: existingEntry?.pipeLaying },
+            { label: 'Back Filling', value: backFilling, setValue: setBackFilling, saved: existingEntry?.backFilling },
+          ].map(({ label, value, setValue, saved }) => (
             <label key={label} className="flex items-center gap-2 h-[34px] md:h-[38px] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={value}
+                disabled={Boolean(saved)}
                 onChange={(e) => setValue(e.target.checked)}
                 className="w-4 h-4 accent-emerald-600 cursor-pointer"
               />
-              <span className="text-[10px] md:text-[12px] text-gray-700 uppercase tracking-tighter">{label}</span>
+              <span className="text-[10px] md:text-[12px] text-gray-700 uppercase tracking-tighter">{label}{saved ? ' (saved)' : ''}</span>
             </label>
           ))}
+          {backFilling && (
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] md:text-[12px] text-gray-700 uppercase tracking-tighter">Back Filling Value *</label>
+              <input
+                type="text"
+                value={backFillingValue}
+                onChange={(e) => setBackFillingValue(e.target.value)}
+                placeholder="Enter"
+                className="w-[160px] border border-emerald-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-[12px] md:text-[13px] h-[34px] md:h-[38px]"
+              />
+            </div>
+          )}
 
         </div>
 
@@ -321,12 +366,12 @@ export default function Actual({ isOpen, onClose, project, designRow, onSaved })
         {/* Remarks */}
         <div className="space-y-1">
           <label className="block text-[10px] md:text-[12px] text-gray-500 uppercase tracking-tighter">
-            Remarks {!allStagesDone && <span className="text-red-500">*</span>}
+            Remarks
           </label>
           <textarea
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            placeholder={allStagesDone ? 'Add any remarks (optional)' : 'Remarks required when a stage is unchecked'}
+            placeholder="Add any remarks (optional)"
             rows={2}
             className="w-full border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-[11px] md:text-[12px] resize-none"
           />

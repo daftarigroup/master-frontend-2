@@ -1,10 +1,28 @@
 // @ts-nocheck
 import React, { useEffect } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Building2, ChevronRight, FolderTree, ArrowLeft } from 'lucide-react';
 import { PMSProvider, usePMS } from '../context/PMSContext';
 import { migrateLocalStorageToPMS } from '../utils/localStorageMigrator';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/context/AuthContext';
+import { hasPageAccess } from '@/lib/permissions';
+
+// Page permission needed for each PMS URL (the same keys the sidebar and Manage Users use)
+const PAGE_RULES: [RegExp, string][] = [
+  [/^\/pms\/(indents\/create$)/, 'pmsCreateIndent'],
+  [/^\/pms\/(indents\/approve)/, 'pmsIndentApproval'],
+  [/^\/pms\/(indents\/vendor-rates)/, 'pmsVendorRate'],
+  [/^\/pms\/(indents\/approval|indents\/technical-approval|indents\/management-approval)/, 'pmsRateApproval'],
+  [/^\/pms\/(indents\/(purchase-orders|pending-po|create-po|po-history))/, 'pmsPo'],
+  [/^\/pms\/(final-approval)/, 'pmsFinalApproval'],
+  [/^\/pms\/(drawings)/, 'pmsDrawings'],
+  [/^\/pms\/(execution|view-design|minors|project-minors|execution-details|actual-details|auto-comparison|excavation-murum|murum|valve-report|back-filling-report)/, 'pmsExecution'],
+  [/^\/pms\/(billing\/department)/, 'pmsBilling'],
+  [/^\/pms\/(billing\/subcontractor)/, 'pmsSubBilling'],
+  [/^\/pms\/(documentation)/, 'pmsDocuments'],
+  [/^\/pms\/(share-logs)/, 'pmsShareLogs'],
+];
 
 const PMSHeader: React.FC = () => {
   const { selectedProject, clearProject } = usePMS();
@@ -70,6 +88,13 @@ export const PMSLayout: React.FC = () => {
   useEffect(() => {
     migrateLocalStorageToPMS();
   }, []);
+
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const gateKey = PAGE_RULES.find(([re]) => re.test(pathname))?.[1];
+  if (gateKey && !hasPageAccess(user, undefined, 'VIEW', gateKey as any)) {
+    return <Navigate to="/pms/projects" replace />;
+  }
 
   return (
     <PMSProvider>

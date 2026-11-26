@@ -18,7 +18,6 @@ const AllProjectsView = React.lazy(() => import('../views/projects/AllProjectsVi
 const NewProjectView = React.lazy(() => import('../views/projects/NewProjectView'));
 const DrawingUploadView = React.lazy(() => import('../views/drawings/DrawingUploadView'));
 const UploadDrawingView = React.lazy(() => import('../views/drawings/UploadDrawingView'));
-const PmsContractsView = React.lazy(() => import('../views/indents/PmsContractsView'));
 const FinalApprovalView = React.lazy(() => import('../views/FinalApprovalView'));
 
 const UploadDesignPageView = React.lazy(() => import('../views/execution/UploadDesignPageView'));
@@ -96,7 +95,7 @@ export const PMSRoutes: React.FC = () => {
           <Route path="upload-drawing" element={<Navigate to="drawings/upload" replace />} />
 
           {/* Final Approval */}
-          <Route path="contracts" element={<PmsContractsView />} />
+          <Route path="contracts" element={<Navigate to="/pms/indents/create" replace />} />
           <Route path="final-approval" element={<FinalApprovalView />} />
 
           {/* Execution & DPR */}

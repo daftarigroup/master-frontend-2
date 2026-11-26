@@ -195,6 +195,7 @@ const KEY_FALLBACKS: Partial<Record<string, Array<keyof UserPermissions>>> = {
     maintRecords: ['maintMachines'],
     maintAssignments: ['maintMachines'],
     assetDieselLedger: ['assetAll'],
+    assetOnboarding: ['assetAll'],
     maintWorkOrders: WORK_ORDER_KEYS,
     // repair-only users land on the dashboard after a redirect, so it opens for them too
     maintDash: WORK_ORDER_KEYS,
@@ -227,6 +228,12 @@ function hasPageAccessDirect(
         user.administrate === true ||
         String(user.administrate).toLowerCase() === 'true';
     if (isAdmin) return true;
+
+    // Users given PMS access before per-page PMS permissions existed keep every PMS page
+    if (legacyIdentifier?.startsWith('pms')) {
+        const hasPms = user.pms_access === true || (user as any).pmsAccess === true || String(user.system_access ?? '').includes('pms');
+        if (hasPms && !JSON.stringify(user.page_access ?? {}).includes('pms_')) return true;
+    }
 
     // Resolve target pageId and canonical gateKey
     const resolvedPageId = pageId || (legacyIdentifier ? (GATEKEY_TO_PAGE_ID[legacyIdentifier] || legacyIdentifier) : undefined);
